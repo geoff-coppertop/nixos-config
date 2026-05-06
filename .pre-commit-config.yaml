@@ -1,0 +1,35 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: local
+    hooks:
+      - id: alejandra
+        name: alejandra
+        entry: alejandra --check
+        language: system
+        types_or: [nix]
+
+      - id: statix
+        name: statix
+        entry: statix check .
+        language: system
+        files: \.nix$
+        pass_filenames: false
+
+      - id: deadnix
+        name: deadnix
+        entry: deadnix --fail .
+        language: system
+        files: \.nix$
+        pass_filenames: false
+
+      - id: markdownlint
+        name: markdownlint
+        entry: markdownlint
+        language: system
+        files: \.md$
