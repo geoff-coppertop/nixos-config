@@ -11,3 +11,5 @@ secrets/**/*.tmp
 secrets/**/identity
 secrets/**/keys.txt
 secrets/**/*.agekey
+
+*.patch
