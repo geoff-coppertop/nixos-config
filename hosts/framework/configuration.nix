@@ -1,3 +1,5 @@
+{ pkgs, ... }:
+
 {
   imports = [
     ./hardware.nix
@@ -9,6 +11,7 @@
     ../../roles/common/users.nix
     ../../roles/common/gaming.nix
     ../../roles/common/flatpak.nix
+    ../../roles/common/vr.nix
 
     ../../roles/desktop
     ../../roles/dev
@@ -24,6 +27,12 @@
   networking.hostName = "framework";
 
   custom.isLaptop = true;
+
+  environment.systemPackages = with pkgs; [
+    framework-tool
+  ];
+
+  system.stateVersion = "25.11";
 
   custom.backups = {
     # Enable after adding the NAS host/share and the matching agenix SMB credentials.

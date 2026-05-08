@@ -7,5 +7,6 @@
     mediawriter
     bitwarden-desktop
     google-chrome
+    moonlight-qt
   ];
 }
