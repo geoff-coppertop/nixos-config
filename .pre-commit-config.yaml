@@ -33,3 +33,9 @@ repos:
         entry: markdownlint
         language: system
         files: \.md$
+
+      - id: no-plaintext-secrets
+        name: no-plaintext-secrets
+        entry: bash ./tools/check-no-plaintext-secrets.sh
+        language: system
+        pass_filenames: false

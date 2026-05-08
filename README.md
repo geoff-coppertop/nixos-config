@@ -30,7 +30,56 @@ The active machine in this repo is `framework`.
 
 ## Developer Checks
 
-This flake exposes a development shell with the local formatting and lint tools used by the Git hooks.
+This flake exposes a development shell with the local formatting, lint,
+and secret-management tools used by the Git hooks.
+
+### Using This Repo From Non-NixOS Linux Or WSL
+
+If you are working from Ubuntu, Fedora, Debian, or WSL instead of an
+installed NixOS system, set up Nix first and verify that flake commands work
+before editing this repo.
+
+Recommended setup:
+
+1. Install Nix with an official or otherwise up-to-date multi-user installer.
+   Avoid old distro packages if they lag far behind upstream.
+2. Start a fresh login shell after the installer finishes.
+3. Enable flakes and the modern Nix CLI in your user config:
+
+```bash
+mkdir -p ~/.config/nix
+printf 'experimental-features = nix-command flakes\n' >> ~/.config/nix/nix.conf
+```
+
+4. Verify that Nix is available, that your shell can talk to the daemon, and
+that the version is new enough for this repo:
+
+```bash
+cd /home/thomasg/builds/geoff-coppertop/nixos-config
+command -v nix
+nix --version
+id -Gn
+nix flake metadata path:$PWD
+```
+
+`id -Gn` should include `nix-users` on a multi-user install.
+`nix --version` should report at least `2.18`. If your distro package gives you
+something older, replace it with a newer upstream install before continuing.
+
+5. Verify that the repo development shell resolves and exposes the expected
+tools:
+
+```bash
+cd /home/thomasg/builds/geoff-coppertop/nixos-config
+nix develop -c bash -lc 'command -v age agenix pre-commit alejandra statix deadnix markdownlint'
+```
+
+If `nix flake metadata .` or `nix develop` fails with a daemon socket
+permission error, fully log out and log back in before retrying. On systems
+with systemd, also confirm that `nix-daemon.service` is running.
+
+For WSL, prefer running these commands inside the Linux filesystem and keep the
+age identity under `~/.config/agenix/` in the Linux home directory.
 
 ```bash
 cd /home/thomasg/builds/geoff-coppertop/nixos-config
@@ -38,10 +87,19 @@ nix develop
 pre-commit install
 ```
 
+The shell includes `age`, `agenix`, and the normal lint tools.
+
+Use the repo helper commands instead of invoking `agenix` by hand:
+
+```bash
+nix run .#secret-edit -- secrets/thomasga/restic-password.age
+nix run .#secret-rekey
+```
+
 Use these commands during review or before larger changes:
 
 ```bash
-pre-commit run --all-files
+nix develop -c pre-commit run --all-files
 nix flake check
 ```
 
@@ -51,6 +109,139 @@ The pre-commit configuration currently runs:
 - `statix` for Nix linting
 - `deadnix` for unused Nix code detection
 - `markdownlint` for Markdown docs
+- `no-plaintext-secrets` to block committing plaintext secret material
+
+## Secrets
+
+This repo uses agenix for committed secrets and Bitwarden for recovery
+material.
+
+Do not work on secrets until the non-NixOS or WSL setup above is working and
+`nix develop` exposes both `age` and `agenix`.
+
+Runtime decryption on NixOS uses the dedicated age private key at
+`/var/lib/agenix/identity`. That path is configured in `modules/secrets.nix`.
+
+### First-Time Secret Bootstrap
+
+Run these steps from Linux or WSL after the setup checks above pass.
+
+1. Enter the repo shell:
+
+```bash
+cd /home/thomasg/builds/geoff-coppertop/nixos-config
+nix develop
+```
+
+Confirm that the secret tooling is present before continuing:
+
+```bash
+command -v age
+command -v agenix
+printf '%s\n' "$EDITOR"
+```
+
+If `EDITOR` is empty, set it before using `nix run .#secret-edit`.
+
+2. Generate a dedicated age identity outside the repo:
+
+```bash
+mkdir -p ~/.config/agenix
+chmod 700 ~/.config/agenix
+age-keygen -o ~/.config/agenix/nixos-config.age
+chmod 600 ~/.config/agenix/nixos-config.age
+```
+
+3. Copy the public key printed by `age-keygen` into `secrets/secrets.nix`
+and replace the placeholder `age1REPLACE_ME` value.
+
+4. Store the private key or its recovery material in Bitwarden.
+
+5. Before the first `nixos-install`, copy the private key into the mounted
+target so the installed system can decrypt secrets on first boot:
+
+```bash
+sudo install -D -m 600 ~/.config/agenix/nixos-config.age /mnt/var/lib/agenix/identity
+```
+
+6. On an already-installed machine, install or rotate the dedicated identity
+in place with:
+
+```bash
+sudo install -D -m 600 ~/.config/agenix/nixos-config.age /var/lib/agenix/identity
+```
+
+### Creating Or Rotating Secrets
+
+Never create plaintext files under `secrets/`. Use the helper command so the
+plaintext only exists in a temporary editor buffer.
+
+For a brand-new secret:
+
+1. Add a recipient entry to `secrets/secrets.nix`. Example:
+
+```nix
+"thomasga/nas-smb-credentials.age".publicKeys = [ thomasga ];
+```
+
+2. Create or edit the encrypted file:
+
+```bash
+EDITOR=vim nix run .#secret-edit -- secrets/thomasga/nas-smb-credentials.age
+```
+
+3. If NixOS or home-manager needs a runtime path for that secret, expose it
+through `age.secrets` in `modules/secrets.nix` or another imported module.
+
+To rotate an existing secret:
+
+```bash
+EDITOR=vim nix run .#secret-edit -- secrets/thomasga/restic-password.age
+```
+
+After changing recipients in `secrets/secrets.nix`, re-encrypt every tracked
+secret with:
+
+```bash
+nix run .#secret-rekey
+```
+
+### Exact Secret Contents
+
+`secrets/thomasga/restic-password.age` decrypts to exactly one plaintext line:
+
+```text
+correct-horse-battery-staple
+```
+
+Do not add `password=`. Do not add quotes. Do not use JSON.
+
+`secrets/thomasga/nas-smb-credentials.age` decrypts to:
+
+```text
+username=nas-user
+password=nas-password
+```
+
+### What May Be Committed
+
+Safe to commit:
+
+- `secrets/**/*.age`
+- `secrets/secrets.nix`
+
+Never commit:
+
+- plaintext secret files
+- age private keys
+- decrypted copies of secrets
+- Bitwarden exports or recovery bundles
+
+The repo is set up to make mistakes harder:
+
+- `.gitignore` ignores common plaintext scratch files and local key material
+- `pre-commit` rejects staged plaintext files under `secrets/`
+- `pre-commit` rejects raw private keys anywhere in the repo
 
 ## Backups
 
@@ -68,25 +259,25 @@ Each enabled user gets a separate systemd service (`nas-backup-<user>`) and time
 
 ### Enabling Backups on a Host
 
-**1. Create an SMB credentials file for each user and encrypt it with agenix.**
+**1. Create the encrypted SMB credentials secret for each user.**
 
-The file must contain:
+If the secret file is new, add a recipient entry first:
+
+```nix
+"thomasga/nas-smb-credentials.age".publicKeys = [ thomasga ];
+```
+
+Then create or rotate the encrypted file:
+
+```bash
+EDITOR=vim nix run .#secret-edit -- secrets/thomasga/nas-smb-credentials.age
+```
+
+Its plaintext contents must be:
 
 ```
 username=<nas-username>
 password=<nas-password>
-```
-
-Encrypt and add it to `secrets/secrets.nix`:
-
-```bash
-agenix -e secrets/thomasga/nas-smb-credentials.age
-```
-
-Then declare it in `secrets/secrets.nix`:
-
-```nix
-"thomasga/nas-smb-credentials".publicKeys = [ thomasga ];
 ```
 
 And expose it at a known path in `modules/secrets.nix` or a host-specific secrets file:
@@ -96,7 +287,15 @@ age.secrets."thomasga/nas-smb-credentials".file =
   ../secrets/thomasga/nas-smb-credentials.age;
 ```
 
-**2. Create a restic password and encrypt it with agenix** (already done for `thomasga/restic-password.age`).
+**2. Create or rotate the restic password secret.**
+
+`thomasga/restic-password.age` already exists in this repo. Rotate it with:
+
+```bash
+EDITOR=vim nix run .#secret-edit -- secrets/thomasga/restic-password.age
+```
+
+Its plaintext contents must be exactly one line containing the restic password.
 
 **3. Set the NAS coordinates and enable the module in the host configuration.**
 
@@ -232,38 +431,19 @@ If you are installing from a local checkout instead of cloning in the installer,
 
 ### 6. Prepare Secrets and Recovery Material
 
-This repo uses agenix for committed secrets and Bitwarden for recovery/bootstrap material.
+Follow the `Secrets` section before installing.
 
-Recommended workflow:
+Before running `nixos-install`, confirm all of the following:
 
-1. Create or import an age identity on a trusted machine.
-2. Store the age private key recovery material in Bitwarden.
-3. Store the matching public key in Bitwarden as reference.
-4. Replace the placeholder public key in `secrets/secrets.nix`.
-5. Encrypt repo secrets with agenix.
-
-Example age identity generation:
+1. `secrets/secrets.nix` contains the real public key, not `age1REPLACE_ME`.
+2. Every required secret already exists as an encrypted `.age` file.
+3. The dedicated age private key has been copied into the mounted target:
 
 ```bash
-age-keygen -o age-key.txt
+sudo install -D -m 600 ~/.config/agenix/nixos-config.age /mnt/var/lib/agenix/identity
 ```
 
-Then copy the public key into `secrets/secrets.nix` and encrypt a secret:
-
-```bash
-agenix -e secrets/thomasga/restic-password.age
-```
-
-Bitwarden should hold:
-
-- the age private key or its recovery material
-- notes describing where the key should be restored on a new machine
-- any bootstrap credentials that should not live in the repo
-
-The repo should hold:
-
-- the public age key in `secrets/secrets.nix`
-- encrypted `.age` files in `secrets/`
+4. Bitwarden contains the recovery copy of the dedicated age private key.
 
 ### 7. Install the System
 
@@ -604,17 +784,22 @@ For `thomasga`, the concrete setup is:
 
 ## Validation
 
-Before switching on a real machine, use:
-
-These commands must be run from a Nix-enabled environment such as the installed NixOS system, the target machine booted from a Nix-capable installer, or another host where `nix` is already installed. They are not expected to work from an arbitrary non-Nix workstation.
+Before switching on a real machine, use a Linux or WSL environment with Nix
+installed.
 
 ```bash
+nix develop -c pre-commit run --all-files
 nix flake check
-sudo nixos-rebuild dry-activate --flake .#framework
+nix eval .#nixosConfigurations.framework.config.age.identityPaths --json
+nix build .#nixosConfigurations.framework.config.system.build.toplevel
 ```
 
-Then apply:
+Those commands work on non-NixOS hosts with Nix installed. `nixos-rebuild`
+itself only makes sense on NixOS or from a NixOS installer environment.
+
+Then apply on the target NixOS system:
 
 ```bash
+sudo nixos-rebuild dry-activate --flake .#framework
 sudo nixos-rebuild switch --flake .#framework
 ```

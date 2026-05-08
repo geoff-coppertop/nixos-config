@@ -7,10 +7,13 @@
     disko.url = "github:nix-community/disko";
     home-manager.url = "github:nix-community/home-manager";
     agenix.url = "github:ryantm/agenix";
-    lanzaboote.url = "github:nix-community/lanzaboote";
+    pre-commit.url = "github:cachix/pre-commit-hooks.nix";
+    lanzaboote.url = "github:nix-community/lanzaboote/v1.0.0";
 
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
+    pre-commit.inputs.nixpkgs.follows = "nixpkgs";
     lanzaboote.inputs.nixpkgs.follows = "nixpkgs";
+    lanzaboote.inputs.pre-commit.follows = "pre-commit";
   };
 
   outputs = { self, nixpkgs, disko, home-manager, agenix, lanzaboote, ... }:
@@ -20,81 +23,33 @@
       inherit system;
     };
     src = pkgs.lib.cleanSource ./.;
+    agenixCli = agenix.packages.${system}.default;
+    checks = import ./lib/checks.nix {
+      inherit pkgs src;
+    };
+    devShell = import ./lib/devshell.nix {
+      inherit pkgs agenixCli;
+    };
+    secretApps = import ./lib/secret-apps.nix {
+      inherit pkgs agenixCli;
+    };
   in {
-    devShells.${system}.default = pkgs.mkShell {
-      packages = with pkgs; [
-        alejandra
-        deadnix
-        nodePackages.markdownlint-cli
-        pre-commit
-        statix
-      ];
-    };
+    devShells.${system}.default = devShell;
 
-    checks.${system} = {
-      alejandra = pkgs.runCommand "alejandra-check" {
-        nativeBuildInputs = [ pkgs.alejandra ];
-      } ''
-        cp -r ${src} source
-        chmod -R +w source
-        cd source
-        alejandra --check .
-        touch $out
-      '';
+    checks.${system} = checks;
 
-      statix = pkgs.runCommand "statix-check" {
-        nativeBuildInputs = [ pkgs.statix ];
-      } ''
-        cp -r ${src} source
-        chmod -R +w source
-        cd source
-        statix check .
-        touch $out
-      '';
-
-      deadnix = pkgs.runCommand "deadnix-check" {
-        nativeBuildInputs = [ pkgs.deadnix ];
-      } ''
-        cp -r ${src} source
-        chmod -R +w source
-        cd source
-        deadnix --fail .
-        touch $out
-      '';
-
-      markdownlint = pkgs.runCommand "markdownlint-check" {
-        nativeBuildInputs = [ pkgs.nodePackages.markdownlint-cli ];
-      } ''
-        cp -r ${src} source
-        chmod -R +w source
-        cd source
-        find . -name '*.md' -print0 | xargs -0 -r markdownlint
-        touch $out
-      '';
-    };
+    apps.${system} = secretApps;
 
     nixosConfigurations.framework = nixpkgs.lib.nixosSystem {
       inherit system;
 
       modules = [
-        ./hosts/framework/configuration.nix
-        ./hosts/framework/disko.nix
+        ./hosts/framework
 
         disko.nixosModules.disko
         home-manager.nixosModules.home-manager
         agenix.nixosModules.default
         lanzaboote.nixosModules.lanzaboote
-
-        {
-          home-manager = {
-            useGlobalPkgs = true;
-            useUserPackages = true;
-
-            users = {
-              thomasga = import ./users/thomasga;
-            };
-          };
-        }
       ];
     };
   };

@@ -1,2 +1,13 @@
 result
-secrets/**/*.age
+# Encrypted agenix secrets are committed to git.
+
+# Never keep plaintext scratch files or recovery key material under secrets/.
+secrets/**/*.bak
+secrets/**/*.dec
+secrets/**/*.decrypted
+secrets/**/*.plaintext
+secrets/**/*.raw
+secrets/**/*.tmp
+secrets/**/identity
+secrets/**/keys.txt
+secrets/**/*.agekey
