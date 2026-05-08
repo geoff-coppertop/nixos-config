@@ -33,98 +33,100 @@ The active machine in this repo is `framework`.
 This flake exposes a development shell with the local formatting, lint,
 and secret-management tools used by the Git hooks.
 
-### Using This Repo From Non-NixOS Linux Or WSL
+### Prerequisites
 
-If you are working from Ubuntu, Fedora, Debian, or WSL instead of an
-installed NixOS system, set up Nix first and verify that flake commands work
-before editing this repo.
+You need Nix (version 2.18+) with flakes enabled. If working on Ubuntu, Fedora,
+Debian, or WSL, follow the setup guide below. On a NixOS system, these should
+already be configured.
 
-Recommended setup:
+**Checklist:**
 
-1. Install Nix with an official or otherwise up-to-date multi-user installer.
-   Avoid old distro packages if they lag far behind upstream.
-2. Start a fresh login shell after the installer finishes.
-3. Enable flakes and the modern Nix CLI in your user config:
+- [ ] Nix is installed (from an official or up-to-date installer)
+- [ ] Nix version is 2.18 or later: `nix --version`
+- [ ] Flakes are enabled in `~/.config/nix/nix.conf`: `experimental-features = nix-command flakes`
+- [ ] You've started a fresh shell after any installer/config changes
+- [ ] Multi-user installs have you in the `nix-users` group: `id -Gn | grep nix-users`
+
+### Setting Up On Non-NixOS Linux Or WSL
+
+If the checklist above isn't complete, follow these steps:
+
+1. Install Nix with an official multi-user installer. Avoid distro packages if
+   they lag far behind upstream. Start a fresh login shell afterward.
+
+2. Enable flakes and the modern Nix CLI:
 
 ```bash
 mkdir -p ~/.config/nix
 printf 'experimental-features = nix-command flakes\n' >> ~/.config/nix/nix.conf
 ```
 
-4. Verify that Nix is available, that your shell can talk to the daemon, and
-that the version is new enough for this repo:
+3. For WSL specifically: run commands inside the Linux filesystem and keep the
+   age identity under `~/.config/agenix/` in the Linux home directory.
+
+4. If the daemon socket permission fails, fully log out and log back in. On
+   systemd systems, verify `nix-daemon.service` is running.
+
+### Verifying Your Setup
+
+Run these checks to confirm everything is working:
 
 ```bash
 cd /home/thomasg/builds/geoff-coppertop/nixos-config
-command -v nix
-nix --version
-id -Gn
-nix flake metadata path:$PWD
-```
-
-`id -Gn` should include `nix-users` on a multi-user install.
-`nix --version` should report at least `2.18`. If your distro package gives you
-something older, replace it with a newer upstream install before continuing.
-
-5. Verify that the repo development shell resolves and exposes the expected
-tools:
-
-```bash
-cd /home/thomasg/builds/geoff-coppertop/nixos-config
+nix --version                          # should be 2.18+
+id -Gn | grep nix-users                # multi-user only
+nix flake metadata path:$PWD           # verify flake resolution
 nix develop -c bash -lc 'command -v age agenix pre-commit alejandra statix deadnix markdownlint'
 ```
 
-If `nix flake metadata .` or `nix develop` fails with a daemon socket
-permission error, fully log out and log back in before retrying. On systems
-with systemd, also confirm that `nix-daemon.service` is running.
+All commands should succeed. The final one verifies the dev shell includes
+`age`, `agenix`, and all lint tools.
 
-For WSL, prefer running these commands inside the Linux filesystem and keep the
-age identity under `~/.config/agenix/` in the Linux home directory.
+### Using The Dev Shell And Repo Tools
+
+Enter the development shell:
 
 ```bash
 cd /home/thomasg/builds/geoff-coppertop/nixos-config
 nix develop
-pre-commit install
 ```
 
-The shell includes `age`, `agenix`, and the normal lint tools.
-
-Use the repo helper commands instead of invoking `agenix` by hand:
+Use these helper commands instead of invoking `agenix` directly:
 
 ```bash
 nix run .#secret-edit -- secrets/thomasga/restic-password.age
 nix run .#secret-rekey
 ```
 
-Use these commands during review or before larger changes:
+Run checks before submitting changes:
 
 ```bash
 nix develop -c pre-commit run --all-files
 nix flake check
 ```
 
-The pre-commit configuration currently runs:
+The pre-commit configuration checks:
 
-- `alejandra` for Nix formatting checks
+- `alejandra` for Nix formatting
 - `statix` for Nix linting
-- `deadnix` for unused Nix code detection
+- `deadnix` for unused Nix code
 - `markdownlint` for Markdown docs
-- `no-plaintext-secrets` to block committing plaintext secret material
+- `no-plaintext-secrets` to block plaintext secret files
 
 ## Secrets
 
 This repo uses agenix for committed secrets and Bitwarden for recovery
 material.
 
-Do not work on secrets until the non-NixOS or WSL setup above is working and
-`nix develop` exposes both `age` and `agenix`.
+Do not work on secrets until you've completed "Verifying Your Setup" above and
+confirmed that `nix develop` exposes both `age` and `agenix`.
 
 Runtime decryption on NixOS uses the dedicated age private key at
 `/var/lib/agenix/identity`. That path is configured in `modules/secrets.nix`.
 
 ### First-Time Secret Bootstrap
 
-Run these steps from Linux or WSL after the setup checks above pass.
+Run these steps from your Linux or WSL shell after verifying setup above.
 
 1. Enter the repo shell:
 
@@ -133,7 +135,7 @@ cd /home/thomasg/builds/geoff-coppertop/nixos-config
 nix develop
 ```
 
-Confirm that the secret tooling is present before continuing:
+Confirm the secret tooling is present:
 
 ```bash
 command -v age
