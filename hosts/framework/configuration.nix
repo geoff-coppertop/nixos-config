@@ -6,27 +6,15 @@
     ./power.nix
     ./disko.nix
 
-    ../../roles/common/base.nix
-    ../../roles/common/networking.nix
-    ../../roles/common/users.nix
-    ../../roles/common/gaming.nix
-    ../../roles/common/flatpak.nix
-    ../../roles/common/vr.nix
+    ../../roles
 
-    ../../roles/desktop
-    ../../roles/dev
-
-    ../../modules/btrfs.nix
-    ../../modules/backups.nix
-    ../../modules/snapper.nix
-    ../../modules/secrets.nix
-    ../../modules/secure-boot.nix
-    ../../modules/tpm-luks.nix
+    ../../modules
   ];
 
   networking.hostName = "framework";
 
   custom.isLaptop = true;
+  custom.framework.enable = true;
 
   environment.systemPackages = with pkgs; [
     framework-tool

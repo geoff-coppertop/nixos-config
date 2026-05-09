@@ -7,8 +7,6 @@ let
   gitCommitTemplate = "${config.home.homeDirectory}/.config/git/commit-template";
 in
 {
-  programs.gh.enable = true;
-
   home.file.".config/git/ignore".text = ''
     # Global git ignore patterns
   '';
@@ -22,7 +20,6 @@ in
   '';
 
   programs.git = {
-    enable = true;
     userName = "Geoffrey Thomas";
     userEmail = "geoff.coppertop@gmail.com";
     extraConfig = {

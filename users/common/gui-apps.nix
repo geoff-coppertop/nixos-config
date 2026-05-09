@@ -8,5 +8,6 @@
     bitwarden-desktop
     google-chrome
     moonlight-qt
+    signal-desktop
   ];
 }
