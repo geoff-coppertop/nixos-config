@@ -1,16 +1,20 @@
-{ pkgs, ... }:
+{pkgs, ...}: {
+  boot = {
+    initrd = {
+      availableKernelModules = ["tpm" "tpm_crb" "tpm_tis"];
 
-{
-  boot.initrd.systemd.enable = true;
-  boot.initrd.systemd.emergencyAccess = true;
+      luks.devices.root = {
+        device = "/dev/disk/by-partlabel/root";
+        preLVM = true;
+        allowDiscards = true;
+      };
 
-  boot.initrd.luks.devices.root = {
-    device = "/dev/disk/by-partlabel/root";
-    preLVM = true;
-    allowDiscards = true;
+      systemd = {
+        emergencyAccess = true;
+        enable = true;
+      };
+    };
   };
-
-  boot.initrd.availableKernelModules = [ "tpm" "tpm_crb" "tpm_tis" ];
 
   environment.systemPackages = with pkgs; [
     tpm2-tools

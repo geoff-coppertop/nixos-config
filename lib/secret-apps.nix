@@ -1,62 +1,61 @@
-{ pkgs, agenixCli }:
-
-let
+{
+  pkgs,
+  agenixCli,
+}: let
   secretEdit = pkgs.writeShellApplication {
     name = "secret-edit";
-    runtimeInputs = [ agenixCli pkgs.coreutils pkgs.git pkgs.gnugrep ];
+    runtimeInputs = [agenixCli pkgs.coreutils pkgs.git pkgs.gnugrep];
     text = ''
       set -euo pipefail
 
       repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-      cd "$repo_root"
 
-      if [[ ! -f flake.nix || ! -f secrets/secrets.nix ]]; then
-        echo "Run this command from the nixos-config repository root." >&2
+      # Validate we have at least one argument
+      if [[ $# -lt 1 ]]; then
+        echo "Usage: nix run .#secret-edit -- [options] secrets/<name>.age" >&2
         exit 1
       fi
 
-      if [[ $# -ne 1 ]]; then
-        echo "Usage: nix run .#secret-edit -- secrets/<name>.age" >&2
-        exit 1
-      fi
+      # The actual file on disk needs the 'secrets/' prefix
+      full_path="''${!#}"
 
-      secret_file="$1"
+      # The key inside secrets.nix does NOT have the 'secrets/' prefix
+      # We strip 'secrets/' from the start of the string
+      relative_key="''${full_path#secrets/}"
 
-      if [[ "$secret_file" != secrets/*.age ]]; then
+      if [[ "$full_path" != secrets/*.age ]]; then
         echo "Secret path must live under secrets/ and end with .age." >&2
         exit 1
       fi
 
-      if grep -q 'age1REPLACE_ME' secrets/secrets.nix; then
-        echo "Replace the placeholder public key in secrets/secrets.nix before editing secrets." >&2
-        exit 1
-      fi
+      mkdir -p "$(dirname "$full_path")"
 
-      mkdir -p "$(dirname "$secret_file")"
-      RULES="$repo_root/secrets/secrets.nix" agenix -e "$secret_file"
+      # We CD into the secrets directory so agenix matches the relative_key perfectly
+      cd "$repo_root/secrets"
+
+      # We use "$@" so flags like -i still work, but replace the last arg with our cleaned key
+      set -- "''${@:1:$#-1}" "$relative_key"
+
+      RULES="$PWD/secrets.nix" exec agenix -e "$@"
     '';
   };
 
   secretRekey = pkgs.writeShellApplication {
     name = "secret-rekey";
-    runtimeInputs = [ agenixCli pkgs.git pkgs.gnugrep ];
+    runtimeInputs = [agenixCli pkgs.git pkgs.gnugrep];
     text = ''
       set -euo pipefail
 
       repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-      cd "$repo_root"
+      cd "$repo_root/secrets"
 
-      if [[ ! -f flake.nix || ! -f secrets/secrets.nix ]]; then
-        echo "Run this command from the nixos-config repository root." >&2
-        exit 1
+      # Check for your specific key path and auto-inject it if it exists
+      EXTRA_OPTS=()
+      if [[ -f "$HOME/.config/agenix/nixos-config.age" ]]; then
+        EXTRA_OPTS+=("-i" "$HOME/.config/agenix/nixos-config.age")
       fi
 
-      if grep -q 'age1REPLACE_ME' secrets/secrets.nix; then
-        echo "Replace the placeholder public key in secrets/secrets.nix before rekeying secrets." >&2
-        exit 1
-      fi
-
-      RULES="$repo_root/secrets/secrets.nix" agenix --rekey
+      RULES="$PWD/secrets.nix" exec agenix --rekey "''${EXTRA_OPTS[@]}" "$@"
     '';
   };
 in {

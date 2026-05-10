@@ -1,11 +1,10 @@
-{ lib, ... }:
-
-{
-  boot.bootspec.enable = true;
-  boot.loader.systemd-boot.enable = lib.mkForce false;
-
-  boot.lanzaboote = {
-    enable = true;
-    pkiBundle = "/etc/secureboot";
+{lib, ...}: {
+  boot = {
+    bootspec.enable = true;
+    loader.systemd-boot.enable = lib.mkForce false;
+    lanzaboote = {
+      enable = true;
+      pkiBundle = "/etc/secureboot";
+    };
   };
 }

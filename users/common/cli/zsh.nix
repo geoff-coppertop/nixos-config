@@ -1,6 +1,8 @@
-{ config, lib, ... }:
-
 {
+  config,
+  lib,
+  ...
+}: {
   config = lib.mkIf (config.custom.cli.shell == "zsh") {
     programs.zsh = {
       enable = true;

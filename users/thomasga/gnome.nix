@@ -1,15 +1,17 @@
-{ config, pkgs, ... }:
-
-let
-  spaceShuttlePng = pkgs.runCommand "space-shuttle.png"
+{
+  config,
+  pkgs,
+  ...
+}: let
+  spaceShuttlePng =
+    pkgs.runCommand "space-shuttle.png"
     {
-      nativeBuildInputs = [ pkgs.libjxl ];
+      nativeBuildInputs = [pkgs.libjxl];
     }
     ''
       djxl ${./files/wallpapers/space-shuttle.jxl} "$out"
     '';
-in
-{
+in {
   home.file."Pictures/Wallpapers/space-shuttle.png".source = spaceShuttlePng;
 
   # ULauncher hotkey configuration

@@ -1,6 +1,4 @@
-{ pkgs, ... }:
-
-{
+{pkgs, ...}: {
   boot.kernelParams = [
     "amd_pstate=active"
     "mem_sleep_default=s2idle"
@@ -14,36 +12,38 @@
     "nvme.noacpi=1"
   ];
 
-  powerManagement.cpuFreqGovernor = "powersave";
-
-  services.power-profiles-daemon.enable = true;
-
-  services.powertop = {
-    enable = true;
-    autoTune = true;
-  };
-
-  services.udev.extraRules = ''
-    ACTION=="add", SUBSYSTEM=="pci", TEST=="power/control", ATTR{power/control}="auto"
-    ACTION=="add", SUBSYSTEM=="usb", TEST=="power/control", ATTR{power/control}="auto"
-  '';
-
-  networking.networkmanager.wifi.powersave = true;
-
-  services.logind = {
-    lidSwitch = "suspend";
-    lidSwitchExternalPower = "ignore";
-    lidSwitchDocked = "ignore";
-    extraConfig = ''
-      HandleHibernateKey=hibernate
-    '';
-  };
-
-  services.auto-cpufreq.enable = false;
-  services.tlp.enable = false;
-
   environment.systemPackages = with pkgs; [
     powertop
     lm_sensors
   ];
+
+  networking.networkmanager.wifi.powersave = true;
+
+  powerManagement.cpuFreqGovernor = "powersave";
+
+  services = {
+    power-profiles-daemon.enable = true;
+
+    powertop = {
+      enable = true;
+      autoTune = true;
+    };
+
+    udev.extraRules = ''
+      ACTION=="add", SUBSYSTEM=="pci", TEST=="power/control", ATTR{power/control}="auto"
+      ACTION=="add", SUBSYSTEM=="usb", TEST=="power/control", ATTR{power/control}="auto"
+    '';
+
+    logind = {
+      lidSwitch = "suspend";
+      lidSwitchExternalPower = "ignore";
+      lidSwitchDocked = "ignore";
+      extraConfig = ''
+        HandleHibernateKey=hibernate
+      '';
+    };
+
+    auto-cpufreq.enable = false;
+    tlp.enable = false;
+  };
 }

@@ -1,12 +1,13 @@
-{ config, pkgs, ... }:
-
-let
+{
+  config,
+  pkgs,
+  ...
+}: let
   # Change this in one place if you want a different git editor.
   gitEditor = "${pkgs.vim}/bin/vim";
   gitIgnoreFile = "${config.home.homeDirectory}/.config/git/ignore";
   gitCommitTemplate = "${config.home.homeDirectory}/.config/git/commit-template";
-in
-{
+in {
   home.file.".config/git/ignore".text = ''
     # Global git ignore patterns
   '';

@@ -1,7 +1,11 @@
-{ config, lib, pkgs, ... }:
-
-let
-  inherit (lib)
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}: let
+  inherit
+    (lib)
     concatMapStringsSep
     escapeShellArg
     filterAttrs
@@ -12,19 +16,22 @@ let
     nameValuePair
     optional
     optionalAttrs
-    types;
+    types
+    ;
 
   cfg = config.custom.backups;
 
   enabledUsers = filterAttrs (_: userCfg: userCfg.enable) cfg.users;
 
   nasDevice =
-    if cfg.nas.protocol == "cifs" then
-      "//${cfg.nas.host}/${cfg.nas.share}"
-    else
-      "${cfg.nas.host}:${cfg.nas.share}";
+    if cfg.nas.protocol == "cifs"
+    then "//${cfg.nas.host}/${cfg.nas.share}"
+    else "${cfg.nas.host}:${cfg.nas.share}";
 
-  nasFsType = if cfg.nas.protocol == "cifs" then "cifs" else "nfs";
+  nasFsType =
+    if cfg.nas.protocol == "cifs"
+    then "cifs"
+    else "nfs";
 
   nasMountOptions =
     [
@@ -36,7 +43,7 @@ let
     ]
     ++ optional (cfg.nas.protocol == "cifs") "vers=3.0"
     ++ optional (cfg.nas.protocol == "cifs" && cfg.nas.credentialsFile != null)
-      "credentials=${cfg.nas.credentialsFile}"
+    "credentials=${cfg.nas.credentialsFile}"
     ++ cfg.nas.mountOptions;
 
   backupArgs = userCfg:
@@ -52,9 +59,9 @@ let
   mkBackupService = userName: userCfg:
     nameValuePair (serviceName userName) {
       description = "Back up ${userName} to the NAS with restic";
-      wantedBy = [ "multi-user.target" ];
-      after = [ "network-online.target" ];
-      wants = [ "network-online.target" ];
+      wantedBy = ["multi-user.target"];
+      after = ["network-online.target"];
+      wants = ["network-online.target"];
 
       unitConfig = optionalAttrs config.custom.isLaptop {
         ConditionACPower = true;
@@ -67,7 +74,7 @@ let
         IOSchedulingPriority = 7;
       };
 
-      path = with pkgs; [ coreutils restic util-linux ];
+      path = with pkgs; [coreutils restic util-linux];
 
       script = ''
         set -eu
@@ -106,7 +113,7 @@ let
   mkBackupTimer = userName: _:
     nameValuePair "${serviceName userName}-timer" {
       description = "Schedule NAS backups for ${userName}";
-      wantedBy = [ "timers.target" ];
+      wantedBy = ["timers.target"];
       timerConfig = {
         OnCalendar = cfg.schedule;
         Persistent = true;
@@ -114,8 +121,7 @@ let
         Unit = "${serviceName userName}.service";
       };
     };
-in
-{
+in {
   options.custom = {
     isLaptop = mkOption {
       type = types.bool;
@@ -134,7 +140,7 @@ in
 
       nas = {
         protocol = mkOption {
-          type = types.enum [ "cifs" "nfs" ];
+          type = types.enum ["cifs" "nfs"];
           default = "cifs";
           description = "Transport used to mount the NAS share.";
         };
@@ -165,7 +171,7 @@ in
 
         mountOptions = mkOption {
           type = types.listOf types.str;
-          default = [ ];
+          default = [];
           description = "Extra mount options appended to the NAS filesystem mount.";
         };
       };
@@ -197,15 +203,15 @@ in
       };
 
       users = mkOption {
-        default = { };
+        default = {};
         description = "Per-user NAS backup jobs.";
-        type = types.attrsOf (types.submodule ({ name, ... }: {
+        type = types.attrsOf (types.submodule ({name, ...}: {
           options = {
             enable = mkEnableOption "NAS backups for ${name}";
 
             paths = mkOption {
               type = types.listOf types.str;
-              default = [ "/home/${name}" ];
+              default = ["/home/${name}"];
               description = "Paths to include in the user's backup set.";
             };
 
@@ -217,7 +223,7 @@ in
 
             excludePatterns = mkOption {
               type = types.listOf types.str;
-              default = [ "/home/${name}/.cache" ];
+              default = ["/home/${name}/.cache"];
               description = "restic exclude patterns for this user's backup.";
             };
           };
@@ -237,7 +243,7 @@ in
         message = "custom.backups.nas.share must be set when NAS backups are enabled.";
       }
       {
-        assertion = enabledUsers != { };
+        assertion = enabledUsers != {};
         message = "Enable at least one entry under custom.backups.users when NAS backups are enabled.";
       }
       {
@@ -246,7 +252,7 @@ in
       }
     ];
 
-    environment.systemPackages = [ pkgs.restic ];
+    environment.systemPackages = [pkgs.restic];
 
     fileSystems.${cfg.nas.mountPoint} = {
       device = nasDevice;

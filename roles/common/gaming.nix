@@ -1,15 +1,19 @@
-{ pkgs, ... }:
-
-{
-  hardware.graphics.enable = true;
-  hardware.graphics.enable32Bit = true;
-  hardware.steam-hardware.enable = true;
-
-  programs.steam = {
-    enable = true;
-    remotePlay.openFirewall = true;
-    extraCompatPackages = with pkgs; [ proton-ge-bin ];
+{pkgs, ...}: {
+  hardware = {
+    graphics = {
+      enable = true;
+      enable32Bit = true;
+    };
+    steam-hardware.enable = true;
   };
 
-  programs.gamemode.enable = true;
+  programs = {
+    gamemode.enable = true;
+
+    steam = {
+      enable = true;
+      remotePlay.openFirewall = true;
+      extraCompatPackages = with pkgs; [proton-ge-bin];
+    };
+  };
 }

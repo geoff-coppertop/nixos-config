@@ -1,4 +1,3 @@
-result
 # Encrypted agenix secrets are committed to git.
 
 # Never keep plaintext scratch files or recovery key material under secrets/.

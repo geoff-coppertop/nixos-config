@@ -30,14 +30,11 @@ The active machine in this repo is `framework`.
 
 ## Developer Checks
 
-This flake exposes a development shell with the local formatting, lint,
-and secret-management tools used by the Git hooks.
+This flake exposes a development shell with the local formatting, lint, and secret-management tools used by the Git hooks.
 
 ### Prerequisites
 
-You need Nix (version 2.18+) with flakes enabled. If working on Ubuntu, Fedora,
-Debian, or WSL, follow the setup guide below. On a NixOS system, these should
-already be configured.
+You need Nix (version 2.18+) with flakes enabled. If working on Ubuntu, Fedora, Debian, or WSL, follow the setup guide below. On a NixOS system, these should already be configured.
 
 **Checklist:**
 
@@ -51,21 +48,16 @@ already be configured.
 
 If the checklist above isn't complete, follow these steps:
 
-1. Install Nix with an official multi-user installer. Avoid distro packages if
-   they lag far behind upstream. Start a fresh login shell afterward.
-
+1. Install Nix with an official multi-user installer. Avoid distro packages if they lag far behind upstream. Start a fresh login shell afterward.
 2. Enable flakes and the modern Nix CLI:
 
-```bash
-mkdir -p ~/.config/nix
-printf 'experimental-features = nix-command flakes\n' >> ~/.config/nix/nix.conf
-```
+   ```bash
+   mkdir -p ~/.config/nix
+   printf 'experimental-features = nix-command flakes\n' >> ~/.config/nix/nix.conf
+   ```
 
-3. For WSL specifically: run commands inside the Linux filesystem and keep the
-   age identity under `~/.config/agenix/` in the Linux home directory.
-
-4. If the daemon socket permission fails, fully log out and log back in. On
-   systemd systems, verify `nix-daemon.service` is running.
+3. For WSL specifically: run commands inside the Linux filesystem and keep the age identity under `~/.config/agenix/` in the Linux home directory.
+4. If the daemon socket permission fails, fully log out and log back in. On systemd systems, verify `nix-daemon.service` is running.
 
 ### Verifying Your Setup
 
@@ -79,8 +71,7 @@ nix flake metadata path:$PWD           # verify flake resolution
 nix develop -c bash -lc 'command -v age agenix pre-commit alejandra statix deadnix markdownlint'
 ```
 
-All commands should succeed. The final one verifies the dev shell includes
-`age`, `agenix`, and all lint tools.
+All commands should succeed. The final one verifies the dev shell includes `age`, `agenix`, and all lint tools.
 
 ### Using The Dev Shell And Repo Tools
 
@@ -115,14 +106,11 @@ The pre-commit configuration checks:
 
 ## Secrets
 
-This repo uses agenix for committed secrets and Bitwarden for recovery
-material.
+This repo uses agenix for committed secrets and Bitwarden for recovery material.
 
-Do not work on secrets until you've completed "Verifying Your Setup" above and
-confirmed that `nix develop` exposes both `age` and `agenix`.
+Do not work on secrets until you've completed "Verifying Your Setup" above and confirmed that `nix develop` exposes both `age` and `agenix`.
 
-Runtime decryption on NixOS uses the dedicated age private key at
-`/var/lib/agenix/identity`. That path is configured in `modules/secrets.nix`.
+Runtime decryption on NixOS uses the dedicated age private key at `/var/lib/agenix/identity`. That path is configured in `modules/secrets.nix`.
 
 ### First-Time Secret Bootstrap
 
@@ -130,83 +118,75 @@ Run these steps from your Linux or WSL shell after verifying setup above.
 
 1. Enter the repo shell:
 
-```bash
-cd /home/thomasg/builds/geoff-coppertop/nixos-config
-nix develop
-```
+   ```bash
+   cd /home/thomasg/builds/geoff-coppertop/nixos-config
+   nix develop
+   ```
 
-Confirm the secret tooling is present:
+   Confirm the secret tooling is present:
 
-```bash
-command -v age
-command -v agenix
-printf '%s\n' "$EDITOR"
-```
+   ```bash
+   command -v age
+   command -v agenix
+   printf '%s\n' "$EDITOR"
+   ```
 
-If `EDITOR` is empty, set it before using `nix run .#secret-edit`.
+   If `EDITOR` is empty, set it before using `nix run .#secret-edit`.
 
 2. Generate a dedicated age identity outside the repo:
 
-```bash
-mkdir -p ~/.config/agenix
-chmod 700 ~/.config/agenix
-age-keygen -o ~/.config/agenix/nixos-config.age
-chmod 600 ~/.config/agenix/nixos-config.age
-```
+   ```bash
+   mkdir -p ~/.config/agenix
+   chmod 700 ~/.config/agenix
+   age-keygen -o ~/.config/agenix/nixos-config.age
+   chmod 600 ~/.config/agenix/nixos-config.age
+   ```
 
-3. Copy the public key printed by `age-keygen` into `secrets/secrets.nix`
-and replace the placeholder `age1REPLACE_ME` value.
-
+3. Copy the public key printed by `age-keygen` into `secrets/secrets.nix` and replace the placeholder `age1REPLACE_ME` value.
 4. Store the private key or its recovery material in Bitwarden.
+5. Before the first `nixos-install`, copy the private key into the mounted target so the installed system can decrypt secrets on first boot:
 
-5. Before the first `nixos-install`, copy the private key into the mounted
-target so the installed system can decrypt secrets on first boot:
+   ```bash
+   sudo install -D -m 600 ~/.config/agenix/nixos-config.age /mnt/var/lib/agenix/identity
+   ```
 
-```bash
-sudo install -D -m 600 ~/.config/agenix/nixos-config.age /mnt/var/lib/agenix/identity
-```
+6. On an already-installed machine, install or rotate the dedicated identity in place with:
 
-6. On an already-installed machine, install or rotate the dedicated identity
-in place with:
-
-```bash
-sudo install -D -m 600 ~/.config/agenix/nixos-config.age /var/lib/agenix/identity
-```
+   ```bash
+   sudo install -D -m 600 ~/.config/agenix/nixos-config.age /var/lib/agenix/identity
+   ```
 
 ### Creating Or Rotating Secrets
 
-Never create plaintext files under `secrets/`. Use the helper command so the
-plaintext only exists in a temporary editor buffer.
+Never create plaintext files under `secrets/`. Use the helper command so the plaintext only exists in a temporary editor buffer.
 
 For a brand-new secret:
 
 1. Add a recipient entry to `secrets/secrets.nix`. Example:
 
-```nix
-"thomasga/nas-smb-credentials.age".publicKeys = [ thomasga ];
-```
+   ```nix
+   "thomasga/nas-smb-credentials.age".publicKeys = [ thomasga ];
+   ```
 
 2. Create or edit the encrypted file:
 
-```bash
-EDITOR=vim nix run .#secret-edit -- secrets/thomasga/nas-smb-credentials.age
-```
+   ```bash
+   EDITOR=nano nix run .#secret-edit -- secrets/thomasga/nas-smb-credentials.age
+   ```
 
-3. If NixOS or home-manager needs a runtime path for that secret, expose it
-through `age.secrets` in `modules/secrets.nix` or another imported module.
+3. If NixOS or home-manager needs a runtime path for that secret, expose it through `age.secrets` in `modules/secrets.nix` or another imported module.
 
-To rotate an existing secret:
+   To rotate an existing secret:
 
-```bash
-EDITOR=vim nix run .#secret-edit -- secrets/thomasga/restic-password.age
-```
+   ```bash
+   EDITOR=nano nix run .#secret-edit -- secrets/thomasga/restic-password.age
+   ```
 
-After changing recipients in `secrets/secrets.nix`, re-encrypt every tracked
-secret with:
+   After changing recipients in `secrets/secrets.nix`, re-encrypt every tracked secret with:
 
-```bash
-nix run .#secret-rekey
-```
+   ```bash
+   nix run .#secret-rekey
+   ```
 
 ### Exact Secret Contents
 
@@ -272,12 +252,12 @@ If the secret file is new, add a recipient entry first:
 Then create or rotate the encrypted file:
 
 ```bash
-EDITOR=vim nix run .#secret-edit -- secrets/thomasga/nas-smb-credentials.age
+EDITOR=nano nix run .#secret-edit -- secrets/thomasga/nas-smb-credentials.age
 ```
 
 Its plaintext contents must be:
 
-```
+```text
 username=<nas-username>
 password=<nas-password>
 ```
@@ -371,11 +351,11 @@ Advanced manual path:
 2. Unmount any mounted partitions for that USB device.
 3. Write the ISO directly:
 
-```bash
-sudo dd if=./nixos-graphical.iso of=/dev/sdX bs=4M status=progress oflag=sync
-```
+   ```bash
+   sudo dd if=./nixos-graphical.iso of=/dev/sdX bs=4M status=progress oflag=sync
+   ```
 
-Replace `/dev/sdX` with the whole USB device, not a partition.
+   Replace `/dev/sdX` with the whole USB device, not a partition.
 
 ### 2. Create a NixOS Installer USB From Windows
 
@@ -441,9 +421,9 @@ Before running `nixos-install`, confirm all of the following:
 2. Every required secret already exists as an encrypted `.age` file.
 3. The dedicated age private key has been copied into the mounted target:
 
-```bash
-sudo install -D -m 600 ~/.config/agenix/nixos-config.age /mnt/var/lib/agenix/identity
-```
+   ```bash
+   sudo install -D -m 600 ~/.config/agenix/nixos-config.age /mnt/var/lib/agenix/identity
+   ```
 
 4. Bitwarden contains the recovery copy of the dedicated age private key.
 
@@ -476,6 +456,7 @@ This repo encrypts the root filesystem with LUKS and seals it to the TPM 2.0 chi
 The disko configuration creates an encrypted root partition. During provisioning (step 4 above), you provide a LUKS passphrase in `/tmp/encryption-password`. This passphrase will unlock the root filesystem if the TPM is unavailable or tampered with.
 
 **Important:** Write down or save this passphrase in a secure location outside the machine. You will need it if:
+
 - The TPM is reset or replaced
 - The firmware is updated and TPM state is cleared
 - You boot from a rescue USB and need to manually unlock the disk
@@ -489,6 +470,7 @@ sudo systemd-cryptenroll /dev/disk/by-partlabel/root --tpm2-device=auto --tpm2-p
 ```
 
 The `--tpm2-pcrs` argument seals the key to specific firmware/bootloader measurements:
+
 - `0`: firmware configuration
 - `1`: bootloader configuration
 - `3`: bootloader state
@@ -598,15 +580,15 @@ Concrete shape:
 
 ```nix
 nixosConfigurations.desktop = nixpkgs.lib.nixosSystem {
-	inherit system;
-	modules = [
-		./hosts/desktop/configuration.nix
-		./hosts/desktop/disko.nix
-		disko.nixosModules.disko
-		home-manager.nixosModules.home-manager
-		agenix.nixosModules.default
-		lanzaboote.nixosModules.lanzaboote
-	];
+  inherit system;
+  modules = [
+    ./hosts/desktop/configuration.nix
+    ./hosts/desktop/disko.nix
+    disko.nixosModules.disko
+    home-manager.nixosModules.home-manager
+    agenix.nixosModules.default
+    lanzaboote.nixosModules.lanzaboote
+  ];
 };
 ```
 
@@ -623,8 +605,8 @@ System user declaration lives in `roles/common/users.nix`:
 
 ```nix
 users.users.thomasga = {
-	isNormalUser = true;
-	extraGroups = [ "wheel" "networkmanager" ];
+  isNormalUser = true;
+  extraGroups = [ "wheel" "networkmanager" ];
 };
 ```
 
@@ -634,7 +616,7 @@ Home-manager attachment lives in `flake.nix`:
 
 ```nix
 home-manager.users = {
-	thomasga = import ./users/thomasga;
+  thomasga = import ./users/thomasga;
 };
 ```
 
@@ -651,8 +633,8 @@ Concrete example:
 
 ```nix
 users.users.alice = {
-	isNormalUser = true;
-	extraGroups = [ "wheel" "networkmanager" ];
+  isNormalUser = true;
+  extraGroups = [ "wheel" "networkmanager" ];
 };
 ```
 
@@ -678,8 +660,8 @@ Current Git config already follows this pattern:
 
 ```nix
 programs.git = {
-	userName = "Geoffrey Thomas";
-	userEmail = "you@example.com";
+  userName = "Geoffrey Thomas";
+  userEmail = "you@example.com";
 };
 ```
 
@@ -757,8 +739,8 @@ Example opt-in browser module:
 { pkgs, ... }:
 
 {
-	programs.firefox.enable = true;
-	home.packages = [ pkgs.firefox ];
+  programs.firefox.enable = true;
+  home.packages = [ pkgs.firefox ];
 }
 ```
 
@@ -796,8 +778,7 @@ nix eval .#nixosConfigurations.framework.config.age.identityPaths --json
 nix build .#nixosConfigurations.framework.config.system.build.toplevel
 ```
 
-Those commands work on non-NixOS hosts with Nix installed. `nixos-rebuild`
-itself only makes sense on NixOS or from a NixOS installer environment.
+Those commands work on non-NixOS hosts with Nix installed. `nixos-rebuild` itself only makes sense on NixOS or from a NixOS installer environment.
 
 Then apply on the target NixOS system:
 

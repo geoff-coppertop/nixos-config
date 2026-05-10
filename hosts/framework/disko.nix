@@ -47,8 +47,8 @@
                 type = "btrfs";
 
                 subvolumes = {
-                  "@" = { mountpoint = "/"; };
-                  "@home" = { mountpoint = "/home"; };
+                  "@" = {mountpoint = "/";};
+                  "@home" = {mountpoint = "/home";};
                 };
               };
             };

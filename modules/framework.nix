@@ -1,8 +1,10 @@
-{ config, lib, pkgs, ... }:
-
-with lib;
-
 {
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+with lib; {
   options.custom.framework.enable = mkEnableOption "Framework laptop specific configuration";
 
   config = mkIf config.custom.framework.enable {

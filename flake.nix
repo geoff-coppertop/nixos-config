@@ -8,16 +8,27 @@
     home-manager.url = "github:nix-community/home-manager";
     agenix.url = "github:ryantm/agenix";
     pre-commit.url = "github:cachix/pre-commit-hooks.nix";
-    lanzaboote.url = "github:nix-community/lanzaboote/v1.0.0";
 
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
     pre-commit.inputs.nixpkgs.follows = "nixpkgs";
-    lanzaboote.inputs.nixpkgs.follows = "nixpkgs";
-    lanzaboote.inputs.pre-commit.follows = "pre-commit";
+
+    lanzaboote = {
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        pre-commit.follows = "pre-commit";
+      };
+      url = "github:nix-community/lanzaboote/v1.0.0";
+    };
   };
 
-  outputs = { self, nixpkgs, disko, home-manager, agenix, lanzaboote, ... }:
-  let
+  outputs = {
+    nixpkgs,
+    disko,
+    home-manager,
+    agenix,
+    lanzaboote,
+    ...
+  }: let
     system = "x86_64-linux";
     pkgs = import nixpkgs {
       inherit system;
