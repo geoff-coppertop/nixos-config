@@ -11,10 +11,13 @@
 
   custom = {
     backups = {
-      # Enable after adding the NAS host/share and the matching agenix SMB credentials.
-      enable = false;
+      enable = true;
 
-      nas.credentialsFile = "/run/agenix/thomasga/nas-smb-credentials";
+      nas = {
+        credentialsFile = "/run/agenix/thomasga/nas-smb-credentials";
+        host = "192.168.1.231"; # or hostname if DNS resolves it
+        share = "Personal-Drive/backups"; # share name on the UNAS Pro
+      };
 
       users.thomasga.enable = true;
     };
