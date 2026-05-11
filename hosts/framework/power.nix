@@ -19,15 +19,13 @@
 
   networking.networkmanager.wifi.powersave = true;
 
-  powerManagement.cpuFreqGovernor = "powersave";
+  powerManagement = {
+    cpuFreqGovernor = "powersave";
+    powertop.enable = true;
+  };
 
   services = {
     power-profiles-daemon.enable = true;
-
-    powertop = {
-      enable = true;
-      autoTune = true;
-    };
 
     udev.extraRules = ''
       ACTION=="add", SUBSYSTEM=="pci", TEST=="power/control", ATTR{power/control}="auto"
@@ -35,12 +33,15 @@
     '';
 
     logind = {
-      lidSwitch = "suspend";
-      lidSwitchExternalPower = "ignore";
-      lidSwitchDocked = "ignore";
-      extraConfig = ''
-        HandleHibernateKey=hibernate
-      '';
+      # REMOVED: legacy lidSwitch attributes
+      settings = {
+        Login = {
+          HandleLidSwitch = "suspend";
+          HandleLidSwitchExternalPower = "ignore";
+          HandleLidSwitchDocked = "ignore"; # Added this here
+          HandleHibernateKey = "hibernate";
+        };
+      };
     };
 
     auto-cpufreq.enable = false;

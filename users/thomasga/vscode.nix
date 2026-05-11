@@ -15,15 +15,18 @@ in {
   programs = {
     vscode = {
       enable = true;
-      extensions = with pkgs.vscode-extensions; [
-        ms-python.python
-        ms-vscode.cpptools
-      ];
       package = pkgs.vscode;
-      userSettings = {
-        "files.autoSave" = "onFocusChange";
-        "terminal.integrated.defaultProfile.linux" = config.custom.cli.shell;
-        "terminal.integrated.profiles.linux" = shellProfiles;
+      # Wrap existing settings into the default profile
+      profiles.default = {
+        extensions = with pkgs.vscode-extensions; [
+          ms-python.python
+          ms-vscode.cpptools
+        ];
+        userSettings = {
+          "files.autoSave" = "onFocusChange";
+          "terminal.integrated.defaultProfile.linux" = config.custom.cli.shell;
+          "terminal.integrated.profiles.linux" = shellProfiles;
+        };
       };
     };
   };

@@ -20,16 +20,6 @@
       fsType = "btrfs";
       options = ["subvol=@home"];
     };
-
-    "/boot" = {
-      device = "/dev/disk/by-partlabel/boot";
-      fsType = "ext4";
-    };
-
-    "/boot/efi" = {
-      device = "/dev/disk/by-partlabel/ESP";
-      fsType = "vfat";
-    };
   };
 
   swapDevices = [

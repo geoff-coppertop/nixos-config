@@ -24,9 +24,9 @@ with lib; {
 
     # PAM configuration for fingerprint authentication
     security.pam.services = {
-      login.fprintd = true;
-      sudo.fprintd = true;
-      gdm.fprintd = true;
+      login.fprintAuth = true;
+      sudo.fprintAuth = true;
+      gdm.fprintAuth = true;
     };
 
     # Allow access to input devices for fingerprint scanner

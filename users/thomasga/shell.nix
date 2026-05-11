@@ -3,7 +3,7 @@
 
   programs = {
     fish = {
-      enable = true; # Added this to ensure fish is actually managed
+      enable = true;
       interactiveShellInit = ''
         set fish_greeting
       '';
@@ -34,7 +34,8 @@
     # Terminal: Kitty
     kitty = {
       enable = true;
-      theme = "Dracula";
+      # FIX: Changed 'theme' to 'themeFile'
+      themeFile = "Dracula";
 
       settings = {
         font_family = "Droid Sans Mono Nerd Font";
@@ -45,7 +46,7 @@
         paste_actions = "quote-urls-at-prompt";
 
         # Mouse
-        mouse_hide_wait = "3.0"; # Settings usually expect strings
+        mouse_hide_wait = "3.0";
 
         # Cursor
         cursor_shape = "beam";
@@ -66,7 +67,7 @@
 
     # Terminal: Alacritty
     alacritty = {
-      enable = false; # Set to true if you prefer alacritty over kitty
+      enable = false;
 
       settings = {
         window = {
@@ -87,7 +88,6 @@
         };
 
         colors = {
-          # Dracula theme
           primary = {
             background = "#282a36";
             foreground = "#f8f8f2";
@@ -118,7 +118,7 @@
   };
 
   home.packages = with pkgs; [
-    neofetch
+    fastfetch
     bat
     eza
   ];

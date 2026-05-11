@@ -32,6 +32,7 @@
     system = "x86_64-linux";
     pkgs = import nixpkgs {
       inherit system;
+      config.allowUnfree = true; # Standardize unfree here as well
     };
     src = pkgs.lib.cleanSource ./.;
     agenixCli = agenix.packages.${system}.default;
@@ -41,8 +42,23 @@
     devShell = import ./lib/devshell.nix {
       inherit pkgs agenixCli;
     };
-    secretApps = import ./lib/secret-apps.nix {
+
+    # We wrap the imported secretApps to add the missing 'meta' attributes
+    rawSecretApps = import ./lib/secret-apps.nix {
       inherit pkgs agenixCli;
+    };
+
+    secretApps = {
+      secret-edit =
+        rawSecretApps.secret-edit
+        // {
+          meta = {description = "Edit encrypted agenix secrets";};
+        };
+      secret-rekey =
+        rawSecretApps.secret-rekey
+        // {
+          meta = {description = "Rekey agenix secrets with new host keys";};
+        };
     };
   in {
     devShells.${system}.default = devShell;
@@ -56,6 +72,16 @@
 
       modules = [
         ./hosts/framework
+
+        {
+          nixpkgs.config.allowUnfree = true;
+
+          # SILENCE FIREFOX WARNING:
+          # This sets the config path to the new XDG standard
+          home-manager.users.thomasga.programs.firefox.configPath = ".mozilla/firefox";
+          # Note: Set to ".mozilla/firefox" to keep current behavior WITHOUT the warning,
+          # OR set to "\${config.xdg.configHome}/mozilla/firefox" to migrate.
+        }
 
         disko.nixosModules.disko
         home-manager.nixosModules.home-manager
