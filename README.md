@@ -144,16 +144,19 @@ Run these steps from your Linux or WSL shell after verifying setup above.
 
 3. Copy the public key printed by `age-keygen` into `secrets/secrets.nix` and replace the placeholder `age1REPLACE_ME` value.
 4. Store the private key or its recovery material in Bitwarden.
-5. Before the first `nixos-install`, copy the private key into the mounted target so the installed system can decrypt secrets on first boot:
+5. Before the first `nixos-install`, copy the private key into the mounted target so the installed system can decrypt secrets on first boot. The installer script handles this interactively, or run it manually:
 
    ```bash
-   sudo install -D -m 600 ~/.config/agenix/nixos-config.age /mnt/var/lib/agenix/identity
+   sudo bash tools/install-age-identity.sh --file ~/.config/agenix/nixos-config.age
    ```
+
+   Pass `--shred` to erase the source file after copying.
 
 6. On an already-installed machine, install or rotate the dedicated identity in place with:
 
    ```bash
-   sudo install -D -m 600 ~/.config/agenix/nixos-config.age /var/lib/agenix/identity
+   sudo bash tools/install-age-identity.sh --file ~/.config/agenix/nixos-config.age \
+     --target /var/lib/agenix/identity
    ```
 
 ### Creating Or Rotating Secrets
@@ -372,70 +375,36 @@ Use Fedora Media Writer.
 3. Boot the NixOS installer USB in UEFI mode.
 4. Leave Secure Boot off for the first install. Secure Boot is enabled later through lanzaboote after the system is installed.
 
-### 4. Provision the Disk Layout (Destructive)
+**Do not use the graphical installer.** When the desktop appears, just open a terminal — the script in step 4 handles the full install.
 
-Before provisioning, create a temporary file with your LUKS root passphrase:
+### 4. Run the Installer Script From the Live Session
 
-```bash
-echo "your-secure-passphrase-here" | sudo tee /tmp/encryption-password
-chmod 600 /tmp/encryption-password
-```
+Once booted into the NixOS installer, open a terminal and run the installer script. Have ready:
 
-Then run disko:
+- The target disk device name (run `lsblk` to identify it, e.g. `/dev/nvme0n1`)
+- The LUKS passphrase you want to use for disk encryption
+- A second USB drive with `nixos-config.age` at its root (optional — see "First-Time Secret Bootstrap"; you can add the key after install if needed)
 
-```bash
-sudo nix run github:nix-community/disko -- --mode destroy,format,mount ./hosts/framework/disko.nix
-```
+The script will prompt for each of these, then automatically:
 
-After disko completes, securely erase the temporary file (its contents are now written to the encrypted partition):
+1. Secure the live `nixos` session
+2. Create the target directory with restricted permissions
+3. Clone the repo into `/mnt/etc/nixos/nixos-config`
+4. Select the target host from the hosts available in the repo
+5. Run disko to partition, format, and mount the disk
+6. Optionally install the age identity key from a second USB drive (skip if you plan to add it later)
+7. Run `nixos-install`
 
-```bash
-sudo shred -vfz -n 3 /tmp/encryption-password
-```
-
-This host layout creates:
-
-- EFI system partition at `/boot/efi`
-- ext4 `/boot`
-- swap partition for hibernation resume
-- encrypted btrfs root with `@` and `@home` subvolumes
-
-### 5. Clone the Repo Into the Mounted Target
+**WARNING:** disko will destroy all data on the target disk.
 
 ```bash
-nix-shell -p git
-mkdir -p /mnt/etc
-git clone <your-repo-url> /mnt/etc/nixos-config
-cd /mnt/etc/nixos-config
+nix-shell -p git --run \
+  'bash <(curl -fsSL https://raw.githubusercontent.com/geoff-coppertop/nixos-config/master/tools/nixos-install.sh)'
 ```
 
-If you are installing from a local checkout instead of cloning in the installer, copy that checkout into `/mnt/etc/nixos-config` after the target disks are mounted.
+The LUKS passphrase you enter will be used to unlock the disk if TPM auto-unlock is ever unavailable. Store it in Bitwarden before proceeding.
 
-### 6. Prepare Secrets and Recovery Material
-
-Follow the `Secrets` section before installing.
-
-Before running `nixos-install`, confirm all of the following:
-
-1. `secrets/secrets.nix` contains the real public key, not `age1REPLACE_ME`.
-2. Every required secret already exists as an encrypted `.age` file.
-3. The dedicated age private key has been copied into the mounted target:
-
-   ```bash
-   sudo install -D -m 600 ~/.config/agenix/nixos-config.age /mnt/var/lib/agenix/identity
-   ```
-
-4. Bitwarden contains the recovery copy of the dedicated age private key.
-
-### 7. Install the System
-
-After disks are mounted and secrets are in place:
-
-```bash
-sudo nixos-install --flake /mnt/etc/nixos-config#framework
-```
-
-### 8. Enroll Secure Boot After Install
+### 5. Enroll Secure Boot After Install
 
 This repo uses lanzaboote.
 
