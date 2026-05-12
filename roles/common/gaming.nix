@@ -1,4 +1,8 @@
 {pkgs, ...}: {
+  environment.systemPackages = with pkgs; [
+    moonlight-qt
+  ];
+
   hardware = {
     graphics = {
       enable = true;

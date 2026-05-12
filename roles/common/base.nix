@@ -1,5 +1,4 @@
 {
-  lib,
   pkgs,
   ...
 }: {
@@ -12,13 +11,4 @@
   fonts.packages = with pkgs; [
     nerdfonts
   ];
-
-  nixpkgs.config.allowUnfreePredicate = pkg:
-    builtins.elem (lib.getName pkg) [
-      "google-chrome"
-      "proton-ge-bin"
-      "steam"
-      "steam-original"
-      "steam-run"
-    ];
 }
