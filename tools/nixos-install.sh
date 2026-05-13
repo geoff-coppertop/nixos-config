@@ -16,7 +16,6 @@
 #   bash tools/nixos-install.sh
 #
 # WARNING: disko will DESTROY all data on the selected disk.
-export NIX_CONFIG="experimental-features = nix-command flakes"
 
 set -euo pipefail
 
@@ -205,7 +204,7 @@ fi
 
 echo
 echo "=== Running nixos-install ==="
-sudo nixos-install --flake "$REPO_TARGET#$FLAKE_TARGET"
+sudo nixos-install --flake "$REPO_TARGET#$FLAKE_TARGET" --option "experimental-features" "nix-command flakes"
 
 echo
 echo "=== Install complete. Remove USB drives and reboot. ==="
