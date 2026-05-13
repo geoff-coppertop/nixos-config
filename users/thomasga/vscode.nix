@@ -25,10 +25,8 @@ in {
           ms-azuretools.vscode-containers
           ms-python.python
           ms-vscode.cmake-tools
-          ms-vscode.cpp-devtools
           ms-vscode.cpptools
           ms-vscode.cpptools-extension-pack
-          ms-vscode.cpptools-themes
           ms-vscode-remote.remote-containers
         ];
         userSettings = {

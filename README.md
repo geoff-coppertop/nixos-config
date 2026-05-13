@@ -112,6 +112,8 @@ Do not work on secrets until you've completed "Verifying Your Setup" above and c
 
 Runtime decryption on NixOS uses the dedicated age private key at `/var/lib/agenix/identity`. That path is configured in `modules/secrets.nix`.
 
+The current checked-in secrets are scoped to `framework`. The intended steady-state model is one offline admin key for editing and recovery, plus one deployed age identity per host.
+
 ### First-Time Secret Bootstrap
 
 Run these steps from your Linux or WSL shell after verifying setup above.
@@ -131,31 +133,55 @@ Run these steps from your Linux or WSL shell after verifying setup above.
    printf '%s\n' "$EDITOR"
    ```
 
-   If `EDITOR` is empty, set it before using `nix run .#secret-edit`.
+   If `EDITOR` is empty, set it before using `nix run .#secret-edit`. Either prefix it inline:
 
-2. Generate a dedicated age identity outside the repo:
+   ```bash
+   EDITOR=nano nix run .#secret-edit -- secrets/thomasga/restic-password.age
+   ```
+
+   Or export it for the rest of the session:
+
+   ```bash
+   export EDITOR=nano
+   ```
+
+2. Generate the offline admin age identity outside the repo:
 
    ```bash
    mkdir -p ~/.config/agenix
    chmod 700 ~/.config/agenix
-   age-keygen -o ~/.config/agenix/nixos-config.age
-   chmod 600 ~/.config/agenix/nixos-config.age
+   age-keygen -o ~/.config/agenix/admin.age
+   chmod 600 ~/.config/agenix/admin.age
    ```
 
-3. Copy the public key printed by `age-keygen` into `secrets/secrets.nix` and replace the placeholder `age1REPLACE_ME` value.
-4. Store the private key or its recovery material in Bitwarden.
-5. Before the first `nixos-install`, copy the private key into the mounted target so the installed system can decrypt secrets on first boot. The installer script handles this interactively, or run it manually:
+3. Generate the host-specific age identity for `framework`:
 
    ```bash
-   sudo bash tools/install-age-identity.sh --file ~/.config/agenix/nixos-config.age
+   age-keygen -o ~/.config/agenix/framework.age
+   chmod 600 ~/.config/agenix/framework.age
+   ```
+
+4. Copy the public keys printed by `age-keygen` into `secrets/secrets.nix`.
+
+   - Set `offlineAdmin` to the offline recovery key.
+   - Set `framework` to the host key for `framework`.
+
+   The checked-in secret recipients are intentionally framework-scoped. Do not add a new host as a recipient unless that host actually needs that secret.
+
+5. Store the offline admin private key or its recovery material in Bitwarden. Do not install that key onto machines.
+
+6. Before the first `nixos-install`, copy the `framework` private key into the mounted target so the installed system can decrypt secrets on first boot. The installer script handles this interactively, or run it manually:
+
+   ```bash
+   sudo bash tools/install-age-identity.sh --file ~/.config/agenix/framework.age
    ```
 
    Pass `--shred` to erase the source file after copying.
 
-6. On an already-installed machine, install or rotate the dedicated identity in place with:
+7. On an already-installed machine, install or rotate the dedicated host identity in place with:
 
    ```bash
-   sudo bash tools/install-age-identity.sh --file ~/.config/agenix/nixos-config.age \
+   sudo bash tools/install-age-identity.sh --file ~/.config/agenix/framework.age \
      --target /var/lib/agenix/identity
    ```
 
@@ -168,7 +194,7 @@ For a brand-new secret:
 1. Add a recipient entry to `secrets/secrets.nix`. Example:
 
    ```nix
-   "thomasga/nas-smb-credentials.age".publicKeys = [ thomasga ];
+   "thomasga/nas-smb-credentials.age".publicKeys = frameworkRecipients;
    ```
 
 2. Create or edit the encrypted file:
@@ -185,11 +211,15 @@ For a brand-new secret:
    EDITOR=nano nix run .#secret-edit -- secrets/thomasga/restic-password.age
    ```
 
-   After changing recipients in `secrets/secrets.nix`, re-encrypt every tracked secret with:
+   After changing recipients in `secrets/secrets.nix`, re-encrypt every tracked secret with the offline admin key available locally:
 
    ```bash
    nix run .#secret-rekey
    ```
+
+### Future Host Secret Scope
+
+When you add another host, generate a separate age identity for that host and add its public key to `secrets/secrets.nix` under a new host name. Only add that host to the recipient list for the secrets it needs. Do not widen existing recipient lists just because a new machine exists.
 
 ### Exact Secret Contents
 
@@ -227,6 +257,138 @@ The repo is set up to make mistakes harder:
 - `.gitignore` ignores common plaintext scratch files and local key material
 - `pre-commit` rejects staged plaintext files under `secrets/`
 - `pre-commit` rejects raw private keys anywhere in the repo
+
+## SSH
+
+SSH trust is managed separately from agenix secrets.
+
+- SSH login keys should be per-host keypairs.
+- SSH host trust should be pinned in `lib/ssh-hosts.nix` and rendered through home-manager from `users/thomasga/ssh.nix`.
+- `known_hosts` records server identity. `authorized_keys` grants login access. They are different data flows.
+
+### Generate SSH Login Credentials
+
+Create an SSH keypair on your local machine and encrypt it as an agenix secret so it can be deployed consistently across machines:
+
+```bash
+cd /home/thomasg/builds/geoff-coppertop/nixos-config
+bash tools/bootstrap-ssh-key.sh framework
+```
+
+This script:
+
+1. Generates `~/.ssh/id_ed25519` (private) and `~/.ssh/id_ed25519.pub` (public)
+2. Prompts you to encrypt the private key as an agenix secret
+3. Shows you the exact commands to run next
+
+**To complete the encryption:**
+
+1. Add the secret to `secrets/secrets.nix`:
+
+   ```nix
+   "thomasga/ssh-id-ed25519".publicKeys = frameworkRecipients;
+   ```
+
+2. Encrypt the private key:
+
+   ```bash
+   EDITOR=nano nix run .#secret-edit -- secrets/thomasga/ssh-id-ed25519.age
+   ```
+
+   When the editor opens, paste the contents of `~/.ssh/id_ed25519`, save, and exit. Agenix will encrypt it automatically.
+
+3. After encryption is complete, securely delete the unencrypted private key:
+
+   ```bash
+   shred -vfz ~/.ssh/id_ed25519
+   ```
+
+   The `shred` command overwrites the file with random data before deletion to prevent recovery.
+
+4. The encrypted secret is now safe to commit.
+
+   The private key will be decrypted and deployed to `~/.ssh/id_ed25519` at runtime by home-manager (already configured in `users/thomasga/ssh.nix` and `modules/secrets.nix`).
+
+**For the Framework's authorized_keys:**
+
+The matching public key (`~/.ssh/id_ed25519.pub`) is printed by the bootstrap script. You need to install it on the Framework so it can authenticate your logins:
+
+1. Log into the Framework initially through another method (serial console, local login, etc.)
+2. Add your public key to `~/.ssh/authorized_keys` on the Framework
+3. Do not commit this public key to the repo
+
+### Collect Host SSH Public Key After Deploy
+
+The deployed Framework generates its own SSH host keypair automatically when sshd starts. This is separate from the login keypair above and is what remote machines use to verify they are talking to the correct host.
+
+When the Framework boots with sshd enabled in [hosts/framework/configuration.nix](hosts/framework/configuration.nix), NixOS automatically generates the host keypair in `/etc/ssh/ssh_host_ed25519_key` and `/etc/ssh/ssh_host_ed25519_key.pub`. The private key stays on the machine unencrypted (standard SSH practice); only the public key is needed in the repo.
+
+After the Framework boots for the first time:
+
+1. Collect the host's SSH public key from the running machine:
+
+   ```bash
+   ssh-keyscan -t ed25519 framework 2>/dev/null
+   ```
+
+   This will print a line like:
+
+   ```bash
+   framework ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDCRCqI2...
+   ```
+
+2. Verify the fingerprint out-of-band (log in to the machine and compare `ssh-keygen -l -f /etc/ssh/ssh_host_ed25519_key.pub` to what ssh-keyscan printed).
+3. Extract just the public key portion and add it to `lib/ssh-hosts.nix` in the `publicKey` field for the Framework host.
+
+### Pin Managed Host Keys
+
+Add each managed host to `lib/ssh-hosts.nix` with:
+
+- `hostName`: the real SSH hostname
+- `aliases`: optional short names you want in SSH config
+- `publicKey`: the verified SSH host public key
+- `user`: the default SSH username
+
+`users/thomasga/ssh.nix` turns that inventory into `programs.ssh.knownHosts` and SSH match blocks through home-manager.
+
+Verify the host key out-of-band before committing it. `ssh-keyscan` is a collection mechanism, not a trust oracle.
+
+### Add A New Host Later
+
+For each additional host:
+
+1. Generate a host-specific age identity and install it at `/var/lib/agenix/identity` on that machine.
+2. Add that host's public age key to `secrets/secrets.nix` only for the secrets it needs.
+3. Generate your SSH login keypair and encrypt it as a secret using the bootstrap script:
+
+   ```bash
+   bash tools/bootstrap-ssh-key.sh <host-name>
+   ```
+
+   This creates the keypair, prompts you to encrypt it, and prints the next steps. Follow the script's instructions to:
+
+   - Add the recipient entry to `secrets/secrets.nix`
+   - Encrypt the private key with `nix run .#secret-edit`
+
+4. Install the generated public key on the target host for your account, usually through `authorized_keys` or a home-manager-managed file.
+5. Enable SSH server in the host's `configuration.nix` (add `services.openssh`).
+6. Boot the host so NixOS generates the SSH host keypair automatically in `/etc/ssh/`.
+7. Collect the host's SSH host public key with `ssh-keyscan -t ed25519 <hostname>` and verify it out-of-band.
+8. Add the verified SSH host public key to `lib/ssh-hosts.nix` in the `publicKey` field.
+9. Add the encrypted SSH login secret to `modules/secrets.nix` so it decrypts on that host:
+
+   ```nix
+   "thomasga/ssh-id-ed25519".file =
+     ../secrets/thomasga/ssh-id-ed25519.age;
+   ```
+
+10. Update `users/thomasga/ssh.nix` to deploy the decrypted key:
+
+    ```nix
+    home.file.".ssh/id_ed25519".source = "/run/agenix/thomasga/ssh-id-ed25519";
+    ```
+
+11. Rebuild the host and verify SSH login works.
 
 ## Backups
 

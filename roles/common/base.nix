@@ -1,7 +1,4 @@
-{
-  pkgs,
-  ...
-}: {
+{pkgs, ...}: {
   nix.settings.experimental-features = ["nix-command" "flakes"];
   time.timeZone = "America/Edmonton";
   i18n.defaultLocale = "en_CA.UTF-8";

@@ -10,52 +10,64 @@
 
       repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 
-      # Validate we have at least one argument
       if [[ $# -lt 1 ]]; then
-        echo "Usage: nix run .#secret-edit -- [options] secrets/<name>.age" >&2
+        echo "Usage: nix run .#secret-edit secrets/<name>.age" >&2
         exit 1
       fi
 
-      # The actual file on disk needs the 'secrets/' prefix
       full_path="''${!#}"
-
-      # The key inside secrets.nix does NOT have the 'secrets/' prefix
-      # We strip 'secrets/' from the start of the string
-      relative_key="''${full_path#secrets/}"
-
       if [[ "$full_path" != secrets/*.age ]]; then
         echo "Secret path must live under secrets/ and end with .age." >&2
         exit 1
       fi
 
       mkdir -p "$(dirname "$full_path")"
+      export RULES="$repo_root/secrets/secrets.nix"
 
-      # We CD into the secrets directory so agenix matches the relative_key perfectly
-      cd "$repo_root/secrets"
+      if grep -q '"secrets/' "$RULES" 2>/dev/null; then
+        cd "$repo_root"
+        target_path="$full_path"
+      else
+        cd "$repo_root/secrets"
+        target_path="''${full_path#secrets/}"
+      fi
 
-      # We use "$@" so flags like -i still work, but replace the last arg with our cleaned key
-      set -- "''${@:1:$#-1}" "$relative_key"
+      # Collect all available identity keys in ~/.config/agenix/
+      EXTRA_ARGS=()
+      if [[ -d "$HOME/.config/agenix" ]]; then
+        while IFS= read -r key_file; do
+          EXTRA_ARGS+=("-i" "$key_file")
+        done < <(find "$HOME/.config/agenix" -type f -name "*.age" -o -name "*.key" 2>/dev/null)
+      fi
 
-      RULES="$PWD/secrets.nix" exec agenix -e "$@"
+      exec agenix -e "$target_path" "''${EXTRA_ARGS[@]}"
     '';
   };
 
   secretRekey = pkgs.writeShellApplication {
     name = "secret-rekey";
-    runtimeInputs = [agenixCli pkgs.git pkgs.gnugrep];
+    runtimeInputs = [agenixCli pkgs.git pkgs.gnugrep pkgs.findutils];
     text = ''
       set -euo pipefail
 
       repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-      cd "$repo_root/secrets"
+      export RULES="$repo_root/secrets/secrets.nix"
 
-      # Check for your specific key path and auto-inject it if it exists
-      EXTRA_OPTS=()
-      if [[ -f "$HOME/.config/agenix/nixos-config.age" ]]; then
-        EXTRA_OPTS+=("-i" "$HOME/.config/agenix/nixos-config.age")
+      if grep -q '"secrets/' "$RULES" 2>/dev/null; then
+        cd "$repo_root"
+      else
+        cd "$repo_root/secrets"
       fi
 
-      RULES="$PWD/secrets.nix" exec agenix --rekey "''${EXTRA_OPTS[@]}" "$@"
+      # Collect all available identity keys into an array
+      EXTRA_OPTS=()
+      if [[ -d "$HOME/.config/agenix" ]]; then
+        while IFS= read -r key_file; do
+          EXTRA_OPTS+=("-i" "$key_file")
+        done < <(find "$HOME/.config/agenix" -type f \( -name "*.age" -o -name "*.key" -o -name "framework" \) 2>/dev/null)
+      fi
+
+      exec agenix --rekey "''${EXTRA_OPTS[@]}"
     '';
   };
 in {

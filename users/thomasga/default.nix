@@ -5,6 +5,7 @@
     ../common/gui-apps.nix
     ./git.nix
     ./gnome.nix
+    ./ssh.nix
     ./vscode.nix
     ./secrets.nix
     ./shell.nix
