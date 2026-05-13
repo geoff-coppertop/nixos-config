@@ -1,6 +1,35 @@
 # NixOS Config
 
-This repo is the source of truth for machine setup, user setup, secrets wiring, and update policy.
+This repo is the source of truth for machine setup, user setup, secrets wiring, and update policy. There are two main tasks it supports: provisioning a machine already defined here, and adding an entirely new machine to the repo.
+
+## Contents
+
+- [Repository Model](#repository-model)
+- [Setup](#setup)
+  - [Prerequisites](#prerequisites)
+  - [Setting Up On Non-NixOS Linux Or WSL](#setting-up-on-non-nixos-linux-or-wsl)
+  - [Verifying Your Setup](#verifying-your-setup)
+  - [Dev Shell And Repo Tools](#dev-shell-and-repo-tools)
+- [Provisioning a Machine](#provisioning-a-machine)
+  - [Create a NixOS Installer USB](#create-a-nixos-installer-usb)
+  - [SSH Management](#ssh-management)
+  - [Collect Host SSH Public Key After Deploy](#collect-host-ssh-public-key-after-deploy)
+  - [Backups](#backups)
+  - [Boot the Machine From USB](#boot-the-machine-from-usb)
+  - [Run the Installer Script From the Live Session](#run-the-installer-script-from-the-live-session)
+  - [Enroll Secure Boot After Install](#enroll-secure-boot-after-install)
+  - [Post-Install Validation](#post-install-validation)
+- [Defining a New Machine](#defining-a-new-machine)
+  - [Repository Structure](#repository-structure)
+  - [Secrets and SSH Setup](#secrets-and-ssh-setup)
+- [Reference](#reference)
+  - [Secrets Management](#secrets-management)
+  - [Hibernation And Power](#hibernation-and-power)
+  - [Updating The System](#updating-the-system)
+  - [Users And Configuration](#users-and-configuration)
+  - [Dotfiles And Shell Scripts](#dotfiles-and-shell-scripts)
+  - [Desktop Application Policy](#desktop-application-policy)
+  - [Validation Commands](#validation-commands)
 
 ## Repository Model
 
@@ -18,8 +47,6 @@ Use this rule when placing configuration:
 - If it affects a person's workflow, put it in that user's home-manager config under `users/<name>/`, usually in `users/<name>/default.nix` or a user module imported from there.
 - If several users may want it, create a reusable opt-in user module under `users/common/` and let each user import it from `users/<name>/default.nix` instead of forcing it globally.
 
-## Current Host
-
 The active machine in this repo is `framework`.
 
 - Host entrypoint: `hosts/framework/configuration.nix`
@@ -28,9 +55,9 @@ The active machine in this repo is `framework`.
 - Disk layout: `hosts/framework/disko.nix`
 - Flake entry: `flake.nix`
 
-## Developer Checks
+## Setup
 
-This flake exposes a development shell with the local formatting, lint, and secret-management tools used by the Git hooks.
+This section is mandatory before doing any provisioning or defining new machines. Complete it once per development environment.
 
 ### Prerequisites
 
@@ -73,7 +100,7 @@ nix develop -c bash -lc 'command -v age agenix pre-commit alejandra statix deadn
 
 All commands should succeed. The final one verifies the dev shell includes `age`, `agenix`, and all lint tools.
 
-### Using The Dev Shell And Repo Tools
+### Dev Shell And Repo Tools
 
 Enter the development shell:
 
@@ -104,17 +131,11 @@ The pre-commit configuration checks:
 - `markdownlint` for Markdown docs
 - `no-plaintext-secrets` to block plaintext secret files
 
-## Secrets
+## Provisioning a Machine
 
-This repo uses agenix for committed secrets and Bitwarden for recovery material.
+This is the standard workflow to install a machine already defined in this repo (such as `framework`). The repo handles all configuration; you provide the physical machine and initial boot media.
 
-Do not work on secrets until you've completed "Verifying Your Setup" above and confirmed that `nix develop` exposes both `age` and `agenix`.
-
-Runtime decryption on NixOS uses the dedicated age private key at `/var/lib/agenix/identity`. That path is configured in `modules/secrets.nix`.
-
-The current checked-in secrets are scoped to `framework`. The intended steady-state model is one offline admin key for editing and recovery, plus one deployed age identity per host.
-
-### First-Time Secret Bootstrap
+### Create a NixOS Installer USB
 
 Run these steps from your Linux or WSL shell after verifying setup above.
 
@@ -154,7 +175,7 @@ Run these steps from your Linux or WSL shell after verifying setup above.
    chmod 600 ~/.config/agenix/admin.age
    ```
 
-3. Generate the host-specific age identity for `framework`:
+3. Generate the host-specific age identity for the initial machine in this repo:
 
    ```bash
    age-keygen -o ~/.config/agenix/framework.age
@@ -170,7 +191,7 @@ Run these steps from your Linux or WSL shell after verifying setup above.
 
 5. Store the offline admin private key or its recovery material in Bitwarden. Do not install that key onto machines.
 
-6. Before the first `nixos-install`, copy the `framework` private key into the mounted target so the installed system can decrypt secrets on first boot. The installer script handles this interactively, or run it manually:
+6. Before the first `nixos-install`, copy the host private key into the mounted target so the installed system can decrypt secrets on first boot. The installer script handles this interactively, or run it manually:
 
    ```bash
    sudo bash tools/install-age-identity.sh --file ~/.config/agenix/framework.age
@@ -185,7 +206,7 @@ Run these steps from your Linux or WSL shell after verifying setup above.
      --target /var/lib/agenix/identity
    ```
 
-### Creating Or Rotating Secrets
+#### Creating Or Rotating Secrets
 
 Never create plaintext files under `secrets/`. Use the helper command so the plaintext only exists in a temporary editor buffer.
 
@@ -194,7 +215,7 @@ For a brand-new secret:
 1. Add a recipient entry to `secrets/secrets.nix`. Example:
 
    ```nix
-   "thomasga/nas-smb-credentials.age".publicKeys = frameworkRecipients;
+  "thomasga/nas-smb-credentials.age".publicKeys = [framework offlineAdmin];
    ```
 
 2. Create or edit the encrypted file:
@@ -217,11 +238,11 @@ For a brand-new secret:
    nix run .#secret-rekey
    ```
 
-### Future Host Secret Scope
+#### Future Host Secret Scope
 
 When you add another host, generate a separate age identity for that host and add its public key to `secrets/secrets.nix` under a new host name. Only add that host to the recipient list for the secrets it needs. Do not widen existing recipient lists just because a new machine exists.
 
-### Exact Secret Contents
+#### Exact Secret Contents
 
 `secrets/thomasga/restic-password.age` decrypts to exactly one plaintext line:
 
@@ -238,7 +259,7 @@ username=nas-user
 password=nas-password
 ```
 
-### What May Be Committed
+#### What May Be Committed
 
 Safe to commit:
 
@@ -258,15 +279,33 @@ The repo is set up to make mistakes harder:
 - `pre-commit` rejects staged plaintext files under `secrets/`
 - `pre-commit` rejects raw private keys anywhere in the repo
 
-## SSH
+#### Download and Write the NixOS Installer USB
+
+Preferred method:
+
+1. Download the latest NixOS graphical ISO for `x86_64-linux` from the [NixOS download page](https://nixos.org/download.html).
+2. Verify the checksum against the release page.
+3. Write to USB using Fedora Media Writer or similar tool.
+
+Alternative manual method:
+
+1. Identify your USB device with `lsblk`.
+2. Unmount any mounted partitions for that device.
+3. Write the ISO directly (replace `/dev/sdX` with your device, not a partition):
+
+   ```bash
+   sudo dd if=./nixos-graphical.iso of=/dev/sdX bs=4M status=progress oflag=sync
+   ```
+
+### SSH Management
 
 SSH trust is managed separately from agenix secrets.
 
 - SSH login keys should be per-host keypairs.
-- SSH host trust should be pinned in `lib/ssh-hosts.nix` and rendered through home-manager from `users/thomasga/ssh.nix`.
+- SSH host trust should be pinned in `lib/ssh-hosts.nix` and rendered to `programs.ssh.knownHosts` by `modules/ssh-known-hosts.nix`.
 - `known_hosts` records server identity. `authorized_keys` grants login access. They are different data flows.
 
-### Generate SSH Login Credentials
+#### Generate SSH Login Credentials
 
 Create an SSH keypair on your local machine and encrypt it as an agenix secret so it can be deployed consistently across machines:
 
@@ -286,7 +325,7 @@ This script:
 1. Add the secret to `secrets/secrets.nix`:
 
    ```nix
-   "thomasga/ssh-id-ed25519".publicKeys = frameworkRecipients;
+  "thomasga/ssh-id-ed25519.age".publicKeys = [framework offlineAdmin];
    ```
 
 2. Encrypt the private key:
@@ -340,7 +379,7 @@ After the Framework boots for the first time:
 2. Verify the fingerprint out-of-band (log in to the machine and compare `ssh-keygen -l -f /etc/ssh/ssh_host_ed25519_key.pub` to what ssh-keyscan printed).
 3. Extract just the public key portion and add it to `lib/ssh-hosts.nix` in the `publicKey` field for the Framework host.
 
-### Pin Managed Host Keys
+#### Pin Managed Host Keys
 
 Add each managed host to `lib/ssh-hosts.nix` with:
 
@@ -349,48 +388,11 @@ Add each managed host to `lib/ssh-hosts.nix` with:
 - `publicKey`: the verified SSH host public key
 - `user`: the default SSH username
 
-`users/thomasga/ssh.nix` turns that inventory into `programs.ssh.knownHosts` and SSH match blocks through home-manager.
+`modules/ssh-known-hosts.nix` turns that inventory into `programs.ssh.knownHosts`, and `users/thomasga/ssh.nix` provides per-host SSH match blocks through home-manager.
 
 Verify the host key out-of-band before committing it. `ssh-keyscan` is a collection mechanism, not a trust oracle.
 
-### Add A New Host Later
-
-For each additional host:
-
-1. Generate a host-specific age identity and install it at `/var/lib/agenix/identity` on that machine.
-2. Add that host's public age key to `secrets/secrets.nix` only for the secrets it needs.
-3. Generate your SSH login keypair and encrypt it as a secret using the bootstrap script:
-
-   ```bash
-   bash tools/bootstrap-ssh-key.sh <host-name>
-   ```
-
-   This creates the keypair, prompts you to encrypt it, and prints the next steps. Follow the script's instructions to:
-
-   - Add the recipient entry to `secrets/secrets.nix`
-   - Encrypt the private key with `nix run .#secret-edit`
-
-4. Install the generated public key on the target host for your account, usually through `authorized_keys` or a home-manager-managed file.
-5. Enable SSH server in the host's `configuration.nix` (add `services.openssh`).
-6. Boot the host so NixOS generates the SSH host keypair automatically in `/etc/ssh/`.
-7. Collect the host's SSH host public key with `ssh-keyscan -t ed25519 <hostname>` and verify it out-of-band.
-8. Add the verified SSH host public key to `lib/ssh-hosts.nix` in the `publicKey` field.
-9. Add the encrypted SSH login secret to `modules/secrets.nix` so it decrypts on that host:
-
-   ```nix
-   "thomasga/ssh-id-ed25519".file =
-     ../secrets/thomasga/ssh-id-ed25519.age;
-   ```
-
-10. Update `users/thomasga/ssh.nix` to deploy the decrypted key:
-
-    ```nix
-    home.file.".ssh/id_ed25519".source = "/run/agenix/thomasga/ssh-id-ed25519";
-    ```
-
-11. Rebuild the host and verify SSH login works.
-
-## Backups
+### Backups
 
 `modules/backups.nix` provides client-pushed restic backups to a NAS share. The NAS is mounted on demand over SMB or NFS. Backups run on a daily timer. On hosts marked as laptops, backups only run when AC power is connected. If the NAS is unreachable, the job exits cleanly.
 
@@ -411,7 +413,7 @@ Each enabled user gets a separate systemd service (`nas-backup-<user>`) and time
 If the secret file is new, add a recipient entry first:
 
 ```nix
-"thomasga/nas-smb-credentials.age".publicKeys = [ thomasga ];
+"thomasga/nas-smb-credentials.age".publicKeys = [framework offlineAdmin];
 ```
 
 Then create or rotate the encrypted file:
@@ -468,7 +470,7 @@ Use `nas.protocol = "nfs"` and omit `credentialsFile` to switch to NFS instead.
 **4. Rebuild the system.**
 
 ```bash
-sudo nixos-rebuild switch --flake /etc/nixos-config#<hostname>
+sudo nixos-rebuild switch --flake /etc/nixos/nixos-config#<hostname>
 ```
 
 ### Checking Backup Status
@@ -500,52 +502,22 @@ sudo restic --repo /mnt/nas-backups/thomasga/<hostname> snapshots
 - Snapper manages local btrfs snapshots for rollback; it is not involved in NAS backups.
 - If SMB is unavailable at boot, the automount fails silently and the next timer invocation will retry.
 
-## First Install
-
-### 1. Create a NixOS Installer USB From Fedora 44
-
-Preferred path:
-
-1. Download the latest NixOS graphical ISO for `x86_64-linux`.
-2. Verify the checksum from the NixOS release page.
-3. Write the image with Fedora Media Writer.
-
-Advanced manual path:
-
-1. Identify the USB device with `lsblk`.
-2. Unmount any mounted partitions for that USB device.
-3. Write the ISO directly:
-
-   ```bash
-   sudo dd if=./nixos-graphical.iso of=/dev/sdX bs=4M status=progress oflag=sync
-   ```
-
-   Replace `/dev/sdX` with the whole USB device, not a partition.
-
-### 2. Create a NixOS Installer USB From Windows
-
-Use Fedora Media Writer.
-
-1. Download the latest NixOS graphical ISO for `x86_64-linux`.
-2. Verify the published checksum.
-3. Flash the ISO to a USB stick with Rufus or Fedora Media Writer.
-
-### 3. Boot the Framework From USB
+### Boot the Machine From USB
 
 1. Insert the USB stick.
-2. Power on the Framework and open the boot menu.
+2. Power on the machine and open the boot menu.
 3. Boot the NixOS installer USB in UEFI mode.
 4. Leave Secure Boot off for the first install. Secure Boot is enabled later through lanzaboote after the system is installed.
 
 **Do not use the graphical installer.** When the desktop appears, just open a terminal — the script in step 4 handles the full install.
 
-### 4. Run the Installer Script From the Live Session
+### Run the Installer Script From the Live Session
 
 Once booted into the NixOS installer, open a terminal and run the installer script. Have ready:
 
 - The target disk device name (run `lsblk` to identify it, e.g. `/dev/nvme0n1`)
 - The LUKS passphrase you want to use for disk encryption
-- A second USB drive with `nixos-config.age` at its root (optional — see "First-Time Secret Bootstrap"; you can add the key after install if needed)
+- A second USB drive with the machine's age identity file (optional — see "Defining a New Machine"; you can add the key after install if needed)
 
 The script will prompt for each of these, then automatically:
 
@@ -566,7 +538,7 @@ nix-shell -p git --run \
 
 The LUKS passphrase you enter will be used to unlock the disk if TPM auto-unlock is ever unavailable. Store it in Bitwarden before proceeding.
 
-### 5. Enroll Secure Boot After Install
+### Enroll Secure Boot After Install
 
 This repo uses lanzaboote.
 
@@ -578,11 +550,93 @@ This repo uses lanzaboote.
 
 Keep copies of Secure Boot key material in a safe recovery location. Bitwarden is a reasonable place for the recovery instructions and escrowed material if that matches your threat model.
 
-## TPM-Based LUKS Encryption
+### Post-Install Validation
+
+After the system boots:
+
+1. **Enroll TPM2 for LUKS auto-unlock** (see [TPM Auto-Unlock After Install](#tpm-auto-unlock-after-install))
+2. **Collect the SSH host public key** and add it to `lib/ssh-hosts.nix` (see [Collect Host SSH Public Key After Deploy](#collect-host-ssh-public-key-after-deploy))
+3. **Generate and install your SSH login credentials** (see [Generate SSH Login Credentials](#generate-ssh-login-credentials))
+4. **Test hibernation** (see [Hibernation And Power](#hibernation-and-power))
+5. **Validate the system** (see [Validation Commands](#validation-commands))
+
+## Defining a New Machine
+
+To add an entirely new machine to this repo:
+
+### Repository Structure
+
+1. Create `hosts/<machine-name>/`.
+2. Add `hosts/<machine-name>/configuration.nix` (imports hardware, power, disko).
+3. Add `hosts/<machine-name>/hardware.nix` (hardware-scan output).
+4. Add `hosts/<machine-name>/power.nix` (power and hibernate policy).
+5. Add `hosts/<machine-name>/disko.nix` (disk layout if provisioning from this repo).
+6. Register the machine in `flake.nix` under `nixosConfigurations`:
+
+```nix
+nixosConfigurations.<machine-name> = nixpkgs.lib.nixosSystem {
+  inherit system;
+  modules = [
+    ./hosts/<machine-name>
+    disko.nixosModules.disko
+    home-manager.nixosModules.home-manager
+    agenix.nixosModules.default
+    lanzaboote.nixosModules.lanzaboote
+  ];
+};
+```
+
+### Secrets and SSH Setup
+
+For the new machine to decrypt secrets and authenticate over SSH:
+
+1. **Generate a host-specific age identity** (if not already available from a previous install):
+
+```bash
+mkdir -p ~/.config/agenix
+age-keygen -o ~/.config/agenix/<machine-name>.age
+chmod 600 ~/.config/agenix/<machine-name>.age
+```
+
+2. **Add the host's public age key to `secrets/secrets.nix`**:
+
+```nix
+<machine-name> = "age1...";  # from age-keygen output
+```
+
+Then add recipient lists for secrets this host needs:
+
+```nix
+"thomasga/restic-password.age".publicKeys = [ framework offlineAdmin <machine-name> ];
+```
+
+3. **Generate SSH login credentials** for this machine:
+
+```bash
+bash tools/bootstrap-ssh-key.sh <machine-name>
+```
+
+Follow the script's instructions to encrypt the private key as an agenix secret.
+
+4. **Enable SSH in the host's `configuration.nix`** and add the encrypted SSH secret to `modules/secrets.nix` (see [SSH Management](#ssh-management) for details).
+
+5. **Follow the provisioning workflow** to install the machine.
+
+6. **Collect the SSH host public key** after first boot and add it to `lib/ssh-hosts.nix`.
+
+## Reference
+
+### Secrets Management
+
+This repo uses agenix for committed secrets and Bitwarden for recovery material. Secrets live in `secrets/` and are safe to commit; only the decrypted content is sensitive.
+
+Runtime decryption on NixOS uses the dedicated age private key at `/var/lib/agenix/identity` (configured in `modules/secrets.nix`).
+
+#### First-Time Secret Bootstrap
 
 This repo encrypts the root filesystem with LUKS and seals it to the TPM 2.0 chip in your Framework laptop.
 
-### Encryption At Install Time
+#### Encryption At Install Time
 
 The disko configuration creates an encrypted root partition. During provisioning (step 4 above), you provide a LUKS passphrase in `/tmp/encryption-password`. This passphrase will unlock the root filesystem if the TPM is unavailable or tampered with.
 
@@ -592,7 +646,7 @@ The disko configuration creates an encrypted root partition. During provisioning
 - The firmware is updated and TPM state is cleared
 - You boot from a rescue USB and need to manually unlock the disk
 
-### TPM Auto-Unlock After Install
+#### TPM Auto-Unlock After Install
 
 After the system boots and you are logged in, enroll the LUKS key into the TPM:
 
@@ -609,7 +663,7 @@ The `--tpm2-pcrs` argument seals the key to specific firmware/bootloader measure
 
 After enrollment, reboot. The system should now unlock automatically at boot without a passphrase prompt.
 
-### Verify TPM Enrollment
+#### Verify TPM Enrollment
 
 To check that TPM enrollment is active:
 
@@ -619,7 +673,7 @@ sudo systemd-cryptenroll /dev/disk/by-partlabel/root --json | jq '.[] | select(.
 
 A non-empty result confirms TPM2 enrollment is active.
 
-### Change Or Reset The LUKS Passphrase
+#### Change Or Reset The LUKS Passphrase
 
 To change the passphrase while the system is running:
 
@@ -633,7 +687,7 @@ To wipe the passphrase slot and rely entirely on TPM2 unlock:
 sudo systemd-cryptenroll /dev/disk/by-partlabel/root --wipe-slot=password
 ```
 
-### TPM Recovery And Troubleshooting
+#### TPM Recovery And Troubleshooting
 
 If the system does not auto-unlock at boot:
 
@@ -644,9 +698,7 @@ If the system does not auto-unlock at boot:
 
 Store your LUKS passphrase in Bitwarden or another secure offline location for disaster recovery.
 
-### Recovery
-
-## Hibernation And Power
+### Hibernation And Power
 
 This repo is set up to hibernate through the dedicated swap partition.
 
@@ -663,7 +715,7 @@ systemctl hibernate
 
 Then verify the machine resumes correctly.
 
-## Updating The System
+### Updating The System
 
 This repo tracks `nixos-unstable` for GNOME and kernel updates. The real pin is `flake.lock`.
 
@@ -696,34 +748,7 @@ To change the baseline later:
 
 That is the correct place to move between more conservative and more aggressive GNOME/kernel update policies.
 
-## Adding A New Machine
-
-To add a second machine, for example `desktop`:
-
-1. Create `hosts/desktop/`.
-2. Add `hosts/desktop/configuration.nix`.
-3. Add `hosts/desktop/hardware.nix`.
-4. Add `hosts/desktop/power.nix`.
-5. Add `hosts/desktop/disko.nix` if the machine should be provisioned by this repo.
-6. Register `desktop` under `nixosConfigurations` in `flake.nix`.
-
-Concrete shape:
-
-```nix
-nixosConfigurations.desktop = nixpkgs.lib.nixosSystem {
-  inherit system;
-  modules = [
-    ./hosts/desktop/configuration.nix
-    ./hosts/desktop/disko.nix
-    disko.nixosModules.disko
-    home-manager.nixosModules.home-manager
-    agenix.nixosModules.default
-    lanzaboote.nixosModules.lanzaboote
-  ];
-};
-```
-
-## Users, User Assignment, And New Users
+### Users And Configuration
 
 A user is fully assigned to a machine only when two pieces are present:
 
@@ -779,7 +804,7 @@ home-manager.users.alice = import ./users/alice;
 - Put the Unix account in a host-specific import if the user should exist only on one machine.
 - Attach the user's home-manager module only on the hosts where that user's environment should appear.
 
-## Dotfiles And Shell Scripts
+### Dotfiles And Shell Scripts
 
 Do not manually copy dotfiles after installation. Manage them through home-manager.
 
@@ -814,7 +839,7 @@ Example custom shell script:
 home.file.".local/bin/dev-shell".source = ./files/dev-shell;
 ```
 
-## Desktop Application Policy
+### Desktop Application Policy
 
 This repo uses a layered application policy.
 
@@ -858,9 +883,9 @@ Current concrete ownership in this repo:
 - `roles/desktop/gnome.nix` enables GNOME and dconf settings.
 - `roles/common/flatpak.nix` enables Flatpak and Flatseal as optional platform services.
 - `roles/common/gaming.nix` enables Steam as an optional gaming platform.
-- `roles/common/base.nix` enables unfree packages and contains core system policy.
-- `roles/common/base.nix` allows the unfree packages needed by Chrome and Steam.
-- `users/common/gui-apps.nix` adds Firefox, Fedora Media Writer, Bitwarden, and Chrome for any user that imports it.
+- `roles/common/base.nix` contains core system policy.
+- `flake.nix` enables unfree packages needed by Chrome and Steam.
+- `users/common/gui-apps.nix` enables Firefox and adds Fedora Media Writer, Bitwarden, Chrome, and Signal Desktop for any user that imports it.
 - `users/thomasga/default.nix` opts `thomasga` into that shared GUI app set.
 - `roles/common/users.nix` puts `thomasga` in `wheel`, which is why that user can administer the Framework laptop.
 
@@ -877,7 +902,7 @@ Example opt-in browser module:
 
 Chrome follows the same pattern, but `pkgs.google-chrome` also requires unfree package policy.
 
-In this repo, that policy lives in `roles/common/base.nix`.
+In this repo, that policy is set in `flake.nix`.
 
 ### User Theme, Background, And GNOME Preferences
 
@@ -897,7 +922,7 @@ For `thomasga`, the concrete setup is:
 
 `users/thomasga/gnome.nix` converts the checked-in Fedora `.jxl` source to `.png` with `pkgs.libjxl` and points both `picture-uri` and `picture-uri-dark` at the generated PNG. That avoids relying on runtime JPEG XL wallpaper support.
 
-## Validation
+### Validation Commands
 
 Before switching on a real machine, use a Linux or WSL environment with Nix
 installed.
