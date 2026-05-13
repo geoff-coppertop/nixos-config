@@ -20,6 +20,10 @@ export NIX_CONFIG="experimental-features = nix-command flakes"
 
 set -euo pipefail
 
+# Enable nix-command and flakes for all nix invocations in this script.
+# Passed explicitly on sudo calls because sudo strips environment variables.
+export NIX_CONFIG="experimental-features = nix-command flakes"
+
 REPO_URL=https://github.com/geoff-coppertop/nixos-config
 REPO_TARGET=/mnt/etc/nixos/nixos-config
 KEY_FILENAME=nixos-config.age
@@ -29,8 +33,14 @@ KEY_FILENAME=nixos-config.age
 prompt() {
   local var_name="$1"
   local message="$2"
+  local default="${3:-}"
   local value
-  read -rp "$message: " value
+  if [[ -n "$default" ]]; then
+    read -rp "$message [$default]: " value
+    value="${value:-$default}"
+  else
+    read -rp "$message: " value
+  fi
   if [[ -z "$value" ]]; then
     echo "Error: value required." >&2
     exit 1
@@ -42,18 +52,21 @@ prompt_secret() {
   local var_name="$1"
   local message="$2"
   local value value2
-  read -rsp "$message: " value
-  echo
-  read -rsp "Confirm: " value2
-  echo
-  if [[ "$value" != "$value2" ]]; then
-    echo "Error: values do not match." >&2
-    exit 1
-  fi
-  if [[ -z "$value" ]]; then
-    echo "Error: value required." >&2
-    exit 1
-  fi
+  while true; do
+    read -rsp "$message: " value
+    echo
+    if [[ -z "$value" ]]; then
+      echo "Error: value required." >&2
+      continue
+    fi
+    read -rsp "Confirm: " value2
+    echo
+    if [[ "$value" != "$value2" ]]; then
+      echo "Passphrases do not match, try again." >&2
+      continue
+    fi
+    break
+  done
   printf -v "$var_name" '%s' "$value"
 }
 
@@ -76,8 +89,10 @@ echo
 lsblk -d -o NAME,SIZE,MODEL
 echo
 
-prompt REPO_URL   "Git repo URL (e.g. https://github.com/you/nixos-config)"
-prompt TARGET_DISK "Target disk device (e.g. /dev/nvme0n1)"
+DETECTED_DISK=$(lsblk -d -o NAME,TYPE --noheadings | awk '$2=="disk" {print "/dev/"$1}' | head -1)
+
+prompt REPO_URL    "Git repo URL" "$REPO_URL"
+prompt TARGET_DISK "Target disk device" "${DETECTED_DISK:-}"
 prompt_secret LUKS_PASSPHRASE "LUKS passphrase"
 
 # Host is selected after cloning (see step 3 below)
@@ -99,11 +114,12 @@ case "$KEY_SOURCE_CHOICE" in
     read -r
     lsblk -d -o NAME,SIZE,MODEL
     echo
-    prompt KEY_DEVICE "Key USB partition (e.g. /dev/sdb1)"
+    DETECTED_KEY_DEV=$(lsblk -d -o NAME,RM,TYPE --noheadings | awk '$2=="1" && $3=="disk" {print "/dev/"$1"1"}' | head -1)
+    prompt KEY_DEVICE "Key USB partition" "${DETECTED_KEY_DEV:-}"
     ;;
   2)
     echo
-    prompt KEY_FILE_PATH "Absolute path to the key file (e.g. /run/media/nixos/keys/$KEY_FILENAME)"
+    prompt KEY_FILE_PATH "Absolute path to the key file" "/run/media/nixos/keys/$KEY_FILENAME"
     ;;
   3)
     echo "Skipping age identity install."
@@ -137,6 +153,16 @@ sudo chown nixos:users /mnt/etc/nixos
 
 echo
 echo "=== Cloning repo ==="
+if [[ -e "$REPO_TARGET" ]]; then
+  echo "Target directory already exists: $REPO_TARGET"
+  read -rp "Remove it and re-clone? [y/N]: " remove_choice
+  if [[ "$remove_choice" =~ ^[Yy]$ ]]; then
+    sudo rm -rf "$REPO_TARGET"
+  else
+    echo "Aborted." >&2
+    exit 1
+  fi
+fi
 nix-shell -p git --run "git clone '$REPO_URL' '$REPO_TARGET'"
 
 # ── step 5: select host ───────────────────────────────────────────────────────
@@ -178,7 +204,7 @@ chmod 600 "$PASSPHRASE_FILE"
 printf '%s' "$LUKS_PASSPHRASE" > "$PASSPHRASE_FILE"
 unset LUKS_PASSPHRASE
 
-sudo nix run github:nix-community/disko -- \
+sudo NIX_CONFIG="$NIX_CONFIG" nix run github:nix-community/disko -- \
   --mode destroy,format,mount \
   "$REPO_TARGET/hosts/$FLAKE_TARGET/disko.nix"
 
@@ -205,7 +231,7 @@ fi
 
 echo
 echo "=== Running nixos-install ==="
-sudo nixos-install --flake "$REPO_TARGET#$FLAKE_TARGET"
+sudo NIX_CONFIG="$NIX_CONFIG" nixos-install --flake "$REPO_TARGET#$FLAKE_TARGET"
 
 echo
 echo "=== Install complete. Remove USB drives and reboot. ==="

@@ -36,16 +36,16 @@ in {
           "git.blame.editorDecoration.enabled" = true;
           "terminal.integrated.defaultProfile.linux" = config.custom.cli.shell;
           "terminal.integrated.profiles.linux" = shellProfiles;
-          "todo-tree.general.tags": [
-            "BUG",
-            "HACK",
-            "FIXME",
-            "TODO",
-            "XXX",
-            "[ ]",
-            "[x]",
+          "todo-tree.general.tags" = [
+            "BUG"
+            "HACK"
+            "FIXME"
+            "TODO"
+            "XXX"
+            "[ ]"
+            "[x]"
             "//!! GT:"
-          ],
+          ];
         };
       };
     };
