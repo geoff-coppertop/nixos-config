@@ -16,6 +16,7 @@
 #   bash tools/nixos-install.sh
 #
 # WARNING: disko will DESTROY all data on the selected disk.
+export NIX_CONFIG="experimental-features = nix-command flakes"
 
 set -euo pipefail
 
