@@ -66,17 +66,6 @@ prompt_secret() {
   printf -v "$var_name" '%s' "$value"
 }
 
-confirm_destructive() {
-  local disk="$1"
-  echo
-  echo "WARNING: ALL DATA ON $disk WILL BE DESTROYED."
-  read -rp "Type the device path again to confirm: " confirm
-  if [[ "$confirm" != "$disk" ]]; then
-    echo "Aborted." >&2
-    exit 1
-  fi
-}
-
 # -- gather inputs -------------------------------------------------------------
 
 echo "=== NixOS Installer ==="
@@ -178,8 +167,6 @@ echo "Installing host: $FLAKE_TARGET"
 
 echo
 echo "=== Provisioning disks ==="
-confirm_destructive "$TARGET_DISK"
-
 PASSPHRASE_FILE="/tmp/encryption-password"
 touch "$PASSPHRASE_FILE"
 chmod 600 "$PASSPHRASE_FILE"
