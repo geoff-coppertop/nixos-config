@@ -1,7 +1,7 @@
-{ pkgs, ... }: {
+{pkgs, ...}: {
   boot = {
     initrd = {
-      availableKernelModules = [ "tpm" "tpm_crb" "tpm_tis" ];
+      availableKernelModules = ["tpm" "tpm_crb" "tpm_tis"];
 
       luks.devices.root = {
         # Removed hardcoded device string to allow Disko to define it safely

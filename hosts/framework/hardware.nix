@@ -4,7 +4,20 @@
       systemd-boot.enable = true;
       efi.canTouchEfiVariables = true;
     };
-    initrd.systemd.enable = true;
+    initrd = {
+      systemd = {
+        enable = true;
+        services = {
+          systemd-udev-settle = {
+            wantedBy = ["initrd.target"];
+          };
+          systemd-activate-swap = {
+            after = ["systemd-udev-settle.service"];
+            requires = ["systemd-udev-settle.service"];
+          };
+        };
+      };
+    };
     resumeDevice = "/dev/disk/by-partlabel/swap";
   };
 
