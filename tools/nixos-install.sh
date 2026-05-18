@@ -208,8 +208,15 @@ fi
 
 echo
 echo "=== Initializing Lanzaboote Secure Boot Keys ==="
-sudo mkdir -p -m 0700 /mnt/etc/secureboot
-sudo NIX_CONFIG="$NIX_CONFIG" nix run nixpkgs#sbctl -- create-keys --disable-landlock --export /mnt/etc/secureboot/keys
+# 1. Create the exact nested folder structure Lanzaboote expects
+sudo mkdir -p -m 0700 /mnt/etc/secureboot/keys
+
+# 2. Step into the target directory and force sbctl to operate entirely within it
+cd /mnt/etc/secureboot
+sudo NIX_CONFIG="$NIX_CONFIG" nix run nixpkgs#sbctl -- create-keys --database keys
+
+# 3. Return to our temporary repository directory to keep the script tracking intact
+cd "$REPO_TMP"
 
 # -- step 7: install -----------------------------------------------------------
 
