@@ -222,7 +222,7 @@ fi
 echo
 echo "=== Initializing Lanzaboote Secure Boot Keys ==="
 sudo mkdir -p -m 0700 /mnt/etc/secureboot
-sudo NIX_CONFIG="$NIX_CONFIG" nix run nixpkgs#sbctl -- create-keys --export /mnt/etc/secureboot/keys
+sudo bash -c "NIX_CONFIG='$NIX_CONFIG' nix run nixpkgs#sbctl -- create-keys --export /mnt/etc/secureboot/keys"
 
 # -- step 7: install -----------------------------------------------------------
 
