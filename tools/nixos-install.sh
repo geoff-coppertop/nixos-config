@@ -208,15 +208,21 @@ fi
 
 echo
 echo "=== Initializing Lanzaboote Secure Boot Keys ==="
-# 1. Create the exact nested folder structure Lanzaboote expects
-sudo mkdir -p -m 0700 /mnt/etc/secureboot/keys
+# 1. Create the persistent target directory on the SSD
+sudo mkdir -p -m 0700 /mnt/etc/secureboot
 
-# 2. Step into the target directory and force sbctl to operate entirely within it
-cd /mnt/etc/secureboot
-sudo NIX_CONFIG="$NIX_CONFIG" nix run nixpkgs#sbctl -- create-keys --database keys
+# 2. Create the temporary directory the live image expects
+sudo mkdir -p -m 0700 /var/lib/sbctl
 
-# 3. Return to our temporary repository directory to keep the script tracking intact
-cd "$REPO_TMP"
+# 3. Bind mount the SSD directory to the live image path
+sudo mount --bind /mnt/etc/secureboot /var/lib/sbctl
+
+# 4. Run sbctl completely naturally. It writes to /var/lib/sbctl, 
+# but the data physically lands on your SSD inside /mnt/etc/secureboot/keys
+sudo NIX_CONFIG="$NIX_CONFIG" nix run nixpkgs#sbctl -- create-keys
+
+# 5. Clean up the bind mount
+sudo umount /var/lib/sbctl
 
 # -- step 7: install -----------------------------------------------------------
 
