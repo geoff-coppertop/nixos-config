@@ -5,26 +5,22 @@
 #
 # Prompts for the minimum required inputs, then:
 #   1. Secures the live session
-#   2. Prepares the target directory
-#   3. Clones the repo
-#   4. Selects the target host from available hosts in the repo
-#   5. Runs disko to partition, format, and mount the disk
+#   2. Clones the repo to a temporary RAM drive
+#   3. Selects the target host from available hosts in the repo
+#   4. Runs disko to partition, format, and mount the disk to /mnt
+#   5. Copies the repo into the newly mounted /mnt
 #   6. Installs the age identity key (optional)
 #   7. Runs nixos-install
-#
-# Run as the nixos user from the live installer:
-#   bash tools/nixos-install.sh
 #
 # WARNING: disko will DESTROY all data on the selected disk.
 export NIX_CONFIG="experimental-features = nix-command flakes"
 
 set -euo pipefail
 
-# Enable nix-command and flakes for all nix invocations in this script.
-# Passed explicitly on sudo calls because sudo strips environment variables.
 export NIX_CONFIG="experimental-features = nix-command flakes"
 
 REPO_URL=https://github.com/geoff-coppertop/nixos-config
+REPO_TMP=/tmp/nixos-config
 REPO_TARGET=/mnt/etc/nixos/nixos-config
 KEY_FILENAME=nixos-config.age
 
@@ -95,7 +91,6 @@ prompt REPO_URL    "Git repo URL" "$REPO_URL"
 prompt TARGET_DISK "Target disk device" "${DETECTED_DISK:-}"
 prompt_secret LUKS_PASSPHRASE "LUKS passphrase"
 
-# Host is selected after cloning (see step 3 below)
 FLAKE_TARGET=
 
 echo
@@ -142,37 +137,23 @@ echo
 echo "=== Securing live session ==="
 passwd nixos
 
-# -- step 2: prepare the target directory -------------------------------------
+# -- step 2: clone the repo to tmp ---------------------------------------------
 
 echo
-echo "=== Preparing target directory ==="
-sudo mkdir -p -m 0700 /mnt/etc/nixos
-sudo chown nixos:users /mnt/etc/nixos
-
-# -- step 3: clone the repo ----------------------------------------------------
-
-echo
-echo "=== Cloning repo ==="
-if [[ -e "$REPO_TARGET" ]]; then
-  echo "Target directory already exists: $REPO_TARGET"
-  read -rp "Remove it and re-clone? [y/N]: " remove_choice
-  if [[ "$remove_choice" =~ ^[Yy]$ ]]; then
-    sudo rm -rf "$REPO_TARGET"
-  else
-    echo "Aborted." >&2
-    exit 1
-  fi
+echo "=== Cloning repo to live RAM ==="
+if [[ -e "$REPO_TMP" ]]; then
+  sudo rm -rf "$REPO_TMP"
 fi
-nix-shell -p git --run "git clone '$REPO_URL' '$REPO_TARGET'"
+nix-shell -p git --run "git clone '$REPO_URL' '$REPO_TMP'"
 
-# -- step 4: select host -------------------------------------------------------
+# -- step 3: select host -------------------------------------------------------
 
 echo
 echo "=== Select target host ==="
-mapfile -t AVAILABLE_HOSTS < <(find "$REPO_TARGET/hosts" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
+mapfile -t AVAILABLE_HOSTS < <(find "$REPO_TMP/hosts" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
 
 if [[ ${#AVAILABLE_HOSTS[@]} -eq 0 ]]; then
-  echo "Error: no hosts found in $REPO_TARGET/hosts." >&2
+  echo "Error: no hosts found in $REPO_TMP/hosts." >&2
   exit 1
 fi
 
@@ -193,7 +174,7 @@ done
 
 echo "Installing host: $FLAKE_TARGET"
 
-# -- step 5: provision disks ---------------------------------------------------
+# -- step 4: provision disks ---------------------------------------------------
 
 echo
 echo "=== Provisioning disks ==="
@@ -207,9 +188,17 @@ unset LUKS_PASSPHRASE
 
 sudo NIX_CONFIG="$NIX_CONFIG" nix run github:nix-community/disko -- \
   --mode destroy,format,mount \
-  "$REPO_TARGET/hosts/$FLAKE_TARGET/disko.nix"
+  "$REPO_TMP/hosts/$FLAKE_TARGET/disko.nix"
 
 sudo shred -vfzu "$PASSPHRASE_FILE"
+
+# -- step 5: prepare target directory and move repo ---------------------------
+
+echo
+echo "=== Moving repo to newly mounted target ==="
+sudo mkdir -p -m 0700 /mnt/etc/nixos
+sudo cp -r "$REPO_TMP" "$REPO_TARGET"
+sudo chown -R nixos:users "$REPO_TARGET"
 
 # -- step 6: install age identity ---------------------------------------------
 
