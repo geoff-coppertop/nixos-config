@@ -213,32 +213,18 @@ fi
 
 echo
 echo "=== Initializing Lanzaboote Secure Boot Keys ==="
-# 1. Create the persistent target directory on the SSD
 sudo mkdir -p -m 0700 /mnt/etc/secureboot
-
-# 2. Create the temporary directory the live image expects
 sudo mkdir -p -m 0700 /var/lib/sbctl
-
-# 3. Bind mount the SSD directory to the live image path
 sudo mount --bind /mnt/etc/secureboot /var/lib/sbctl
-
-# 4. Run sbctl completely naturally. It writes to /var/lib/sbctl, 
-# but the data physically lands on your SSD inside /mnt/etc/secureboot/keys
 sudo NIX_CONFIG="$NIX_CONFIG" nix run nixpkgs#sbctl -- create-keys
-
-# 5. Clean up the bind mount
 sudo umount /var/lib/sbctl
 
-echo "=== Pre-seeding systemd-boot files ==="
-# 1.  Determine the ESP partition name based on nvme vs standard sdX formats
-if [[ "$TARGET_DISK" =~ "nvme" ]]; then
-  ESP_PARTITION="${TARGET_DISK}p1"
-else
-  ESP_PARTITION="${TARGET_DISK}1"
-fi
+# -- step 6.6: pre-seed systemd-boot inside chroot ----------------------------
 
-# 2. Target the device partition directly so bootctl skips the filesystem string check
-sudo bootctl --device="$ESP_PARTITION" install
+echo
+echo "=== Pre-seeding systemd-boot files ==="
+# Running via nixos-enter tricks bootctl into seeing /mnt/boot as a real local /boot
+sudo nixos-enter -- root -c "bootctl install"
 
 # -- step 7: install -----------------------------------------------------------
 
