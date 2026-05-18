@@ -6,6 +6,6 @@
   boot.kernelPackages = pkgs.linuxPackages_latest;
 
   fonts.packages = with pkgs; [
-    nerdfonts
+    nerd-fonts.droid-sans-mono
   ];
 }

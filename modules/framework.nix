@@ -18,9 +18,10 @@ with lib; {
 
     # PAM configuration for fingerprint authentication
     security.pam.services = {
-      login.fprintAuth = true;
+      # mkForce is required here to override GDM's default 'false' assignment
+      login.fprintAuth = lib.mkForce true; 
       sudo.fprintAuth = true;
-      gdm-fingerprint.fprintAuth = true; # Target the specific GDM fingerprint prompt
+      gdm-fingerprint.fprintAuth = true; 
     };
   };
 }
