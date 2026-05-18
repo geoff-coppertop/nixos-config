@@ -229,9 +229,16 @@ sudo NIX_CONFIG="$NIX_CONFIG" nix run nixpkgs#sbctl -- create-keys
 # 5. Clean up the bind mount
 sudo umount /var/lib/sbctl
 
-# 6. FORCE INITIALIZE SYSTEMD-BOOT FOR LANZABOOTE (The missing piece)
 echo "=== Pre-seeding systemd-boot files ==="
-sudo bootctl --esp-path=/mnt/boot --boot-path=/mnt/boot install
+# 1.  Determine the ESP partition name based on nvme vs standard sdX formats
+if [[ "$TARGET_DISK" =~ "nvme" ]]; then
+  ESP_PARTITION="${TARGET_DISK}p1"
+else
+  ESP_PARTITION="${TARGET_DISK}1"
+fi
+
+# 2. Target the device partition directly so bootctl skips the filesystem string check
+sudo bootctl --device="$ESP_PARTITION" install
 
 # -- step 7: install -----------------------------------------------------------
 
