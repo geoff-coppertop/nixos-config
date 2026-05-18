@@ -219,12 +219,13 @@ sudo mount --bind /mnt/etc/secureboot /var/lib/sbctl
 sudo NIX_CONFIG="$NIX_CONFIG" nix run nixpkgs#sbctl -- create-keys
 sudo umount /var/lib/sbctl
 
-# -- step 6.6: pre-seed systemd-boot inside chroot ----------------------------
+# -- step 6.6: pre-seed systemd-boot layout -----------------------------------
 
 echo
 echo "=== Pre-seeding systemd-boot files ==="
-# Running via nixos-enter tricks bootctl into seeing /mnt/boot as a real local /boot
-sudo nixos-enter -- root -c "bootctl install"
+# Using --path tells bootctl to treat /mnt as the root filesystem completely,
+# bypassing the FAT partition check on /mnt/boot.
+sudo bootctl --path=/mnt install
 
 # -- step 7: install -----------------------------------------------------------
 
