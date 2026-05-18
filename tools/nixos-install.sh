@@ -135,8 +135,6 @@ if [[ -e "$REPO_TMP" ]]; then
 fi
 nix-shell -p git --run "git clone '$REPO_URL' '$REPO_TMP'"
 
-# -- step 3: select host -------------------------------------------------------
-
 echo
 echo "=== Select target host ==="
 mapfile -t AVAILABLE_HOSTS < <(find "$REPO_TMP/hosts" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
@@ -153,7 +151,14 @@ done
 echo
 
 while true; do
-  read -rp "Select host [1-${#AVAILABLE_HOSTS[@]}]: " host_choice
+  # 1. Update the prompt string to explicitly show [1] as the default
+  read -rp "Select host [1-${#AVAILABLE_HOSTS[@]}] [1]: " host_choice
+  
+  # 2. If the user just hits Enter, force host_choice to "1"
+  if [[ -z "$host_choice" ]]; then
+    host_choice="1"
+  fi
+
   if [[ "$host_choice" =~ ^[0-9]+$ ]] && (( host_choice >= 1 && host_choice <= ${#AVAILABLE_HOSTS[@]} )); then
     FLAKE_TARGET="${AVAILABLE_HOSTS[$((host_choice-1))]}"
     break
