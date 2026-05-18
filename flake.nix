@@ -9,6 +9,9 @@
     agenix.url = "github:ryantm/agenix";
     pre-commit.url = "github:cachix/pre-commit-hooks.nix";
 
+    # Add nix-flatpak input here
+    nix-flatpak.url = "github:gmodena/nix-flatpak/?ref=latest";
+
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
     pre-commit.inputs.nixpkgs.follows = "nixpkgs";
 
@@ -27,6 +30,7 @@
     home-manager,
     agenix,
     lanzaboote,
+    nix-flatpak, # Pass nix-flatpak to outputs
     ...
   }: let
     system = "x86_64-linux";
@@ -80,13 +84,16 @@
           # This sets the config path to the new XDG standard
           home-manager.users.thomasga.programs.firefox.configPath = ".mozilla/firefox";
           # Note: Set to ".mozilla/firefox" to keep current behavior WITHOUT the warning,
-          # OR set to "\${config.xdg.configHome}/mozilla/firefox" to migrate.
+          # OR set to "${config.xdg.configHome}/mozilla/firefox" to migrate.
         }
 
         disko.nixosModules.disko
         home-manager.nixosModules.home-manager
         agenix.nixosModules.default
         lanzaboote.nixosModules.lanzaboote
+
+        # Inject the nix-flatpak module into your framework host build
+        nix-flatpak.nixosModules.nix-flatpak
       ];
     };
   };
