@@ -217,6 +217,13 @@ else
   echo "  sudo install -D -m 600 /path/to/$KEY_FILENAME /var/lib/agenix/identity"
 fi
 
+# -- step 6.5: prepare lanzaboote secure boot keys ----------------------------
+
+echo
+echo "=== Initializing Lanzaboote Secure Boot Keys ==="
+sudo mkdir -p -m 0700 /mnt/etc/secureboot
+sudo sbctl create-keys --export-keys /mnt/etc/secureboot/keys
+
 # -- step 7: install -----------------------------------------------------------
 
 echo
