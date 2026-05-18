@@ -28,7 +28,7 @@ REPO_URL=https://github.com/geoff-coppertop/nixos-config
 REPO_TARGET=/mnt/etc/nixos/nixos-config
 KEY_FILENAME=nixos-config.age
 
-# ── helpers ──────────────────────────────────────────────────────────────────
+# -- helpers ------------------------------------------------------------------
 
 prompt() {
   local var_name="$1"
@@ -81,7 +81,7 @@ confirm_destructive() {
   fi
 }
 
-# ── gather inputs ─────────────────────────────────────────────────────────────
+# -- gather inputs -------------------------------------------------------------
 
 echo "=== NixOS Installer ==="
 echo
@@ -136,20 +136,20 @@ if [[ "$KEY_SOURCE_CHOICE" != "3" ]]; then
   [[ "$shred_choice" =~ ^[Yy]$ ]] && KEY_SHRED_ARGS="--shred"
 fi
 
-# ── step 1: secure the live session ──────────────────────────────────────────
+# -- step 1: secure the live session ------------------------------------------
 
 echo
 echo "=== Securing live session ==="
 passwd nixos
 
-# ── step 2: prepare the target directory ─────────────────────────────────────
+# -- step 2: prepare the target directory -------------------------------------
 
 echo
 echo "=== Preparing target directory ==="
 sudo mkdir -p -m 0700 /mnt/etc/nixos
 sudo chown nixos:users /mnt/etc/nixos
 
-# ── step 3: clone the repo ────────────────────────────────────────────────────
+# -- step 3: clone the repo ----------------------------------------------------
 
 echo
 echo "=== Cloning repo ==="
@@ -165,7 +165,7 @@ if [[ -e "$REPO_TARGET" ]]; then
 fi
 nix-shell -p git --run "git clone '$REPO_URL' '$REPO_TARGET'"
 
-# ── step 5: select host ───────────────────────────────────────────────────────
+# -- step 4: select host -------------------------------------------------------
 
 echo
 echo "=== Select target host ==="
@@ -193,13 +193,14 @@ done
 
 echo "Installing host: $FLAKE_TARGET"
 
-# ── step 5: provision disks ───────────────────────────────────────────────────
+# -- step 5: provision disks ---------------------------------------------------
 
 echo
 echo "=== Provisioning disks ==="
 confirm_destructive "$TARGET_DISK"
 
-PASSPHRASE_FILE=$(mktemp)
+PASSPHRASE_FILE="/tmp/encryption-password"
+touch "$PASSPHRASE_FILE"
 chmod 600 "$PASSPHRASE_FILE"
 printf '%s' "$LUKS_PASSPHRASE" > "$PASSPHRASE_FILE"
 unset LUKS_PASSPHRASE
@@ -210,7 +211,7 @@ sudo NIX_CONFIG="$NIX_CONFIG" nix run github:nix-community/disko -- \
 
 sudo shred -vfzu "$PASSPHRASE_FILE"
 
-# ── step 6: install age identity ─────────────────────────────────────────────
+# -- step 6: install age identity ---------------------------------------------
 
 if [[ "$KEY_SOURCE_CHOICE" != "3" ]]; then
   echo
@@ -227,7 +228,7 @@ else
   echo "  sudo install -D -m 600 /path/to/$KEY_FILENAME /var/lib/agenix/identity"
 fi
 
-# ── step 7: install ───────────────────────────────────────────────────────────
+# -- step 7: install -----------------------------------------------------------
 
 echo
 echo "=== Running nixos-install ==="
