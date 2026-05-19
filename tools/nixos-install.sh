@@ -78,6 +78,12 @@ DETECTED_DISK=$(
 
 prompt REPO_URL "Git repo URL" "$REPO_URL"
 prompt TARGET_DISK "Target disk device" "${DETECTED_DISK:-}"
+
+if [[ ! -b "$TARGET_DISK" ]]; then
+  echo "Error: $TARGET_DISK is not a block device." >&2
+  exit 1
+fi
+
 prompt_secret LUKS_PASSPHRASE "LUKS passphrase"
 
 echo
@@ -139,10 +145,24 @@ fi
 echo
 echo "=== Securing live session ==="
 
-passwd nixos
+# Lock the live user account — no password needed since we won't use SSH
+sudo passwd -l nixos
 
 # ------------------------------------------------------------------------------
-# clone repo
+# write passphrase file — trap ensures it is shredded even on failure
+# ------------------------------------------------------------------------------
+
+PASSPHRASE_FILE="/tmp/encryption-password"
+
+touch "$PASSPHRASE_FILE"
+chmod 600 "$PASSPHRASE_FILE"
+printf '%s' "$LUKS_PASSPHRASE" > "$PASSPHRASE_FILE"
+unset LUKS_PASSPHRASE
+
+trap 'sudo shred -vfzu "$PASSPHRASE_FILE" 2>/dev/null || true' EXIT
+
+# ------------------------------------------------------------------------------
+# clone repo as root so it is never world-readable in /tmp
 # ------------------------------------------------------------------------------
 
 echo
@@ -150,7 +170,8 @@ echo "=== Cloning repo ==="
 
 sudo rm -rf "$REPO_TMP"
 
-nix-shell -p git --run \
+sudo NIX_CONFIG="$NIX_CONFIG" \
+  nix-shell -p git --run \
   "git clone '$REPO_URL' '$REPO_TMP'"
 
 # ------------------------------------------------------------------------------
@@ -204,22 +225,11 @@ echo "Installing host: $FLAKE_TARGET"
 echo
 echo "=== Provisioning disks ==="
 
-PASSPHRASE_FILE="/tmp/encryption-password"
-
-touch "$PASSPHRASE_FILE"
-chmod 600 "$PASSPHRASE_FILE"
-
-printf '%s' "$LUKS_PASSPHRASE" > "$PASSPHRASE_FILE"
-
-unset LUKS_PASSPHRASE
-
-sudo DISKO_DEVICE="$TARGET_DISK" \
-  NIX_CONFIG="$NIX_CONFIG" \
+sudo NIX_CONFIG="$NIX_CONFIG" \
   nix run github:nix-community/disko -- \
   --mode destroy,format,mount \
+  --arg disks "[ \"$TARGET_DISK\" ]" \
   "$REPO_TMP/hosts/$FLAKE_TARGET/disko.nix"
-
-sudo shred -vfzu "$PASSPHRASE_FILE"
 
 # ------------------------------------------------------------------------------
 # verify mounts
@@ -242,7 +252,7 @@ sudo mkdir -p -m 0700 /mnt/etc/nixos
 
 sudo cp -r "$REPO_TMP" "$REPO_TARGET"
 
-sudo chown -R nixos:users "$REPO_TARGET"
+sudo chown -R root:root "$REPO_TARGET"
 
 # ------------------------------------------------------------------------------
 # install age identity
@@ -290,8 +300,10 @@ sudo umount /var/lib/sbctl
 echo
 echo "=== Running nixos-install ==="
 
+# Install from the cloned repo in /tmp rather than the copy in /mnt,
+# so a partial copy cannot produce a broken install.
 sudo NIX_CONFIG="$NIX_CONFIG" \
-  nixos-install --flake "$REPO_TARGET#$FLAKE_TARGET"
+  nixos-install --flake "$REPO_TMP#$FLAKE_TARGET"
 
 echo
 echo "=== Install complete ==="

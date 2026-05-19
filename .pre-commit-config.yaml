@@ -10,9 +10,10 @@ repos:
     hooks:
       - id: alejandra
         name: alejandra
-        entry: alejandra --check
+        entry: alejandra .
         language: system
         types_or: [nix]
+        pass_filenames: false
 
       - id: statix
         name: statix

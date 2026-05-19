@@ -1,10 +1,8 @@
-{
+{disks ? ["/dev/nvme0n1"], ...}: {
   disko.devices = {
     disk.main = {
       type = "disk";
-
-      # Provided by the installer script
-      device = builtins.getEnv "DISKO_DEVICE";
+      device = builtins.elemAt disks 0;
 
       content = {
         type = "gpt";
@@ -18,18 +16,7 @@
               type = "filesystem";
               format = "vfat";
               mountpoint = "/boot";
-
-              mountOptions = [
-                "umask=0077"
-              ];
-            };
-          };
-
-          swap = {
-            size = "32G";
-
-            content = {
-              type = "swap";
+              mountOptions = ["umask=0077"];
             };
           };
 
@@ -42,21 +29,48 @@
               passwordFile = "/tmp/encryption-password";
 
               settings = {
+                # Discards leak block usage metadata through the LUKS layer.
+                # Disable if that's a concern; enable for SSD longevity.
                 allowDiscards = true;
               };
 
               content = {
-                type = "btrfs";
+                type = "lvm_pv";
+                vg = "vg";
+              };
+            };
+          };
+        };
+      };
+    };
 
-                subvolumes = {
-                  "@" = {
-                    mountpoint = "/";
-                  };
+    lvm_vg.vg = {
+      type = "lvm_vg";
 
-                  "@home" = {
-                    mountpoint = "/home";
-                  };
-                };
+      lvs = {
+        # Size should match physical RAM for full hibernation support
+        swap = {
+          size = "32G";
+          content = {
+            type = "swap";
+          };
+        };
+
+        root = {
+          size = "100%FREE";
+          content = {
+            type = "btrfs";
+            extraArgs = ["-L" "root"];
+
+            subvolumes = {
+              "@" = {
+                mountpoint = "/";
+                mountOptions = ["compress=zstd" "noatime"];
+              };
+
+              "@home" = {
+                mountpoint = "/home";
+                mountOptions = ["compress=zstd" "noatime"];
               };
             };
           };
