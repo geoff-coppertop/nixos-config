@@ -215,7 +215,7 @@ For a brand-new secret:
 1. Add a recipient entry to `secrets/secrets.nix`. Example:
 
    ```nix
-  "thomasga/nas-smb-credentials.age".publicKeys = [framework offlineAdmin];
+   "thomasga/nas-smb-credentials.age".publicKeys = [framework offlineAdmin];
    ```
 
 2. Create or edit the encrypted file:
@@ -325,7 +325,7 @@ This script:
 1. Add the secret to `secrets/secrets.nix`:
 
    ```nix
-  "thomasga/ssh-id-ed25519.age".publicKeys = [framework offlineAdmin];
+   "thomasga/ssh-id-ed25519.age".publicKeys = [framework offlineAdmin];
    ```
 
 2. Encrypt the private key:
@@ -592,31 +592,31 @@ For the new machine to decrypt secrets and authenticate over SSH:
 
 1. **Generate a host-specific age identity** (if not already available from a previous install):
 
-```bash
-mkdir -p ~/.config/agenix
-age-keygen -o ~/.config/agenix/<machine-name>.age
-chmod 600 ~/.config/agenix/<machine-name>.age
-```
+   ```bash
+   mkdir -p ~/.config/agenix
+   age-keygen -o ~/.config/agenix/<machine-name>.age
+   chmod 600 ~/.config/agenix/<machine-name>.age
+   ```
 
 2. **Add the host's public age key to `secrets/secrets.nix`**:
 
-```nix
-<machine-name> = "age1...";  # from age-keygen output
-```
+   ```nix
+   <machine-name> = "age1...";  # from age-keygen output
+   ```
 
-Then add recipient lists for secrets this host needs:
+   Then add recipient lists for secrets this host needs:
 
-```nix
-"thomasga/restic-password.age".publicKeys = [ framework offlineAdmin <machine-name> ];
-```
+   ```nix
+   "thomasga/restic-password.age".publicKeys = [ framework offlineAdmin <machine-name> ];
+   ```
 
 3. **Generate SSH login credentials** for this machine:
 
-```bash
-bash tools/bootstrap-ssh-key.sh <machine-name>
-```
+   ```bash
+   bash tools/bootstrap-ssh-key.sh <machine-name>
+   ```
 
-Follow the script's instructions to encrypt the private key as an agenix secret.
+   Follow the script's instructions to encrypt the private key as an agenix secret.
 
 4. **Enable SSH in the host's `configuration.nix`** and add the encrypted SSH secret to `modules/secrets.nix` (see [SSH Management](#ssh-management) for details).
 
