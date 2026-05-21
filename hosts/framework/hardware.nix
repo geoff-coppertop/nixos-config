@@ -7,5 +7,8 @@
     initrd.systemd.enable = true;
   };
   services.xserver.videoDrivers = ["amdgpu"];
-  hardware.cpu.amd.updateMicrocode = true;
+  hardware = {
+    cpu.amd.updateMicrocode = true;
+    enableRedistributableFirmware = true;
+  };
 }
