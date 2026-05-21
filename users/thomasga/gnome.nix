@@ -32,6 +32,15 @@ in {
       color-scheme = "prefer-dark";
       gtk-application-prefer-dark-style = true;
       accent-color = "blue";
+      text-scaling-factor = 2.0;
+    };
+
+    "org/gnome/desktop/peripherals/touchpad" = {
+      natural-scroll = true;
+    };
+
+    "org/gnome/desktop/peripherals/mouse" = {
+      natural-scroll = true;
     };
 
     "org/gnome/shell" = {
@@ -40,6 +49,15 @@ in {
         "blur-my-shell@aunetx"
         "dash-to-dock@micxgx.gmail.com"
         "just-perfection-desktop@just-perfection"
+      ];
+      favorite-apps = [
+        "org.gnome.Nautilus.desktop"
+        "signal-desktop.desktop"
+        "firefox.desktop"
+        "Alacritty.desktop"
+        "code.desktop"
+        "steam.desktop"
+        "com.moonlight_stream.Moonlight.desktop"
       ];
     };
 

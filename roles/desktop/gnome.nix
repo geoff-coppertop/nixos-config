@@ -44,7 +44,18 @@
       gnomeExtensions.just-perfection
     ];
   };
-  programs.dconf.enable = true;
+  programs.dconf = {
+    enable = true;
+    profiles.gdm.databases = [
+      {
+        settings = {
+          "org/gnome/desktop/interface" = {
+            text-scaling-factor = 2.0;
+          };
+        };
+      }
+    ];
+  };
   security.rtkit.enable = true;
   services = {
     desktopManager.gnome.enable = true;
