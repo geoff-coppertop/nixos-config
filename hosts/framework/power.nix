@@ -6,7 +6,6 @@
       "amdgpu.dc=1"
       "amdgpu.runpm=1"
       "amdgpu.dpm=1"
-      "amdgpu.dcdebugmask=0x10"
       "nvme.noacpi=1"
     ];
     resumeDevice = "/dev/vg/swap";
@@ -18,7 +17,6 @@
   networking.networkmanager.wifi.powersave = true;
   powerManagement = {
     cpuFreqGovernor = "powersave";
-    powertop.enable = true;
   };
   services = {
     power-profiles-daemon.enable = true;
