@@ -3,7 +3,6 @@
     enable = true;
 
     enableFishIntegration = true;
-    enableZshIntegration = true;
 
     defaultCommand = "fd --type f";
 

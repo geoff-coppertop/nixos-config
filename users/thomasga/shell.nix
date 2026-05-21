@@ -31,43 +31,9 @@
       };
     };
 
-    # Terminal: Kitty
-    kitty = {
-      enable = true;
-      # FIX: Changed 'theme' to 'themeFile'
-      themeFile = "Dracula";
-
-      settings = {
-        font_family = "Droid Sans Mono Nerd Font";
-        font_size = 12;
-
-        # Performance and behavior
-        scrollback_lines = 10000;
-        paste_actions = "quote-urls-at-prompt";
-
-        # Mouse
-        mouse_hide_wait = "3.0";
-
-        # Cursor
-        cursor_shape = "beam";
-        cursor_beam_thickness = "1.5";
-
-        # Bell
-        enable_audio_bell = false;
-        visual_bell_duration = "0.0";
-      };
-
-      keybindings = {
-        "ctrl+shift+c" = "copy_to_clipboard";
-        "ctrl+shift+v" = "paste_from_clipboard";
-        "ctrl+shift+n" = "new_window";
-        "ctrl+shift+t" = "new_tab";
-      };
-    };
-
     # Terminal: Alacritty
     alacritty = {
-      enable = false;
+      enable = true;
 
       settings = {
         window = {
