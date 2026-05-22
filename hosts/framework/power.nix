@@ -8,6 +8,7 @@
       "amdgpu.dpm=1"
       "nvme.noacpi=1"
       "button.lid_init_state=open"
+      "amdgpu.sg_display=0"
     ];
     resumeDevice = "/dev/vg/swap";
   };
