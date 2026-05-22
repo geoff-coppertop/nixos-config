@@ -8,4 +8,7 @@ in {
   "thomasga/restic-password.age".publicKeys = [framework offlineAdmin];
   "thomasga/nas-smb-credentials.age".publicKeys = [framework offlineAdmin];
   "thomasga/ssh-id-ed25519.age".publicKeys = [framework offlineAdmin];
+  "wifi/agt-home.age".publicKeys = [framework offlineAdmin];
+  "wifi/agt-iot.age".publicKeys = [framework offlineAdmin];
+  "wifi/agt-work.age".publicKeys = [framework offlineAdmin];
 }

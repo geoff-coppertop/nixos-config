@@ -24,6 +24,7 @@ This repo is the source of truth for machine setup, user setup, secrets wiring, 
   - [Secrets and SSH Setup](#secrets-and-ssh-setup)
 - [Reference](#reference)
   - [Secrets Management](#secrets-management)
+  - [Wi-Fi Pre-configuration](#wi-fi-pre-configuration)
   - [Hibernation And Power](#hibernation-and-power)
   - [Updating The System](#updating-the-system)
   - [Users And Configuration](#users-and-configuration)
@@ -258,6 +259,22 @@ Do not add `password=`. Do not add quotes. Do not use JSON.
 username=nas-user
 password=nas-password
 ```
+
+Each Wi-Fi secret decrypts to exactly one line:
+
+```text
+WIFI_AGT_HOME_PASSWORD=your-passphrase-here
+```
+
+Use the matching variable name for each network:
+
+| Secret file            | Variable name             | Network    |
+|------------------------|---------------------------|------------|
+| `wifi/agt-home.age`    | `WIFI_AGT_HOME_PASSWORD`  | `agt-home` |
+| `wifi/agt-iot.age`     | `WIFI_AGT_IOT_PASSWORD`   | `agt-iot`  |
+| `wifi/agt-work.age`    | `WIFI_AGT_WORK_PASSWORD`  | `agt-work` |
+
+Do not add quotes. Do not add any other lines.
 
 #### What May Be Committed
 
@@ -697,6 +714,81 @@ If the system does not auto-unlock at boot:
 4. **If Secure Boot or firmware state changes:** The TPM may not unlock automatically. Either provide the passphrase or re-enroll TPM after boot.
 
 Store your LUKS passphrase in Bitwarden or another secure offline location for disaster recovery.
+
+### Wi-Fi Pre-configuration
+
+Wi-Fi credentials are declared in `roles/common/networking.nix` using `networking.networkmanager.ensureProfiles`. The SSID is stored in plaintext in the config; the password is kept in an agenix-encrypted secret and substituted at activation time. NetworkManager writes the final profile to `/etc/NetworkManager/system-connections/` (0600, root-only) — the same location and permissions as any manually-configured connection. LUKS encryption protects these files at rest. The agenix secret itself lives on tmpfs (`/run/agenix/`) and is never written to disk.
+
+Currently configured networks: `agt-home`, `agt-iot`, `agt-work`.
+
+#### Creating the secrets
+
+For each network, create its encrypted secret (run once per network):
+
+```bash
+EDITOR=nano nix run .#secret-edit -- secrets/wifi/agt-home.age
+EDITOR=nano nix run .#secret-edit -- secrets/wifi/agt-iot.age
+EDITOR=nano nix run .#secret-edit -- secrets/wifi/agt-work.age
+```
+
+Each file must contain exactly one line — the variable name and password with no quotes:
+
+```text
+WIFI_AGT_HOME_PASSWORD=your-passphrase-here
+```
+
+See the table in [Exact Secret Contents](#exact-secret-contents) for the variable name required by each network.
+
+#### Adding another network
+
+Each new network requires changes in four places:
+
+1. **`secrets/secrets.nix`** — add a recipient entry:
+
+   ```nix
+   "wifi/newnet.age".publicKeys = [framework offlineAdmin];
+   ```
+
+2. **`modules/secrets.nix`** — expose the secret at runtime:
+
+   ```nix
+   "wifi/newnet".file = ../secrets/wifi/newnet.age;
+   ```
+
+3. **`roles/common/networking.nix`** — add the secret path to `environmentFiles` and a new profile block:
+
+   ```nix
+   environmentFiles = [
+     # existing entries...
+     config.age.secrets."wifi/newnet".path
+   ];
+   profiles."newnet-ssid" = {
+     connection = {id = "newnet-ssid"; type = "wifi";};
+     wifi = {ssid = "newnet-ssid"; mode = "infrastructure";};
+     wifi-security = {key-mgmt = "wpa-psk"; psk = "$WIFI_NEWNET_PASSWORD";};
+     ipv4.method = "auto";
+     ipv6.method = "auto";
+   };
+   ```
+
+   The `$WIFI_NEWNET_PASSWORD` placeholder must match the variable name in the secret file exactly.
+
+4. **`secrets/wifi/newnet.age`** — create the encrypted secret:
+
+   ```bash
+   EDITOR=nano nix run .#secret-edit -- secrets/wifi/newnet.age
+   ```
+
+   File contents: `WIFI_NEWNET_PASSWORD=your-passphrase`
+
+#### Verification
+
+After `sudo nixos-rebuild switch --flake .#framework`:
+
+```bash
+nmcli connection show              # profiles should appear
+sudo cat /etc/NetworkManager/system-connections/agt-home.nmconnection
+```
 
 ### Hibernation And Power
 
