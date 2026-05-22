@@ -9,6 +9,11 @@
       sha256 = "02zdc3jp0xpkds61x22hxpnmirxq8m5ici971bdcy64nd9zyck4r";
     };
     nativeBuildInputs = [pkgs.glib];
+    buildPhase = ''
+      runHook preBuild
+      glib-compile-schemas --strict --targetdir=schemas/ schemas
+      runHook postBuild
+    '';
     installPhase = ''
       runHook preInstall
       mkdir -p $out/share/gnome-shell/extensions/search-light@icedman.github.com
