@@ -47,7 +47,7 @@
 
         font = {
           normal = {
-            family = "Droid Sans Mono Nerd Font";
+            family = "DroidSansM Nerd Font Mono";
             style = "Regular";
           };
           size = 12.0;
