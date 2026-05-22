@@ -3,9 +3,6 @@
     kernelParams = [
       "amd_pstate=active"
       "mem_sleep_default=s2idle"
-      "amdgpu.dc=1"
-      "amdgpu.runpm=1"
-      "amdgpu.dpm=1"
       "nvme.noacpi=1"
       "button.lid_init_state=open"
       "amdgpu.sg_display=0"
