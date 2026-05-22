@@ -15,7 +15,9 @@ in {
   home = {
     file = {
       "Pictures/Wallpapers/space-shuttle.png".source = spaceShuttlePng;
-      ".config/monitors.xml".text = ''
+      ".config/monitors.xml" = {
+        force = true;
+        text = ''
         <monitors version="2">
           <configuration>
             <logicalmonitor>
@@ -40,6 +42,7 @@ in {
           </configuration>
         </monitors>
       '';
+      };
     };
   };
 
