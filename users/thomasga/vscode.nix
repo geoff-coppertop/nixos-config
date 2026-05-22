@@ -20,6 +20,7 @@ in {
       profiles.default = {
         extensions = with pkgs.vscode-extensions; [
           github.vscode-github-actions
+          github.vscode-pull-request-github
           gruntfuggly.todo-tree
           mhutchie.git-graph
           ms-azuretools.vscode-containers
