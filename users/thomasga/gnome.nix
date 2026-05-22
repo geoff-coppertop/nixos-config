@@ -12,14 +12,35 @@
       djxl ${./files/wallpapers/space-shuttle.jxl} "$out"
     '';
 in {
-  home.file."Pictures/Wallpapers/space-shuttle.png".source = spaceShuttlePng;
-
-  # ULauncher hotkey configuration
-  xdg.configFile."ulauncher/settings.json".text = builtins.toJSON {
-    hotkey-show-app = "<Super>space";
-    theme-name = "system";
-    show-recent-apps = 3;
-    grab-mouse-pointer = false;
+  home = {
+    file = {
+      "Pictures/Wallpapers/space-shuttle.png".source = spaceShuttlePng;
+      ".config/monitors.xml".text = ''
+        <monitors version="2">
+          <configuration>
+            <logicalmonitor>
+              <x>0</x>
+              <y>0</y>
+              <scale>2</scale>
+              <primary>yes</primary>
+              <monitor>
+                <monitorspec>
+                  <connector>eDP-1</connector>
+                  <vendor>BOE</vendor>
+                  <product>NE135A1M-NY1</product>
+                  <serial>0x00000000</serial>
+                </monitorspec>
+                <mode>
+                  <width>2880</width>
+                  <height>1920</height>
+                  <rate>60.001</rate>
+                </mode>
+              </monitor>
+            </logicalmonitor>
+          </configuration>
+        </monitors>
+      '';
+    };
   };
 
   dconf.settings = {
@@ -32,7 +53,6 @@ in {
       color-scheme = "prefer-dark";
       gtk-application-prefer-dark-style = true;
       accent-color = "blue";
-      text-scaling-factor = 2.0;
     };
 
     "org/gnome/desktop/peripherals/touchpad" = {
@@ -49,6 +69,7 @@ in {
         "blur-my-shell@aunetx"
         "dash-to-dock@micxgx.gmail.com"
         "just-perfection-desktop@just-perfection"
+        "search-light@icedman.github.com"
       ];
       favorite-apps = [
         "org.gnome.Nautilus.desktop"
@@ -61,7 +82,11 @@ in {
       ];
     };
 
-    # Free up Super+Space for ULauncher by clearing GNOME's input source switcher
+    "org/gnome/shell/extensions/search-light" = {
+      shortcut-search = ["<Super>space"];
+    };
+
+    # Free up Super+Space for search-light by clearing GNOME's input source switcher
     "org/gnome/settings-daemon/plugins/media-keys" = {
       switch-input-source = [];
       switch-input-source-backward = [];
