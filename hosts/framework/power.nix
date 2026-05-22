@@ -7,6 +7,7 @@
       "amdgpu.runpm=1"
       "amdgpu.dpm=1"
       "nvme.noacpi=1"
+      "button.lid_init_state=open"
     ];
     resumeDevice = "/dev/vg/swap";
   };
@@ -15,9 +16,6 @@
     lm_sensors
   ];
   networking.networkmanager.wifi.powersave = true;
-  powerManagement = {
-    cpuFreqGovernor = "powersave";
-  };
   services = {
     power-profiles-daemon.enable = true;
     udev.extraRules = ''

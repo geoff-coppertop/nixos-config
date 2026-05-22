@@ -4,10 +4,7 @@
       systemd-boot.enable = true;
       efi.canTouchEfiVariables = true;
     };
-    initrd = {
-      kernelModules = ["amdgpu"];
-      systemd.enable = true;
-    };
+    initrd.systemd.enable = true;
   };
   services.xserver.videoDrivers = ["amdgpu"];
   hardware = {
