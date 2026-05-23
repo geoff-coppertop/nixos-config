@@ -1,11 +1,9 @@
 {pkgs, ...}: {
   boot = {
     kernelParams = [
-      "amd_pstate=active"
       "mem_sleep_default=s2idle"
-      "nvme.noacpi=1"
       "button.lid_init_state=open"
-      "amdgpu.sg_display=0"
+      "amd_pstate=active"
     ];
     resumeDevice = "/dev/vg/swap";
   };
@@ -15,16 +13,18 @@
   ];
   networking.networkmanager.wifi.powersave = true;
   services = {
-    power-profiles-daemon.enable = true;
-    udev.extraRules = ''
-      ACTION=="add", SUBSYSTEM=="pci", TEST=="power/control", ATTR{power/control}="auto"
-      ACTION=="add", SUBSYSTEM=="usb", TEST=="power/control", ATTR{power/control}="auto"
-    '';
     logind.settings.Login = {
       HandleLidSwitch = "suspend";
       HandleLidSwitchExternalPower = "ignore";
       HandleLidSwitchDocked = "ignore";
       HandleHibernateKey = "hibernate";
     };
+    power-profiles-daemon.enable = true;
   };
+  services.udev.extraRules = ''
+    # Runtime PM for PCI devices
+    ACTION=="add", SUBSYSTEM=="pci", ATTR{power/control}="auto"
+    # Runtime PM for USB devices
+    ACTION=="add", SUBSYSTEM=="usb", ATTR{power/control}="auto"
+  '';
 }
