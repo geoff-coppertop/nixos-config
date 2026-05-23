@@ -9,7 +9,6 @@
     agenix.url = "github:ryantm/agenix";
     pre-commit.url = "github:cachix/pre-commit-hooks.nix";
 
-    # Add nix-flatpak input here
     nix-flatpak.url = "github:gmodena/nix-flatpak/?ref=latest";
 
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
@@ -36,7 +35,7 @@
     system = "x86_64-linux";
     pkgs = import nixpkgs {
       inherit system;
-      config.allowUnfree = true; # Standardize unfree here as well
+      config.allowUnfree = true;
     };
     src = pkgs.lib.cleanSource ./.;
     agenixCli = agenix.packages.${system}.default;
@@ -47,7 +46,6 @@
       inherit pkgs agenixCli;
     };
 
-    # We wrap the imported secretApps to add the missing 'meta' attributes
     rawSecretApps = import ./lib/secret-apps.nix {
       inherit pkgs agenixCli;
     };
@@ -71,27 +69,21 @@
 
     apps.${system} = secretApps;
 
-    nixosConfigurations.framework = nixpkgs.lib.nixosSystem {
+    nixosConfigurations."enterprise-d" = nixpkgs.lib.nixosSystem {
       inherit system;
 
       modules = [
-        ./hosts/framework
+        ./hosts/enterprise-d
 
         {
           nixpkgs.config.allowUnfree = true;
-
-          # SILENCE FIREFOX WARNING:
-          # This sets the config path to the new XDG standard
           home-manager.users.thomasga.programs.firefox.configPath = ".mozilla/firefox";
-          # Note: Set to ".mozilla/firefox" to keep current behavior WITHOUT the warning,
-          # OR set to "${config.xdg.configHome}/mozilla/firefox" to migrate.
         }
 
         disko.nixosModules.disko
         home-manager.nixosModules.home-manager
         agenix.nixosModules.default
         lanzaboote.nixosModules.lanzaboote
-
         nix-flatpak.nixosModules.nix-flatpak
       ];
     };

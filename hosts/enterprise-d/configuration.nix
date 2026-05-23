@@ -15,14 +15,18 @@
 
       nas = {
         credentialsFile = "/run/agenix/thomasga/nas-smb-credentials";
-        host = "192.168.1.231"; # or hostname if DNS resolves it
-        share = "Personal-Drive/backups"; # share name on the UNAS Pro
+        host = "192.168.1.231";
+        share = "Personal-Drive/backups";
       };
 
       users.thomasga.enable = true;
     };
+    btrfs.enable = true;
     framework.enable = true;
     isLaptop = true;
+    secureBoot.enable = true;
+    snapper.enable = true;
+    tpmLuks.enable = true;
   };
 
   services.openssh = {
@@ -37,7 +41,7 @@
 
   services.framework-control.enable = true;
 
-  networking.hostName = "framework";
+  networking.hostName = "enterprise-d";
 
   system.stateVersion = "25.11";
 }

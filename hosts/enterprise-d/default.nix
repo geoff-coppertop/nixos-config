@@ -1,7 +1,5 @@
 {
-  imports = [
-    ./configuration.nix
-  ];
+  imports = [./configuration.nix];
 
   home-manager = {
     useGlobalPkgs = true;
