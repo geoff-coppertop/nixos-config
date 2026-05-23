@@ -1,12 +1,12 @@
 {pkgs, ...}: let
   search-light = pkgs.stdenv.mkDerivation {
     pname = "gnome-shell-extension-search-light";
-    version = "unstable-4e93e0e";
+    version = "unstable-e08ef60";
     src = pkgs.fetchFromGitHub {
       owner = "icedman";
       repo = "search-light";
-      rev = "4e93e0e3e2fba8512dfd588177b7a6a2a71c9f1e";
-      sha256 = "02zdc3jp0xpkds61x22hxpnmirxq8m5ici971bdcy64nd9zyck4r";
+      rev = "e08ef60b09db4b10896e80e1e2ad8b85814c7ae8";
+      sha256 = "sha256-G2yV7kuZ5/TTovhsgfJneRQvrHl4Hwkkbehe8YJah/A=";
     };
     nativeBuildInputs = [pkgs.glib];
     buildPhase = ''
