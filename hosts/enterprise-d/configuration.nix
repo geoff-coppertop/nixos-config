@@ -3,6 +3,7 @@
     ./hardware.nix
     ./power.nix
     ./disko.nix
+    ./secrets.nix
 
     ../../roles
 
