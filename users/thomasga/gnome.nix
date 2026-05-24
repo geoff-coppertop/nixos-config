@@ -14,6 +14,7 @@
 in {
   home = {
     file = {
+      ".face".source = ./files/face.png;
       "Pictures/Wallpapers/space-shuttle.png".source = spaceShuttlePng;
       ".config/monitors.xml" = {
         force = true;
