@@ -75,7 +75,6 @@ in {
 
     "org/gnome/shell" = {
       enabled-extensions = [
-        "battery-health-charging@alextrem.com"
         "blur-my-shell@aunetx"
         "dash-to-dock@micxgx.gmail.com"
         "just-perfection-desktop@just-perfection"
@@ -127,7 +126,9 @@ in {
       triggers = [];
     };
 
-
+    "org/gnome/system/default-applications" = {
+      web-browser = "firefox.desktop";
+    };
     "org/gnome/settings-daemon/plugins/media-keys" = {
       switch-input-source = [];
       switch-input-source-backward = [];
