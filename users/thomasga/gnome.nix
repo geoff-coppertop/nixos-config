@@ -1,5 +1,6 @@
 {
   config,
+  lib,
   pkgs,
   ...
 }: let
@@ -88,6 +89,22 @@ in {
 
     "org/gnome/shell/extensions/search-light" = {
       shortcut-search = ["<Super>space"];
+    };
+
+    "org/gnome/desktop/session" = {
+      idle-delay = lib.gvariant.mkUint32 240; # blank at 4 min, sleep at 5 min on battery
+    };
+
+    "org/gnome/desktop/screensaver" = {
+      lock-enabled = true;
+      lock-delay = lib.gvariant.mkUint32 0;
+    };
+
+    "org/gnome/settings-daemon/plugins/power" = {
+      critical-battery-action = "hibernate";
+      sleep-inactive-battery-timeout = 300; # 5 min idle on battery → suspend-then-hibernate
+      sleep-inactive-battery-type = "suspend-then-hibernate";
+      sleep-inactive-ac-timeout = 0; # on AC: only blank+lock, no sleep
     };
 
     # Free up Super+Space for search-light by clearing GNOME's input source switcher

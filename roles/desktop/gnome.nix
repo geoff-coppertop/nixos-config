@@ -97,4 +97,18 @@ in {
     printing.enable = true;
     pulseaudio.enable = false;
   };
+  # Block logind's IdleAction while a user session is active so it only fires
+  # for the GDM login screen. GNOME handles idle sleep for user sessions itself
+  # via sleep-inactive-battery-type/timeout in the user's dconf settings.
+  systemd.user.services."logind-idle-inhibitor" = {
+    description = "Block logind idle action in user graphical sessions";
+    wantedBy = ["graphical-session.target"];
+    partOf = ["graphical-session.target"];
+    serviceConfig = {
+      Type = "simple";
+      ExecStart = "${pkgs.systemd}/bin/systemd-inhibit --what=idle --who=gnome-session --why=session-active --mode=block ${pkgs.coreutils}/bin/sleep infinity";
+      Restart = "on-failure";
+      RestartSec = "1s";
+    };
+  };
 }

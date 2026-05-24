@@ -15,7 +15,7 @@
   services = {
     logind.settings.Login = {
       HandleLidSwitch = "suspend-then-hibernate";
-      HandleLidSwitchExternalPower = "suspend-then-hibernate";
+      HandleLidSwitchExternalPower = "lock";
       HandleLidSwitchDocked = "ignore";
       HandleHibernateKey = "hibernate";
       IdleAction = "suspend-then-hibernate";
@@ -24,7 +24,7 @@
     power-profiles-daemon.enable = true;
   };
   systemd.sleep.settings.Sleep = {
-    HibernateDelaySec = "9min 30s";
+    HibernateDelaySec = "10min";
   };
   services.udev.extraRules = ''
     # Runtime PM for PCI devices
