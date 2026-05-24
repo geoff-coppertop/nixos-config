@@ -83,6 +83,7 @@ in {
       gdm = {
         enable = true;
         wayland = true;
+        autoSuspend = false;
       };
     };
     pipewire = {
