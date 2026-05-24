@@ -94,7 +94,7 @@ in {
         trustexitcode = true;
       };
 
-      safe.directory = [ "/etc/nixos/nixos-config" ];
+      safe.directory = ["/etc/nixos/nixos-config"];
 
       pull.rebase = true;
       rebase.autoSquash = true;
