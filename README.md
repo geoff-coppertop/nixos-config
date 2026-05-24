@@ -48,13 +48,7 @@ Use this rule when placing configuration:
 - If it affects a person's workflow, put it in that user's home-manager config under `users/<name>/`, usually in `users/<name>/default.nix` or a user module imported from there.
 - If several users may want it, create a reusable opt-in user module under `users/common/` and let each user import it from `users/<name>/default.nix` instead of forcing it globally.
 
-The active machine in this repo is `framework`.
-
-- Host entrypoint: `hosts/framework/configuration.nix`
-- Hardware: `hosts/framework/hardware.nix`
-- Power tuning and hibernation policy: `hosts/framework/power.nix`
-- Disk layout: `hosts/framework/disko.nix`
-- Flake entry: `flake.nix`
+The active machine in this repo is `framework` — see [hosts/framework/FRAMEWORK.md](hosts/framework/FRAMEWORK.md) for machine-specific files, installation checklist, and power behaviour.
 
 ## Setup
 
@@ -569,13 +563,7 @@ Keep copies of Secure Boot key material in a safe recovery location. Bitwarden i
 
 ### Post-Install Validation
 
-After the system boots:
-
-1. **Enroll TPM2 for LUKS auto-unlock** (see [TPM Auto-Unlock After Install](#tpm-auto-unlock-after-install))
-2. **Collect the SSH host public key** and add it to `lib/ssh-hosts.nix` (see [Collect Host SSH Public Key After Deploy](#collect-host-ssh-public-key-after-deploy))
-3. **Generate and install your SSH login credentials** (see [Generate SSH Login Credentials](#generate-ssh-login-credentials))
-4. **Test hibernation** (see [Hibernation And Power](#hibernation-and-power))
-5. **Validate the system** (see [Validation Commands](#validation-commands))
+See [hosts/framework/FRAMEWORK.md](hosts/framework/FRAMEWORK.md) for the Framework post-install checklist.
 
 ## Defining a New Machine
 
@@ -665,30 +653,7 @@ The disko configuration creates an encrypted root partition. During provisioning
 
 #### TPM Auto-Unlock After Install
 
-After the system boots and you are logged in, enroll the LUKS key into the TPM:
-
-```bash
-sudo systemd-cryptenroll /dev/disk/by-partlabel/root --tpm2-device=auto --tpm2-pcrs=0,1,3,7
-```
-
-The `--tpm2-pcrs` argument seals the key to specific firmware/bootloader measurements:
-
-- `0`: firmware configuration
-- `1`: bootloader configuration
-- `3`: bootloader state
-- `7`: Secure Boot state
-
-After enrollment, reboot. The system should now unlock automatically at boot without a passphrase prompt.
-
-#### Verify TPM Enrollment
-
-To check that TPM enrollment is active:
-
-```bash
-sudo systemd-cryptenroll /dev/disk/by-partlabel/root --json | jq '.[] | select(.type=="tpm2")'
-```
-
-A non-empty result confirms TPM2 enrollment is active.
+See [hosts/framework/FRAMEWORK.md](hosts/framework/FRAMEWORK.md) for the TPM enrollment steps, PCR selections, and verification commands.
 
 #### Change Or Reset The LUKS Passphrase
 
@@ -792,12 +757,9 @@ sudo cat /etc/NetworkManager/system-connections/agt-home.nmconnection
 
 ### Hibernation And Power
 
-This repo is set up to hibernate through the dedicated swap partition.
+Hibernation uses the dedicated swap partition (`/dev/vg/swap`). Full behaviour — scenarios, timings, and implementation notes — is documented in the host power document:
 
-- Resume device: `/dev/disk/by-partlabel/swap`
-- Root subvolume: `subvol=@`
-- Home subvolume: `subvol=@home`
-- AMD CPU policy: `amd_pstate=active`
+- [Framework](hosts/framework/FRAMEWORK.md)
 
 After installation, validate hibernation with:
 
