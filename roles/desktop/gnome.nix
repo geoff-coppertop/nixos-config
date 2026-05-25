@@ -9,6 +9,18 @@
       sha256 = "sha256-G2yV7kuZ5/TTovhsgfJneRQvrHl4Hwkkbehe8YJah/A=";
     };
     nativeBuildInputs = [pkgs.glib];
+    postPatch = ''
+      # ungrab_accelerator expects an int but Object.keys() produces strings,
+      # causing the release to silently fail and the subsequent re-grab to error.
+      substituteInPlace keybinding.js \
+        --replace-fail \
+          'global.display.ungrab_accelerator(k)' \
+          'global.display.ungrab_accelerator(parseInt(k))'
+
+      # Remove dead Gio.DesktopAppInfo call that throws a GJS exception in newer
+      # GNOME and aborts the deferred UI initialisation at the end of enable().
+      sed -i '/Gio\.DesktopAppInfo\.new_from_filename/{N;N;d;}' extension.js
+    '';
     buildPhase = ''
       runHook preBuild
       glib-compile-schemas --strict --targetdir=schemas/ schemas

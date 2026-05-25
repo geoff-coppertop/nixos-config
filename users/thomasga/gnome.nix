@@ -68,6 +68,11 @@ in {
       natural-scroll = true;
     };
 
+    # Single input source prevents InputSourceManager from registering <Super>space
+    "org/gnome/desktop/input-sources" = {
+      sources = [(lib.hm.gvariant.mkTuple ["xkb" "us"])];
+    };
+
     "org/gnome/shell" = {
       enabled-extensions = [
         "battery-health-charging@alextrem.com"
@@ -93,6 +98,10 @@ in {
       intellihide = true;
     };
 
+    # Writing shortcut-search via dconf triggers changed::shortcut-search in the
+    # running session, which causes the extension to re-grab the accelerator. This
+    # post-startup re-grab (with the parseInt fix in place) resolves any grab
+    # conflict that may have occurred during initial session setup.
     "org/gnome/shell/extensions/search-light" = {
       shortcut-search = ["<Super>space"];
     };
@@ -113,7 +122,12 @@ in {
       sleep-inactive-ac-timeout = 0; # on AC: only blank+lock, no sleep
     };
 
-    # Free up Super+Space for search-light by clearing GNOME's input source switcher
+    # Free up Super+Space for search-light — clear GNOME media keys and IBus grab
+    "org/freedesktop/ibus/general/hotkey" = {
+      triggers = [];
+    };
+
+
     "org/gnome/settings-daemon/plugins/media-keys" = {
       switch-input-source = [];
       switch-input-source-backward = [];
