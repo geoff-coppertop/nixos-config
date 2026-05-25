@@ -30,7 +30,7 @@
     home-manager,
     agenix,
     lanzaboote,
-    nix-flatpak, # Pass nix-flatpak to outputs
+    nix-flatpak,
     ...
   }: let
     system = "x86_64-linux";
@@ -92,7 +92,6 @@
         agenix.nixosModules.default
         lanzaboote.nixosModules.lanzaboote
 
-        # Inject the nix-flatpak module into your framework host build
         nix-flatpak.nixosModules.nix-flatpak
       ];
     };

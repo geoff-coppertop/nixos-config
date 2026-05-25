@@ -1,4 +1,4 @@
-{pkgs, ...}: {
+{...}: {
   imports = [
     ./hardware.nix
     ./power.nix
@@ -35,9 +35,7 @@
     };
   };
 
-  environment.systemPackages = with pkgs; [
-    framework-tool
-  ];
+  services.framework-control.enable = true;
 
   networking.hostName = "framework";
 

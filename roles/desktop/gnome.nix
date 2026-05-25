@@ -84,7 +84,6 @@ in {
     systemPackages = with pkgs; [
       gnome-tweaks
       search-light
-      gnomeExtensions.battery-health-charging
       gnomeExtensions.blur-my-shell
       gnomeExtensions.dash-to-dock
       gnomeExtensions.just-perfection
