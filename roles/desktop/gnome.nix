@@ -9,6 +9,23 @@
       sha256 = "sha256-G2yV7kuZ5/TTovhsgfJneRQvrHl4Hwkkbehe8YJah/A=";
     };
     nativeBuildInputs = [pkgs.glib];
+    postPatch = ''
+      # ungrab_accelerator expects an int but Object.keys() produces strings,
+      # causing the release to silently fail and the subsequent re-grab to error.
+      substituteInPlace keybinding.js \
+        --replace-fail \
+          'global.display.ungrab_accelerator(k)' \
+          'global.display.ungrab_accelerator(parseInt(k))'
+
+      # Remove dead Gio.DesktopAppInfo call that throws a GJS exception in newer
+      # GNOME and aborts the deferred UI initialisation at the end of enable().
+      sed -i '/Gio\.DesktopAppInfo\.new_from_filename/{N;N;d;}' extension.js
+
+      # Set border-radius default to index 2 (18px) in the rads lookup table.
+      # The rads array is [0,16,18,20,22,24,28,32]; valid slider range is 0-6.
+      sed -i '/name="border-radius"/{n;s|<default>0</default>|<default>2.0</default>|}' \
+        schemas/org.gnome.shell.extensions.search-light.gschema.xml
+    '';
     buildPhase = ''
       runHook preBuild
       glib-compile-schemas --strict --targetdir=schemas/ schemas
