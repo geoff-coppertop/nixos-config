@@ -78,13 +78,19 @@ in {
       ];
       favorite-apps = [
         "org.gnome.Nautilus.desktop"
-        "signal-desktop.desktop"
+        "signal.desktop"
         "firefox.desktop"
-        "Alacritty.desktop"
         "code.desktop"
+        "Alacritty.desktop"
         "steam.desktop"
         "com.moonlight_stream.Moonlight.desktop"
       ];
+    };
+
+    "org/gnome/shell/extensions/dash-to-dock" = {
+      dock-fixed = false;
+      autohide = true;
+      intellihide = true;
     };
 
     "org/gnome/shell/extensions/search-light" = {
