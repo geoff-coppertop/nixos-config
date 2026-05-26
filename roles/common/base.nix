@@ -1,5 +1,11 @@
 {pkgs, ...}: {
   nix.settings.experimental-features = ["nix-command" "flakes"];
+
+  nix.gc = {
+    automatic = true;
+    dates = "weekly";
+    options = "--delete-older-than 30d";
+  };
   time.timeZone = "America/Edmonton";
   i18n.defaultLocale = "en_CA.UTF-8";
 
