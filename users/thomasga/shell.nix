@@ -31,54 +31,17 @@
       };
     };
 
-    # Terminal: Alacritty
-    alacritty = {
+    # Terminal: Ghostty
+    ghostty = {
       enable = true;
 
       settings = {
-        window = {
-          padding = {
-            x = 10;
-            y = 10;
-          };
-          opacity = 0.95;
-          decorations = "full";
-        };
-
-        font = {
-          normal = {
-            family = "DroidSansM Nerd Font Mono";
-            style = "Regular";
-          };
-          size = 12.0;
-        };
-
-        colors = {
-          primary = {
-            background = "#282a36";
-            foreground = "#f8f8f2";
-          };
-          normal = {
-            black = "#282a36";
-            red = "#ff5555";
-            green = "#50fa7b";
-            yellow = "#f1fa8c";
-            blue = "#bd93f9";
-            magenta = "#ff79c6";
-            cyan = "#8be9fd";
-            white = "#bfbfbf";
-          };
-          bright = {
-            black = "#4d4d4d";
-            red = "#ff6e6e";
-            green = "#69ff94";
-            yellow = "#ffffa5";
-            blue = "#d6acff";
-            magenta = "#ff92df";
-            cyan = "#a4ffff";
-            white = "#ffffff";
-          };
-        };
+        font-family = "DroidSansM Nerd Font Mono";
+        font-size = 12;
+        background-opacity = 0.95;
+        window-padding-x = 10;
+        window-padding-y = 10;
+        theme = "Dracula";
       };
     };
   };
