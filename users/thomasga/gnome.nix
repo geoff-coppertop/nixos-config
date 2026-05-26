@@ -86,7 +86,7 @@ in {
         "signal.desktop"
         "firefox.desktop"
         "code.desktop"
-        "Alacritty.desktop"
+        "com.mitchellh.ghostty.desktop"
         "steam.desktop"
         "com.moonlight_stream.Moonlight.desktop"
       ];
