@@ -17,6 +17,10 @@
       };
 
       functions = {
+        fish_greeting = ''
+          fastfetch
+        '';
+
         ls = ''
           eza --icons=always $argv
         '';
