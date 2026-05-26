@@ -7,8 +7,11 @@
     fish = {
       path = "${pkgs.fish}/bin/fish";
     };
-    zsh = {
-      path = "${pkgs.zsh}/bin/zsh";
+    bash = {
+      path = "${pkgs.bash}/bin/bash";
+    };
+    sh = {
+      path = "${pkgs.bash}/bin/sh";
     };
   };
 in {
