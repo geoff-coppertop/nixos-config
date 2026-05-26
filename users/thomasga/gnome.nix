@@ -82,6 +82,7 @@ in {
       ];
       favorite-apps = [
         "org.gnome.Nautilus.desktop"
+        "obsidian.desktop"
         "signal.desktop"
         "firefox.desktop"
         "code.desktop"
