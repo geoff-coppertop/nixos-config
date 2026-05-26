@@ -14,5 +14,6 @@
   home.packages = [
     pkgs.vim
     pkgs.nerd-fonts.droid-sans-mono
+    pkgs.obsidian
   ];
 }
