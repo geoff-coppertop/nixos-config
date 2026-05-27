@@ -5,6 +5,25 @@
 }: {
   options.custom.snapper.enable = lib.mkEnableOption "snapper btrfs snapshot schedules";
   config = lib.mkIf config.custom.snapper.enable {
+    # Snapper timeline and cleanup run on tight hourly schedules; throttle both
+    # so they don't cause unexpected heat spikes during otherwise-idle sessions.
+    systemd.services = {
+      "snapper-timeline" = {
+        serviceConfig = {
+          Nice = 15;
+          IOSchedulingClass = "best-effort";
+          IOSchedulingPriority = 7;
+        };
+      };
+      "snapper-cleanup" = {
+        serviceConfig = {
+          Nice = 15;
+          IOSchedulingClass = "best-effort";
+          IOSchedulingPriority = 7;
+        };
+      };
+    };
+
     services.snapper.configs = {
       root = {
         SUBVOLUME = "/";
