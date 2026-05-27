@@ -98,6 +98,7 @@ in {
         "com.mitchellh.ghostty.desktop"
         "steam.desktop"
         "com.moonlight_stream.Moonlight.desktop"
+        "com.bambulab.BambuStudio.desktop"
       ];
     };
 
@@ -157,4 +158,16 @@ in {
       switch-input-source-backward = [];
     };
   };
+
+  # Bambu Studio ignores the XDG color-scheme portal; seed its own INI key.
+  home.activation.bambuStudioDarkMode = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    _bbs_cfg="$HOME/.var/app/com.bambulab.BambuStudio/config/BambuStudio/BambuStudio.ini"
+    if [ -f "$_bbs_cfg" ]; then
+      if grep -q "^dark_color_scheme=" "$_bbs_cfg"; then
+        sed -i 's/^dark_color_scheme=.*/dark_color_scheme=1/' "$_bbs_cfg"
+      else
+        echo "dark_color_scheme=1" >> "$_bbs_cfg"
+      fi
+    fi
+  '';
 }
