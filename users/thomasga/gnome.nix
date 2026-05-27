@@ -89,6 +89,7 @@ in {
         "com.mitchellh.ghostty.desktop"
         "steam.desktop"
         "com.moonlight_stream.Moonlight.desktop"
+        "com.bambulab.BambuStudio.desktop"
       ];
     };
 

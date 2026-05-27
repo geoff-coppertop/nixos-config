@@ -13,7 +13,7 @@
     # Declare your flatpaks here using their Flathub application IDs
     packages = [
       "com.github.tchx84.Flatseal"
-      # "org.mozilla.firefox" # Add more apps as strings here
+      "com.bambulab.BambuStudio"
     ];
 
     # True declarative management:
