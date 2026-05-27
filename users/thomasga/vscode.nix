@@ -22,6 +22,7 @@ in {
       # Wrap existing settings into the default profile
       profiles.default = {
         extensions = with pkgs.vscode-extensions; [
+          dracula-theme.theme-dracula
           github.vscode-github-actions
           github.vscode-pull-request-github
           gruntfuggly.todo-tree
@@ -34,6 +35,7 @@ in {
           ms-vscode-remote.remote-containers
         ];
         userSettings = {
+          "workbench.colorTheme" = "Dracula";
           "files.autoSave" = "onFocusChange";
           "git.blame.editorDecoration.enabled" = true;
           "terminal.integrated.defaultProfile.linux" = config.custom.cli.shell;
