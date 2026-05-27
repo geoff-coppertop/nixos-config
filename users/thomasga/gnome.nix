@@ -95,7 +95,16 @@ in {
     "org/gnome/shell/extensions/dash-to-dock" = {
       dock-fixed = false;
       autohide = true;
-      intellihide = true;
+      # intellihide constantly re-checks window overlap, which races with
+      # blur-my-shell's dock background actor on session init and creates an
+      # infinite layout loop that hammers the GPU until XWayland dies.
+      intellihide = false;
+    };
+
+    # Disable blur-my-shell's dock overlay — it adds MetaBackgroundGroup and
+    # StWidget actors behind the dock that were the looping actors in the crash.
+    "org/gnome/shell/extensions/blur-my-shell/dash-to-dock" = {
+      blur = false;
     };
 
     # Writing shortcut-search via dconf triggers changed::shortcut-search in the
