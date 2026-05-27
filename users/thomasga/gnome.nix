@@ -57,7 +57,7 @@ in {
     "org/gnome/desktop/interface" = {
       color-scheme = "prefer-dark";
       gtk-application-prefer-dark-style = true;
-      accent-color = "purple";
+      accent-color = "blue";
       gtk-theme = "gnome-prism";
       icon-theme = "gnome-prism";
     };
@@ -101,6 +101,7 @@ in {
 
     "org/gnome/shell/extensions/dash-to-panel" = {
       panel-positions = ''{"0":"BOTTOM"}'';
+      autohide-panel = true;
       stockgs-keep-top-panel = false;
       panel-element-positions-monitors-sync = true;
       panel-element-positions = ''{"0":[{"element":"showAppsButton","visible":true,"position":"stackedTL"},{"element":"activitiesButton","visible":false,"position":"stackedTL"},{"element":"leftBox","visible":true,"position":"stackedTL"},{"element":"taskbar","visible":true,"position":"stackedTL"},{"element":"centerBox","visible":false,"position":"stackedBR"},{"element":"rightBox","visible":true,"position":"stackedBR"},{"element":"systemMenu","visible":true,"position":"stackedBR"},{"element":"dateMenu","visible":true,"position":"stackedBR"},{"element":"desktopButton","visible":false,"position":"stackedBR"}]}'';
@@ -120,7 +121,7 @@ in {
       trans-use-border = true;
       trans-border-width = 1;
       trans-border-use-custom-color = true;
-      trans-border-custom-color = "#BDA7F0";
+      trans-border-custom-color = "#89B4FA";
       dot-style-focused = "SQUARES";
       dot-style-unfocused = "SQUARES";
       dot-position = "BOTTOM";

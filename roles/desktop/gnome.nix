@@ -9,6 +9,10 @@
       sha256 = "sha256-M7kIFKPDTnpio8LKYSi5QX9aGzharSMbG+9iuQu000A=";
     };
     dontBuild = true;
+    postPatch = ''
+      find . -type f \( -name "*.css" -o -name "*.svg" \) \
+        -exec sed -i 's/#BDA7F0/#89B4FA/g; s/#bda7f0/#89b4fa/g' {} +
+    '';
     installPhase = ''
       runHook preInstall
       mkdir -p $out/share/themes
