@@ -66,7 +66,7 @@ nix eval .#nixosConfigurations.framework.config.age.identityPaths --json
 
 The configuration is layered as a DAG of imports. Understanding which layer to edit is the main architectural decision:
 
-```
+```text
 flake.nix
   └── hosts/framework/          # machine-specific: hardware, disk, power
         └── roles/              # shared system policy: networking, GNOME, gaming
@@ -84,7 +84,7 @@ flake.nix
 ### Key Directories
 
 | Path | Purpose |
-|---|---|
+| --- | --- |
 | `flake.nix` | Single entry point; defines inputs, dev shell, checks, secret apps, and `nixosConfigurations.framework` |
 | `hosts/framework/` | Hardware scan, disko disk layout, power/hibernate policy, machine imports |
 | `roles/common/` | Base OS settings, single user (`thomasga`), NetworkManager Wi-Fi profiles, Steam, Flatpak |
@@ -126,7 +126,7 @@ Changes needed in four places: `secrets/secrets.nix`, `modules/secrets.nix`, `ro
 ### Flake Inputs
 
 | Input | Purpose |
-|---|---|
+| --- | --- |
 | `nixpkgs` (nixos-unstable) | Main package set and NixOS modules |
 | `home-manager` | User environment management |
 | `disko` | Declarative disk partitioning |

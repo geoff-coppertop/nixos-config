@@ -64,7 +64,7 @@
       if [[ -d "$HOME/.config/agenix" ]]; then
         while IFS= read -r key_file; do
           EXTRA_OPTS+=("-i" "$key_file")
-        done < <(find "$HOME/.config/agenix" -type f \( -name "*.age" -o -name "*.key" -o -name "framework" \) 2>/dev/null)
+        done < <(find "$HOME/.config/agenix" -type f \( -name "*.age" -o -name "*.key" -o -name "enterprise-d" \) 2>/dev/null)
       fi
 
       exec agenix --rekey "''${EXTRA_OPTS[@]}"

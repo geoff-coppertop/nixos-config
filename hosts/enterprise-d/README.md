@@ -1,11 +1,11 @@
-# Framework
+# enterprise-d
 
 ## Machine Files
 
-- Host entrypoint: `hosts/framework/configuration.nix`
-- Hardware: `hosts/framework/hardware.nix`
-- Power tuning and hibernation policy: `hosts/framework/power.nix`
-- Disk layout: `hosts/framework/disko.nix`
+- Host entrypoint: `hosts/enterprise-d/configuration.nix`
+- Hardware: `hosts/enterprise-d/hardware.nix`
+- Power tuning and hibernation policy: `hosts/enterprise-d/power.nix`
+- Disk layout: `hosts/enterprise-d/disko.nix`
 - Flake entry: `flake.nix`
 
 ## Installation
@@ -93,7 +93,7 @@ The 30 s window applies from when the login screen goes idle, which itself follo
 
 | File | Responsibility |
 | --- | --- |
-| `hosts/framework/power.nix` | logind lid/key actions, `IdleAction` for GDM, `HibernateDelaySec` |
+| `hosts/enterprise-d/power.nix` | logind lid/key actions, `IdleAction` for GDM, `HibernateDelaySec` |
 | `roles/desktop/gnome.nix` | `logind-idle-inhibitor` user service — blocks logind `IdleAction` during user sessions so GNOME manages sleep instead |
 | `users/thomasga/gnome.nix` | GNOME idle/sleep dconf settings: screen blank at 4 min, battery sleep at 5 min, lock on blank, critical battery hibernate |
 
