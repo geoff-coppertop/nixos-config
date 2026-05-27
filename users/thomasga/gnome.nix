@@ -48,6 +48,15 @@ in {
     };
   };
 
+  home.activation.ensureBuildsBookmark = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    bookmarksFile="$HOME/.config/gtk-3.0/bookmarks"
+    mkdir -p "$(dirname "$bookmarksFile")"
+    # Append only if absent so Nautilus can still manage other bookmarks freely
+    if ! grep -qF "file://$HOME/builds" "$bookmarksFile" 2>/dev/null; then
+      echo "file://$HOME/builds builds" >> "$bookmarksFile"
+    fi
+  '';
+
   dconf.settings = {
     "org/gnome/desktop/background" = {
       picture-uri = "file://${config.home.homeDirectory}/Pictures/Wallpapers/space-shuttle.png";
