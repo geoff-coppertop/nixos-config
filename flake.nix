@@ -62,6 +62,10 @@
           meta = {description = "Rekey agenix secrets with new host keys";};
         };
     };
+
+    mkNixosSystem = import ./lib/nixos-system.nix {
+      inherit nixpkgs system home-manager agenix;
+    };
   in {
     devShells.${system}.default = devShell;
 
@@ -69,23 +73,12 @@
 
     apps.${system} = secretApps;
 
-    nixosConfigurations."enterprise-d" = nixpkgs.lib.nixosSystem {
-      inherit system;
-
-      modules = [
-        ./hosts/enterprise-d
-
-        {
-          nixpkgs.config.allowUnfree = true;
-          home-manager.users.thomasga.programs.firefox.configPath = ".mozilla/firefox";
-        }
-
-        disko.nixosModules.disko
-        home-manager.nixosModules.home-manager
-        agenix.nixosModules.default
-        lanzaboote.nixosModules.lanzaboote
-        nix-flatpak.nixosModules.nix-flatpak
-      ];
-    };
+    nixosConfigurations."enterprise-d" = mkNixosSystem [
+      ./hosts/enterprise-d
+      {home-manager.users.thomasga.programs.firefox.configPath = ".mozilla/firefox";}
+      disko.nixosModules.disko
+      lanzaboote.nixosModules.lanzaboote
+      nix-flatpak.nixosModules.nix-flatpak
+    ];
   };
 }

@@ -1,12 +1,4 @@
 {
   imports = [./configuration.nix];
-
-  home-manager = {
-    useGlobalPkgs = true;
-    useUserPackages = true;
-
-    users = {
-      thomasga = import ../../users/thomasga;
-    };
-  };
+  home-manager.users.thomasga = import ../../users/thomasga;
 }
