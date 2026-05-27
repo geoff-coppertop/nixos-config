@@ -3,6 +3,7 @@
     ../common/base.nix
     ../common/cli
     ../common/gui-apps.nix
+    ./claude.nix
     ./git.nix
     ./gnome.nix
     ./ssh.nix
@@ -10,6 +11,8 @@
     ./secrets.nix
     ./shell.nix
   ];
+
+  custom.claude.enable = true;
 
   home.packages = [
     pkgs.vim
