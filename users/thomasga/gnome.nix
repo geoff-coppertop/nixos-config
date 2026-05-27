@@ -57,7 +57,9 @@ in {
     "org/gnome/desktop/interface" = {
       color-scheme = "prefer-dark";
       gtk-application-prefer-dark-style = true;
-      accent-color = "blue";
+      accent-color = "purple";
+      gtk-theme = "gnome-prism";
+      icon-theme = "gnome-prism";
     };
 
     "org/gnome/desktop/peripherals/touchpad" = {
@@ -76,9 +78,10 @@ in {
     "org/gnome/shell" = {
       enabled-extensions = [
         "blur-my-shell@aunetx"
-        "dash-to-dock@micxgx.gmail.com"
+        "dash-to-panel@jderose9.github.com"
         "just-perfection-desktop@just-perfection"
         "search-light@icedman.github.com"
+        "user-theme@gnome-shell-extensions.gcampax.github.com"
       ];
       favorite-apps = [
         "org.gnome.Nautilus.desktop"
@@ -92,19 +95,41 @@ in {
       ];
     };
 
-    "org/gnome/shell/extensions/dash-to-dock" = {
-      dock-fixed = false;
-      autohide = true;
-      # intellihide constantly re-checks window overlap, which races with
-      # blur-my-shell's dock background actor on session init and creates an
-      # infinite layout loop that hammers the GPU until XWayland dies.
-      intellihide = false;
+    "org/gnome/shell/extensions/user-theme" = {
+      name = "gnome-prism";
     };
 
-    # Disable blur-my-shell's dock overlay — it adds MetaBackgroundGroup and
-    # StWidget actors behind the dock that were the looping actors in the crash.
-    "org/gnome/shell/extensions/blur-my-shell/dash-to-dock" = {
-      blur = false;
+    "org/gnome/shell/extensions/dash-to-panel" = {
+      panel-positions = ''{"0":"BOTTOM"}'';
+      stockgs-keep-top-panel = false;
+      panel-element-positions-monitors-sync = true;
+      panel-element-positions = ''{"0":[{"element":"showAppsButton","visible":true,"position":"stackedTL"},{"element":"activitiesButton","visible":false,"position":"stackedTL"},{"element":"leftBox","visible":true,"position":"stackedTL"},{"element":"taskbar","visible":true,"position":"stackedTL"},{"element":"centerBox","visible":false,"position":"stackedBR"},{"element":"rightBox","visible":true,"position":"stackedBR"},{"element":"systemMenu","visible":true,"position":"stackedBR"},{"element":"dateMenu","visible":true,"position":"stackedBR"},{"element":"desktopButton","visible":false,"position":"stackedBR"}]}'';
+      panel-lengths = ''{"0":100}'';
+      panel-anchors = ''{"0":"MIDDLE"}'';
+      panel-size = 55;
+      appicon-padding = 10;
+      appicon-margin = 0;
+      tray-padding = 0;
+      leftbox-padding = 0;
+      status-icon-padding = 0;
+      show-apps-icon-side-padding = 12;
+      tray-size = 14;
+      leftbox-size = 14;
+      trans-use-custom-bg = true;
+      trans-bg-color = "#000000";
+      trans-use-border = true;
+      trans-border-width = 1;
+      trans-border-use-custom-color = true;
+      trans-border-custom-color = "#BDA7F0";
+      dot-style-focused = "SQUARES";
+      dot-style-unfocused = "SQUARES";
+      dot-position = "BOTTOM";
+      dot-size = 0;
+      focus-highlight = false;
+      group-apps-underline-unfocused = false;
+      animate-appicon-hover = true;
+      highlight-appicon-hover = false;
+      animate-appicon-hover-animation-type = "SIMPLE";
     };
 
     # Writing shortcut-search via dconf triggers changed::shortcut-search in the

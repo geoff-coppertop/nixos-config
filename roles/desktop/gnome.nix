@@ -1,4 +1,24 @@
 {pkgs, ...}: let
+  gnome-prism = pkgs.stdenv.mkDerivation {
+    pname = "gnome-prism";
+    version = "unstable-9380959";
+    src = pkgs.fetchFromGitHub {
+      owner = "zachfeldman";
+      repo = "gnome-prism";
+      rev = "9380959c4f100412a2d023c9dff0eed3f338275f";
+      sha256 = "sha256-M7kIFKPDTnpio8LKYSi5QX9aGzharSMbG+9iuQu000A=";
+    };
+    dontBuild = true;
+    installPhase = ''
+      runHook preInstall
+      mkdir -p $out/share/themes
+      cp -r themes/gnome-prism $out/share/themes/
+      mkdir -p $out/share/icons
+      cp -r icons/gnome-prism $out/share/icons/
+      runHook postInstall
+    '';
+    meta.description = "Dark high-contrast GNOME theme, designed for the Framework Laptop";
+  };
   search-light = pkgs.stdenv.mkDerivation {
     pname = "gnome-shell-extension-search-light";
     version = "unstable-e08ef60";
@@ -83,15 +103,18 @@ in {
     ];
     systemPackages = with pkgs; [
       gnome-tweaks
+      gnome-prism
       search-light
       gnomeExtensions.blur-my-shell
-      gnomeExtensions.dash-to-dock
+      gnomeExtensions.dash-to-panel
       gnomeExtensions.just-perfection
+      gnomeExtensions.user-themes
     ];
   };
   programs.dconf = {
     enable = true;
   };
+  fonts.packages = [pkgs.dm-mono];
   security.rtkit.enable = true;
   services = {
     desktopManager.gnome.enable = true;
