@@ -1,4 +1,13 @@
-{pkgs, ...}: {
+{
+  lib,
+  pkgs,
+  ...
+}: let
+  sshHosts = import ../../lib/ssh-hosts.nix;
+  authorizedKeys =
+    lib.mapAttrsToList (_: host: host.userPublicKey)
+    (lib.filterAttrs (_: host: host.userPublicKey != null) sshHosts);
+in {
   programs.fish.enable = true;
 
   users.users.thomasga = {
@@ -7,6 +16,7 @@
     extraGroups = ["wheel" "networkmanager"];
     hashedPassword = "$6$wDwCuj.CXA58mdJ4$IxPk211Ubqn8ZZp7pezRajIaQye6dp47gMVd4xpnmiCmml8MfSqDiR3SU8FXn1r/urLDEsNz/oOM3GTGHiitD.";
     shell = pkgs.fish;
+    openssh.authorizedKeys.keys = authorizedKeys;
   };
 
   # GDM reads avatars from AccountsService, not ~/.face.
