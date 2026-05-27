@@ -77,7 +77,8 @@ in {
       natural-scroll = true;
     };
 
-    # Single input source prevents InputSourceManager from registering <Super>space
+    # Single input source so the switcher popup never appears.
+    # The <Super>space grab conflict is resolved by clearing wm.keybindings below.
     "org/gnome/desktop/input-sources" = {
       sources = [(lib.hm.gvariant.mkTuple ["xkb" "us"])];
     };
@@ -117,10 +118,10 @@ in {
       blur = false;
     };
 
-    # Writing shortcut-search via dconf triggers changed::shortcut-search in the
-    # running session, which causes the extension to re-grab the accelerator. This
-    # post-startup re-grab (with the parseInt fix in place) resolves any grab
-    # conflict that may have occurred during initial session setup.
+    # Writing shortcut-search triggers changed::shortcut-search, causing search-light
+    # to re-grab. On first login the wm.keybindings default still holds <Super>space;
+    # home-manager writes wm/keybindings before shell/extensions (alphabetical order),
+    # releasing the conflict, then this key change fires the successful re-grab.
     "org/gnome/shell/extensions/search-light" = {
       shortcut-search = ["<Super>space"];
     };
@@ -141,9 +142,21 @@ in {
       sleep-inactive-ac-timeout = 0; # on AC: only blank+lock, no sleep
     };
 
-    # Free up Super+Space for search-light — clear GNOME media keys and IBus grab
+    # InputSourceManager reads switch-input-source from org.gnome.desktop.wm.keybindings
+    # and registers it via Main.wm.addKeybinding — that is the Mutter-level grab that
+    # blocks search-light. Clearing it here prevents the registration entirely.
+    "org/gnome/desktop/wm/keybindings" = {
+      switch-input-source = [];
+      switch-input-source-backward = [];
+    };
+
+    # Belt-and-suspenders: also clear the legacy media-keys path and IBus trigger.
     "org/freedesktop/ibus/general/hotkey" = {
       triggers = [];
+    };
+    "org/gnome/settings-daemon/plugins/media-keys" = {
+      switch-input-source = [];
+      switch-input-source-backward = [];
     };
 
     "org/gnome/desktop/wm/preferences" = {
@@ -152,10 +165,6 @@ in {
 
     "org/gnome/system/default-applications" = {
       web-browser = "firefox.desktop";
-    };
-    "org/gnome/settings-daemon/plugins/media-keys" = {
-      switch-input-source = [];
-      switch-input-source-backward = [];
     };
   };
 
