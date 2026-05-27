@@ -16,4 +16,9 @@
   ];
 
   services.journald.extraConfig = "Storage=persistent";
+
+  environment.systemPackages = with pkgs; [
+    pciutils
+    usbutils
+  ];
 }
