@@ -137,8 +137,11 @@ in {
 
     "org/gnome/settings-daemon/plugins/power" = {
       critical-battery-action = "hibernate";
-      sleep-inactive-battery-timeout = 300; # 5 min idle on battery → suspend-then-hibernate
-      sleep-inactive-battery-type = "suspend-then-hibernate";
+      # logind handles idle sleep on battery via IdleAction=suspend-then-hibernate.
+      # gsd-power does not support suspend-then-hibernate as a sleep type and falls
+      # back to plain Suspend(), which never transitions to hibernate. Set to nothing
+      # so gsd-power does not race with logind's idle action.
+      sleep-inactive-battery-type = "nothing";
       sleep-inactive-ac-timeout = 0; # on AC: only blank+lock, no sleep
     };
 

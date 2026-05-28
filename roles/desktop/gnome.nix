@@ -113,18 +113,30 @@ in {
     printing.enable = true;
     pulseaudio.enable = false;
   };
-  # Block logind's IdleAction while a user session is active so it only fires
-  # for the GDM login screen. GNOME handles idle sleep for user sessions itself
-  # via sleep-inactive-battery-type/timeout in the user's dconf settings.
+  # Hold the logind idle inhibitor only while on AC power.
+  # On battery the service exits immediately (no inhibitor held), allowing
+  # logind's IdleAction=suspend-then-hibernate to fire after IdleActionSec.
+  # On AC the inhibitor is held and the inner loop monitors power state,
+  # exiting when AC is disconnected so the service restarts and re-evaluates.
+  # GNOME's sleep-inactive-battery-type is set to "nothing" so gsd-power does
+  # not also attempt a sleep action — logind is the sole sleep trigger on battery.
   systemd.user.services."logind-idle-inhibitor" = {
-    description = "Block logind idle action in user graphical sessions";
+    description = "Block logind idle action while on AC power";
     wantedBy = ["graphical-session.target"];
     partOf = ["graphical-session.target"];
     serviceConfig = {
       Type = "simple";
-      ExecStart = "${pkgs.systemd}/bin/systemd-inhibit --what=idle --who=gnome-session --why=session-active --mode=block ${pkgs.coreutils}/bin/sleep infinity";
-      Restart = "on-failure";
-      RestartSec = "1s";
+      Restart = "always";
+      RestartSec = "10s";
+      ExecStart = pkgs.writeShellScript "logind-idle-inhibitor" ''
+        grep -q '^1$' /sys/class/power_supply/*/online 2>/dev/null || exit 0
+        exec ${pkgs.systemd}/bin/systemd-inhibit \
+          --what=idle --who=power-manager --why=on-ac-power --mode=block \
+          ${pkgs.bash}/bin/bash -c \
+            'until ! grep -q "^1$" /sys/class/power_supply/*/online 2>/dev/null
+             do sleep 5
+             done'
+      '';
     };
   };
 }
