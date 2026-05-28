@@ -11,6 +11,15 @@
   ];
 
   custom = {
+    networkDrives = {
+      enable = true;
+      nas.host = "192.168.1.231";
+      users.thomasga = {
+        enable = true;
+        share = "Personal-Drive";
+      };
+    };
+
     backups = {
       enable = true;
 
