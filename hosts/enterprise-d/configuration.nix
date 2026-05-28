@@ -1,4 +1,6 @@
-{...}: {
+{...}: let
+  nas = import ../../lib/nas.nix;
+in {
   imports = [
     ./hardware.nix
     ./power.nix
@@ -11,13 +13,22 @@
   ];
 
   custom = {
+    networkDrives = {
+      enable = true;
+      nas.host = nas.host;
+      users.thomasga = {
+        enable = true;
+        share = nas.shares.personal;
+      };
+    };
+
     backups = {
       enable = true;
 
       nas = {
         credentialsFile = "/run/agenix/thomasga/nas-smb-credentials";
-        host = "192.168.1.231";
-        share = "Personal-Drive/backups";
+        host = nas.host;
+        share = nas.shares.backups;
       };
 
       users.thomasga.enable = true;
@@ -43,6 +54,7 @@
   services.framework-control.enable = true;
 
   networking.hostName = "enterprise-d";
+  networking.hosts.${nas.ip} = [nas.host];
 
   system.stateVersion = "25.11";
 }

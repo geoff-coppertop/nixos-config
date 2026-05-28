@@ -1,7 +1,9 @@
 {
   age.secrets = {
-    "thomasga/nas-smb-credentials".file =
-      ../../secrets/thomasga/nas-smb-credentials.age;
+    "thomasga/nas-smb-credentials" = {
+      file = ../../secrets/thomasga/nas-smb-credentials.age;
+      owner = "thomasga";
+    };
     "thomasga/restic-password".file =
       ../../secrets/thomasga/restic-password.age;
     "thomasga/ssh-id-ed25519-enterprise-d" = {
