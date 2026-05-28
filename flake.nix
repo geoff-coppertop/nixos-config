@@ -10,6 +10,7 @@
     pre-commit.url = "github:cachix/pre-commit-hooks.nix";
 
     nix-flatpak.url = "github:gmodena/nix-flatpak/?ref=latest";
+    nix-vscode-extensions.url = "github:nix-community/nix-vscode-extensions";
 
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
     pre-commit.inputs.nixpkgs.follows = "nixpkgs";
@@ -30,6 +31,7 @@
     agenix,
     lanzaboote,
     nix-flatpak,
+    nix-vscode-extensions,
     ...
   }: let
     system = "x86_64-linux";
@@ -75,7 +77,10 @@
 
     nixosConfigurations."enterprise-d" = mkNixosSystem [
       ./hosts/enterprise-d
-      {home-manager.users.thomasga.programs.firefox.configPath = ".mozilla/firefox";}
+      {
+        home-manager.users.thomasga.programs.firefox.configPath = ".mozilla/firefox";
+        nixpkgs.overlays = [nix-vscode-extensions.overlays.default];
+      }
       disko.nixosModules.disko
       lanzaboote.nixosModules.lanzaboote
       nix-flatpak.nixosModules.nix-flatpak
