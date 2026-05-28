@@ -10,5 +10,9 @@
       file = ../../secrets/thomasga/ssh-id-ed25519-enterprise-d.age;
       owner = "thomasga";
     };
+    "thomasga/github-token" = {
+      file = ../../secrets/thomasga/github-token.age;
+      owner = "thomasga";
+    };
   };
 }
