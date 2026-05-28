@@ -116,5 +116,45 @@ in {
 
   config = mkIf cfg.enable {
     home-manager.users = mapAttrs (username: userCfg: mkUserHmConfig username userCfg) enabledUsers;
+
+    networking.networkmanager.dispatcherScripts = [
+      {
+        source = pkgs.writeShellScript "nas-drive-nm-dispatch" ''
+          interface="$1"
+          event="$2"
+
+          log() { ${pkgs.util-linux}/bin/logger -t nas-drive-nm "$*"; }
+
+          [[ "$interface" == "lo" ]] && exit 0
+
+          log "event=$event interface=$interface"
+
+          act() {
+            local action="$1"
+            while read -r session uid user _rest; do
+              stype=$(${pkgs.systemd}/bin/loginctl show-session "$session" \
+                -p Type --value 2>/dev/null || true)
+              log "session=$session uid=$uid user=$user type=$stype action=$action"
+              [[ "$stype" == "wayland" || "$stype" == "x11" ]] || continue
+              cmd="XDG_RUNTIME_DIR=/run/user/$uid ${pkgs.systemd}/bin/systemctl --user $action nas-drive.service"
+              ${pkgs.util-linux}/bin/runuser -u "$user" -- \
+                ${pkgs.bash}/bin/bash -c "$cmd" \
+                2>&1 | ${pkgs.util-linux}/bin/logger -t nas-drive-nm || true
+            done < <(${pkgs.systemd}/bin/loginctl list-sessions --no-legend 2>/dev/null)
+          }
+
+          case "$event" in
+            up)
+              sleep 5
+              act restart
+              ;;
+            pre-down|down)
+              act stop
+              ;;
+          esac
+        '';
+        type = "basic";
+      }
+    ];
   };
 }
