@@ -1,4 +1,4 @@
-{...}: let
+_: let
   nas = import ../../lib/nas.nix;
 in {
   imports = [
@@ -27,7 +27,7 @@ in {
 
       nas = {
         credentialsFile = "/run/agenix/thomasga/nas-smb-credentials";
-        host = nas.host;
+        inherit (nas) host;
         share = nas.shares.backups;
       };
 
