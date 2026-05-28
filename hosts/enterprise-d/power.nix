@@ -19,7 +19,8 @@
       HandleLidSwitchDocked = "ignore";
       HandleHibernateKey = "hibernate";
       IdleAction = "suspend-then-hibernate";
-      IdleActionSec = "30s";
+      # Fires 1 min after GNOME blanks the screen (idle-delay = 4 min), so ~5 min from last input
+      IdleActionSec = "1min";
     };
     power-profiles-daemon.enable = true;
   };
