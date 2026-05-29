@@ -162,6 +162,10 @@ in {
       switch-input-source-backward = [];
     };
 
+    "org/gnome/shell/keybindings" = {
+      show-screenshot-ui = ["Print" "<Super><Shift>s"];
+    };
+
     "org/gnome/desktop/wm/preferences" = {
       button-layout = "appmenu:minimize,maximize,close";
     };
