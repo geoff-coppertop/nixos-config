@@ -1,5 +1,6 @@
 {pkgs, ...}: {
   imports = [
+    ../common/appearance.nix
     ../common/base.nix
     ../common/cli
     ../common/gui-apps.nix
@@ -13,6 +14,7 @@
     ./shell.nix
   ];
 
+  custom.appearance.darkMode = true;
   custom.claude.enable = true;
 
   home.packages = [
