@@ -1,12 +1,6 @@
-{pkgs, ...}: {
-  environment.systemPackages = with pkgs; [
-    gh
-    podman-compose
+{
+  imports = [
+    ./containers.nix
+    ./tools.nix
   ];
-
-  virtualisation.podman = {
-    enable = true;
-    dockerCompat = true;
-    defaultNetwork.settings.dns_enabled = true;
-  };
 }
