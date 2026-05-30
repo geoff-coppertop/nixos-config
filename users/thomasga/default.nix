@@ -4,7 +4,7 @@
     ../common/base.nix
     ../common/cli
     ../common/gui-apps.nix
-    ./claude.nix
+    ./ai.nix
     ./git.nix
     ./gnome.nix
     ./ssh.nix
@@ -15,7 +15,7 @@
   ];
 
   custom.appearance.darkMode = true;
-  custom.claude.enable = true;
+  custom.ai.claude.enable = true;
 
   home.packages = [
     pkgs.vim
