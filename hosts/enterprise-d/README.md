@@ -25,27 +25,34 @@ After the system boots:
 After the system boots and you are logged in, enroll the LUKS key into the TPM:
 
 ```bash
-sudo systemd-cryptenroll /dev/disk/by-partlabel/root --tpm2-device=auto --tpm2-pcrs=0,1,3,7
+sudo systemd-cryptenroll /dev/disk/by-partlabel/disk-main-root --tpm2-device=auto --tpm2-pcrs=0+7
 ```
 
-The `--tpm2-pcrs` argument seals the key to specific firmware/bootloader measurements:
+The `--tpm2-pcrs` argument seals the key to:
 
-- `0`: firmware configuration
-- `1`: bootloader configuration
-- `3`: bootloader state
-- `7`: Secure Boot state
+- `0`: firmware executable code
+- `7`: Secure Boot state (enabled/disabled, certificate databases)
 
-After enrollment, reboot. The system should now unlock automatically at boot without a passphrase prompt.
+PCRs 1 and 3 (UEFI NVRAM variables and option ROM configuration) are intentionally excluded.
+Binding to PCR 1 causes the TPM to reject the sealed key on hibernate resume because the
+firmware sets EFI variables during the hibernate/resume cycle, changing PCR 1 at resume time
+relative to enrollment time. PCR 7 (Secure Boot) is the load-bearing security guarantee:
+it ensures no unsigned bootloader or kernel can run, so the coverage lost from dropping PCRs
+1 and 3 is limited to tamper detection of UEFI configuration changes rather than code execution
+protection.
+
+After enrollment, reboot. The system should now unlock automatically at boot and on wake from
+hibernation without a passphrase prompt.
 
 ### Verify TPM Enrollment
 
 To check that TPM enrollment is active:
 
 ```bash
-sudo systemd-cryptenroll /dev/disk/by-partlabel/root --json | jq '.[] | select(.type=="tpm2")'
+sudo cryptsetup luksDump /dev/disk/by-partlabel/disk-main-root | grep -A5 "Tokens"
 ```
 
-A non-empty result confirms TPM2 enrollment is active.
+A `systemd-tpm2` token entry in the output confirms TPM2 enrollment is active.
 
 ## Philosophy
 
