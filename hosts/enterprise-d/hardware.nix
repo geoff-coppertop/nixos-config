@@ -14,4 +14,5 @@
     cpu.amd.updateMicrocode = true;
     enableRedistributableFirmware = true;
   };
+  services.fwupd.enable = true;
 }
