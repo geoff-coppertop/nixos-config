@@ -57,7 +57,7 @@
 
   mkUnmountScript = username: userCfg:
     pkgs.writeShellScript "nas-drive-unmount-${username}" ''
-      ${pkgs.glib}/bin/gio mount --unmount \
+      timeout 10 ${pkgs.glib}/bin/gio mount --unmount \
         "smb://${cfg.nas.host}/${userCfg.share}" 2>/dev/null || true
     '';
 
