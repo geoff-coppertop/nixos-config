@@ -1,4 +1,9 @@
-{pkgs, ...}: let
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}: let
   search-light = pkgs.stdenv.mkDerivation {
     pname = "gnome-shell-extension-search-light";
     version = "unstable-e08ef60";
@@ -91,7 +96,20 @@ in {
   };
   programs.dconf = {
     enable = true;
+    # Enable fingerprint authentication in GDM's system-db so the setting
+    # persists across GDM restarts.
+    profiles.gdm.databases = lib.optionals config.services.fprintd.enable [
+      {
+        settings."org/gnome/login-screen" = {
+          enable-fingerprint-authentication = true;
+        };
+      }
+    ];
   };
+  # NixOS GDM module handles fprintd PAM but not the Settings UI side.
+  # Expose GDM's gsettings schemas to user sessions so gnome-control-center
+  # can find org.gnome.login-screen and show the fingerprint row.
+  services.desktopManager.gnome.sessionPath = lib.optionals config.services.fprintd.enable [pkgs.gdm];
   security.rtkit.enable = true;
   services = {
     desktopManager.gnome.enable = true;
