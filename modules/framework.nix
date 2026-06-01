@@ -16,16 +16,6 @@ with lib; {
     # Native Framework 2nd Gen fingerprint scanner support
     services.fprintd.enable = true;
 
-    # nixpkgs builds gnome-control-center without fprintd support by default;
-    # this overlay adds it so the fingerprint option appears in Settings → Users
-    nixpkgs.overlays = [
-      (_final: prev: {
-        gnome-control-center = prev.gnome-control-center.overrideAttrs (old: {
-          buildInputs = old.buildInputs ++ [prev.fprintd];
-        });
-      })
-    ];
-
     # PAM configuration for fingerprint authentication
     security.pam.services = {
       # mkForce is required here to override GDM's default 'false' assignment
