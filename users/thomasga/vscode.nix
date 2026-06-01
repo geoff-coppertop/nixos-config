@@ -30,6 +30,11 @@ in {
   programs.vscode = {
     enable = true;
     package = pkgs.vscode;
+    # amdgpu invalidates GPU context on hibernate resume, causing Chromium GPU
+    # process crashes (SIGTRAP). Disable GPU rendering until fixed upstream.
+    argvSettings = {
+      disable-hardware-acceleration = true;
+    };
     mutableExtensionsDir = false;
     profiles.default = {
       extensions = with pkgs.vscode-extensions; [

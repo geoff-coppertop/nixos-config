@@ -42,6 +42,14 @@ in {
 
   services.journald.extraConfig = "Storage=persistent";
 
+  # Electron and other large processes dump multi-GB core files that can take
+  # 60+ seconds to process, blocking login session teardown. Cap size so
+  # processing stays fast while keeping dumps inspectable.
+  systemd.coredump.settings.Coredump = {
+    ProcessSizeMax = "256M";
+    ExternalSizeMax = "256M";
+  };
+
   environment.systemPackages = with pkgs; [
     pciutils
     usbutils
