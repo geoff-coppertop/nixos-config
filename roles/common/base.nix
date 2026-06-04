@@ -54,4 +54,6 @@ in {
     pciutils
     usbutils
   ];
+
+  documentation.nixos.enable = false;
 }

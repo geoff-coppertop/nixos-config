@@ -59,11 +59,10 @@ in {
       gedit # text editor
       simple-scan # document scanner
       totem # video player
-      evince # document viewer
       file-roller # archive manager
       geary # email client
-      seahorse # password manager
       decibels # audio player
+      gnome-console # we use Ghostty
       tali # poker game
       iagno # go game
       hitori # sudoku game
@@ -98,6 +97,12 @@ in {
     enable = true;
     # Enable fingerprint authentication in GDM's system-db so the setting
     # persists across GDM restarts.
+    #
+    # Keyring note: pam_gnome_keyring.so cannot unlock a password-protected
+    # keyring during fingerprint auth because no password token is available.
+    # On a new machine, open Passwords & Keys (seahorse) and set the login
+    # keyring password to empty so it auto-unlocks at session start.
+    # Acceptable because the disk is protected by LUKS full-disk encryption.
     profiles.gdm.databases = lib.optionals config.services.fprintd.enable [
       {
         settings."org/gnome/login-screen" = {
