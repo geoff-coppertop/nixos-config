@@ -9,6 +9,7 @@
       "x-scheme-handler/https" = "firefox.desktop";
       "x-scheme-handler/about" = "firefox.desktop";
       "x-scheme-handler/unknown" = "firefox.desktop";
+      "application/pdf" = "firefox.desktop";
     };
   };
 
@@ -36,7 +37,9 @@
     # amdgpu invalidates GPU context on hibernate resume, crashing Signal's
     # Chromium GPU process (SIGTRAP). Override the .desktop entry to pass
     # --disable-gpu until fixed upstream.
-    signal-desktop = {
+    # Attribute name matches the upstream filename (signal.desktop) so this
+    # entry overrides it via XDG_DATA_DIRS precedence rather than adding a dupe.
+    signal = {
       name = "Signal";
       exec = "signal-desktop --disable-gpu %U";
       icon = "signal-desktop";

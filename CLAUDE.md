@@ -145,7 +145,23 @@ All Nix files must pass:
 
 All Markdown files must pass **markdownlint** (config in `.markdownlint.json`).
 
-The pre-commit hook `no-plaintext-secrets` blocks staging any file that looks like a raw secret. Never create files under `secrets/` except through `nix run .#secret-edit`.
+The pre-commit hook `no-plaintext-secrets` blocks staging any file that looks like a raw secret, **and any binary file** whose extension is not in the explicit allowlist (`png jpg jpeg jxl ico gif webp pdf`). Binary blobs can contain secrets that text-pattern checks miss. If GitHub push protection blocks a push, stop — do not encode or repackage to bypass it.
+
+Never create files under `secrets/` except through `nix run .#secret-edit`.
+
+## GNOME-Specific Rules
+
+These are non-obvious invariants that have caused bugs:
+
+**GNOME 46+ excludes dock-pinned apps from the app grid entirely.** Apps in `favorite-apps` (the dock) will never appear in app-pane folders, even if listed in a folder's `apps` key. Design folders to contain only apps that are NOT pinned to the dock.
+
+**`xdg.desktopEntries` attribute name = output filename.** The Nix attribute name determines the generated `.desktop` filename. To *override* a system entry (e.g. to add `--disable-gpu`), the attribute name must exactly match the upstream desktop file basename. Example: Signal's package installs `signal.desktop`, so the override attribute must be `signal`, not `signal-desktop` — the latter creates a second floating entry instead of replacing the first.
+
+**Removing from `environment.gnome.excludePackages` does not install the package.** It only un-excludes it from the GNOME default set. If the package was never in the default set, or if you need it explicitly present, add it to `environment.systemPackages` as well.
+
+**GNOME 48 ships Papers, not Evince.** The built-in document viewer desktop file is `org.gnome.Papers.desktop`. Reference this in app-folder `apps` lists and `xdg.mimeApps` defaults.
+
+**`translate = false` is required on every app-folder.** Without it, GNOME treats the folder name as a translation key and may collide with built-in category directories, causing the folder to be hidden or misrendered.
 
 ## Machine-Specific Notes
 

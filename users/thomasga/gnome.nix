@@ -57,6 +57,78 @@ in {
     fi
   '';
 
+  # Steam silently drops .desktop shortcuts in ~/.local/share/applications/
+  # for games we never asked to "Add to desktop". Auto-remove any entry whose
+  # Exec= points to a steam://rungameid/ URI on every activation.
+  home.activation.purgeSteamGameShortcuts = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    for f in "$HOME/.local/share/applications/"*.desktop; do
+      [ -e "$f" ] || continue
+      if grep -q '^Exec=steam steam://rungameid/' "$f" 2>/dev/null; then
+        rm -f "$f"
+      fi
+    done
+  '';
+
+  # Reset the app-folders dconf subtree before home-manager writes the
+  # new folder definitions so stale entries don't confuse gnome-shell.
+  home.activation.resetAppFolders = lib.hm.dag.entryBefore ["dconfSettings"] ''
+    if [ -n "''${DBUS_SESSION_BUS_ADDRESS:-}" ] || [ -S "/run/user/$(id -u)/bus" ]; then
+      ${pkgs.dconf}/bin/dconf reset -f /org/gnome/desktop/app-folders/ || true
+    fi
+  '';
+
+  # Pin every folder to page 1. Without this, gnome-shell's saved
+  # app-picker-layout pushes folders onto page 2 or off the visible pages.
+  home.activation.pinAppFoldersToPageOne = lib.hm.dag.entryAfter ["dconfSettings"] ''
+    if [ -n "''${DBUS_SESSION_BUS_ADDRESS:-}" ] || [ -S "/run/user/$(id -u)/bus" ]; then
+      ${pkgs.dconf}/bin/dconf write /org/gnome/shell/app-picker-layout "[{ \
+        'Engineering': <{'position': <0>}>, \
+        'Games':       <{'position': <1>}>, \
+        'Media':       <{'position': <2>}>, \
+        'System':      <{'position': <3>}> \
+      }]" || true
+    fi
+  '';
+
+  # Hide GTK SDK toy apps that ship as a side-effect of gtk3 being a runtime dep.
+  xdg.desktopEntries = {
+    gtk3-demo = {
+      name = "GTK3 Demo";
+      noDisplay = true;
+    };
+    gtk3-icon-browser = {
+      name = "GTK3 Icon Browser";
+      noDisplay = true;
+    };
+    gtk3-widget-factory = {
+      name = "GTK3 Widget Factory";
+      noDisplay = true;
+    };
+    # Rygel is a background DLNA/UPnP service — not user-launchable.
+    rygel = {
+      name = "Rygel";
+      noDisplay = true;
+    };
+    rygel-preferences = {
+      name = "Rygel Preferences";
+      noDisplay = true;
+    };
+    # vim/gvim are launched from Ghostty, not the app pane.
+    vim = {
+      name = "Vim";
+      noDisplay = true;
+    };
+    gvim = {
+      name = "GVim";
+      noDisplay = true;
+    };
+    # Diagnostic tool for ICC profiles, not a user-launchable app.
+    "org.gnome.ColorProfileViewer" = {
+      name = "Color Profile Viewer";
+      noDisplay = true;
+    };
+  };
+
   dconf.settings = {
     "org/gnome/desktop/background" = {
       picture-uri = "file://${config.home.homeDirectory}/Pictures/Wallpapers/space-shuttle.png";
@@ -88,30 +160,82 @@ in {
         "just-perfection-desktop@just-perfection"
         "search-light@icedman.github.com"
       ];
+      # Trimmed to daily-use apps. Engineering/Games/Media/System apps live
+      # in app-pane folders; reach them via Activities or <Super>Space.
       favorite-apps = [
         "org.gnome.Nautilus.desktop"
-        "obsidian.desktop"
-        "signal.desktop"
         "firefox.desktop"
+        "Mailspring.desktop"
+        "signal.desktop"
         "code.desktop"
         "com.mitchellh.ghostty.desktop"
-        "steam.desktop"
-        "com.moonlight_stream.Moonlight.desktop"
-        "com.bambulab.BambuStudio.desktop"
+        "obsidian.desktop"
+      ];
+    };
+
+    # App-pane folders. GNOME 46+ excludes favorite-apps (dock) from the app
+    # grid, so folders only cover apps not pinned to the dock.
+    "org/gnome/desktop/app-folders" = {
+      folder-children = [
+        "Engineering"
+        "Games"
+        "Media"
+        "System"
+      ];
+    };
+    # translate=false: prevents gnome-shell treating the name as a translation
+    # key, which causes collisions with built-in category directories.
+    "org/gnome/desktop/app-folders/folders/Engineering" = {
+      name = "Engineering";
+      translate = false;
+      apps = ["onshape.desktop" "com.bambulab.BambuStudio.desktop" "qgroundcontrol.desktop" "companion211.desktop" "simulator211.desktop"];
+    };
+    "org/gnome/desktop/app-folders/folders/Games" = {
+      name = "Games";
+      translate = false;
+      apps = ["steam.desktop" "com.moonlight_stream.Moonlight.desktop" "alvr.desktop"];
+      categories = ["Game"];
+    };
+    "org/gnome/desktop/app-folders/folders/Media" = {
+      name = "Media";
+      translate = false;
+      apps = [
+        "org.gnome.Loupe.desktop"
+        "org.gnome.Showtime.desktop"
+        "org.gnome.Snapshot.desktop"
+      ];
+    };
+    "org/gnome/desktop/app-folders/folders/System" = {
+      name = "System";
+      translate = false;
+      apps = [
+        "org.gnome.Nautilus.desktop"
+        "org.gnome.Settings.desktop"
+        "org.gnome.DiskUtility.desktop"
+        "org.gnome.SystemMonitor.desktop"
+        "org.gnome.Software.desktop"
+        "org.gnome.tweaks.desktop"
+        "org.gnome.Extensions.desktop"
+        "cups.desktop"
+        "com.github.tchx84.Flatseal.desktop"
+        "framework-control.desktop"
+        "bitwarden.desktop"
+        "org.fedoraproject.MediaWriter.desktop"
+        "org.gnome.seahorse.Application.desktop"
+        "org.gnome.Papers.desktop"
+        "btop.desktop"
       ];
     };
 
     "org/gnome/shell/extensions/dash-to-dock" = {
       dock-fixed = false;
       autohide = true;
-      # intellihide constantly re-checks window overlap, which races with
-      # blur-my-shell's dock background actor on session init and creates an
-      # infinite layout loop that hammers the GPU until XWayland dies.
+      # intellihide races with blur-my-shell's dock background actor on session
+      # init, creating an infinite layout loop that hammers the GPU until XWayland dies.
       intellihide = false;
     };
 
-    # Disable blur-my-shell's dock overlay — it adds MetaBackgroundGroup and
-    # StWidget actors behind the dock that were the looping actors in the crash.
+    # Disable blur-my-shell's dock overlay — the looping actors in the crash.
     "org/gnome/shell/extensions/blur-my-shell/dash-to-dock" = {
       blur = false;
     };
@@ -135,10 +259,6 @@ in {
 
     "org/gnome/settings-daemon/plugins/power" = {
       critical-battery-action = "hibernate";
-      # logind handles idle sleep on battery via IdleAction=suspend-then-hibernate.
-      # gsd-power does not support suspend-then-hibernate as a sleep type and falls
-      # back to plain Suspend(), which never transitions to hibernate. Set to nothing
-      # so gsd-power does not race with logind's idle action.
       sleep-inactive-battery-type = "nothing";
       sleep-inactive-ac-timeout = 0; # on AC: only blank+lock, no sleep
     };
