@@ -259,6 +259,10 @@ in {
 
     "org/gnome/settings-daemon/plugins/power" = {
       critical-battery-action = "hibernate";
+      # gsd-power does not call SuspendThenHibernate() — even with
+      # sleep-inactive-battery-type="suspend-then-hibernate" it falls back to
+      # plain Suspend(), which never sets the RTC alarm for HibernateDelaySec.
+      # logind's IdleAction=suspend-then-hibernate owns battery idle sleep instead.
       sleep-inactive-battery-type = "nothing";
       sleep-inactive-ac-timeout = 0; # on AC: only blank+lock, no sleep
     };
