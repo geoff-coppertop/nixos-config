@@ -10,8 +10,15 @@ nixpkgs.lib.nixosSystem {
     [
       {
         nixpkgs.config.allowUnfree = true;
-        home-manager.useGlobalPkgs = true;
-        home-manager.useUserPackages = true;
+        # VS Code rewrites ~/.vscode/argv.json on startup, clobbering the
+        # home-manager-managed version. Without a backup extension, the next
+        # rebuild fails on activation. Renaming to .backup lets activation
+        # proceed and overwrites any previous .backup on each rebuild.
+        home-manager = {
+          useGlobalPkgs = true;
+          useUserPackages = true;
+          backupFileExtension = "backup";
+        };
       }
       home-manager.nixosModules.home-manager
       agenix.nixosModules.default
