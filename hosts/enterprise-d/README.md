@@ -25,34 +25,27 @@ After the system boots:
 After the system boots and you are logged in, enroll the LUKS key into the TPM:
 
 ```bash
-sudo systemd-cryptenroll /dev/disk/by-partlabel/disk-main-root --tpm2-device=auto --tpm2-pcrs=0+7
+sudo systemd-cryptenroll /dev/disk/by-partlabel/root --tpm2-device=auto --tpm2-pcrs=0,1,3,7
 ```
 
-The `--tpm2-pcrs` argument seals the key to:
+The `--tpm2-pcrs` argument seals the key to specific firmware/bootloader measurements:
 
-- `0`: firmware executable code
-- `7`: Secure Boot state (enabled/disabled, certificate databases)
+- `0`: firmware configuration
+- `1`: bootloader configuration
+- `3`: bootloader state
+- `7`: Secure Boot state
 
-PCRs 1 and 3 (UEFI NVRAM variables and option ROM configuration) are intentionally excluded.
-Binding to PCR 1 causes the TPM to reject the sealed key on hibernate resume because the
-firmware sets EFI variables during the hibernate/resume cycle, changing PCR 1 at resume time
-relative to enrollment time. PCR 7 (Secure Boot) is the load-bearing security guarantee:
-it ensures no unsigned bootloader or kernel can run, so the coverage lost from dropping PCRs
-1 and 3 is limited to tamper detection of UEFI configuration changes rather than code execution
-protection.
-
-After enrollment, reboot. The system should now unlock automatically at boot and on wake from
-hibernation without a passphrase prompt.
+After enrollment, reboot. The system should now unlock automatically at boot without a passphrase prompt.
 
 ### Verify TPM Enrollment
 
 To check that TPM enrollment is active:
 
 ```bash
-sudo cryptsetup luksDump /dev/disk/by-partlabel/disk-main-root | grep -A5 "Tokens"
+sudo systemd-cryptenroll /dev/disk/by-partlabel/root --json | jq '.[] | select(.type=="tpm2")'
 ```
 
-A `systemd-tpm2` token entry in the output confirms TPM2 enrollment is active.
+A non-empty result confirms TPM2 enrollment is active.
 
 ## Philosophy
 
@@ -108,9 +101,17 @@ The 30 s window applies from when the login screen goes idle, which itself follo
 
 logind's `IdleAction = suspend-then-hibernate` fires for any session that goes idle, including logged-in user sessions. The `logind-idle-inhibitor` systemd user service holds a logind `idle` inhibitor while the user is active, preventing the 30 s GDM timer from also firing during desktop use. GNOME's own power plugin handles user-session sleep instead.
 
-### Why `gdm.autoSuspend = false`
+### Why `gdm.autoSuspend = false` and GDM screensaver disabled
 
-GDM runs its own GNOME session. Without this flag, GDM's power plugin fires its own sleep timer on resume — the system briefly shows the login screen then immediately blanks again, requiring a second button press. Disabling GDM's own power management and relying on logind's `IdleAction` avoids this because logind correctly resets its timer on resume.
+GDM runs its own GNOME session. `gdm.autoSuspend = false` sets `sleep-inactive-*-type = 'nothing'` in the GDM dconf profile so GDM's power plugin never initiates a system sleep. The GDM dconf profile also sets `idle-delay = 0` (never idle) and disables `lock-enabled` and `idle-activation-enabled` so the GDM screen shield never activates due to accumulated idle time on resume.
+
+### Manual hibernate from an active session is known-broken
+
+`systemctl hibernate` (or any sleep operation) invoked while the desktop is active and unlocked will resume with the lock screen briefly visible and then dark until you press a key. Root cause: gsd-power and mutter don't finish their pre-suspend state transitions in the ~5 s before the kernel suspends, so the resume image carries a partially-transitioned display state.
+
+The natural path — let the system idle until `IdleAction` fires `suspend-then-hibernate` — does not have this problem, because the long idle/blank/lock chain fully settles all display state before suspend. Use that for normal hibernation. If you need to hibernate immediately from an active session and want a clean resume, run `loginctl lock-session && sleep 45 && systemctl hibernate` — the 45 s gives the same settling time the natural path gets implicitly.
+
+A system-sleep hook to enforce this from inside `systemd-hibernate.service` was investigated and dropped: it would have to either accept a visible pre-sleep flash on every manual hibernate (since the only available locking mechanism renders the lock screen visibly) or invoke significant additional engineering (patched gsd-power, mutter D-Bus extensions, or a DRM-ioctl helper). Neither tradeoff justified the cost for a rarely-used path.
 
 ## Verification
 
