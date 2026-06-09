@@ -8,6 +8,7 @@
     ./git.nix
     ./gnome.nix
     ./ssh.nix
+    ./ssh-key.nix
     ./vscode.nix
     ./github.nix
     ./secrets.nix

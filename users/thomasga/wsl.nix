@@ -4,6 +4,7 @@
     ../common/cli
     ./git.nix
     ./ssh.nix
+    ./ssh-key.nix
     ./vscode.nix
     ./shell.nix
     ./secrets.nix
