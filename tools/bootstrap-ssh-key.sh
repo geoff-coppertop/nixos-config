@@ -70,17 +70,17 @@ read -p "Encrypt this private key as an agenix secret? (y/n) " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
   repo_root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-  secret_path="$repo_root/secrets/thomasga/ssh-id-ed25519.age"
+  secret_path="$repo_root/secrets/thomasga/ssh-id-ed25519-${host_name}.age"
 
   echo
-  echo "To encrypt: EDITOR=nano nix run .#secret-edit -- secrets/thomasga/ssh-id-ed25519.age"
+  echo "To encrypt: EDITOR=nano nix run .#secret-edit -- secrets/thomasga/ssh-id-ed25519-${host_name}.age"
   echo "Then paste the contents of: $key_path"
   echo
   echo "After encryption is complete, securely delete the unencrypted key:"
   echo "  shred -vfz $key_path"
   echo
   echo "After that, add to secrets/secrets.nix:"
-  echo "  \"thomasga/ssh-id-ed25519\".publicKeys = frameworkRecipients;"
+  echo "  \"thomasga/ssh-id-ed25519-${host_name}.age\".publicKeys = [${host_name} offlineAdmin];"
   echo
 fi
 

@@ -6,4 +6,11 @@
     user = "thomasga";
     userPublicKey = null;
   };
+  holodeck-01 = {
+    aliases = ["holodeck-01"];
+    hostName = "holodeck-01";
+    publicKey = null;
+    user = "thomasga";
+    userPublicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKLdwIYeJFENvp95oViLvszT3v4/EK8dF5AIgCjDE+eT thomasga@holodeck-01";
+  };
 }

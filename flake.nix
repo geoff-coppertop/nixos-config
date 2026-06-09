@@ -12,6 +12,11 @@
     nix-flatpak.url = "github:gmodena/nix-flatpak/?ref=latest";
     nix-vscode-extensions.url = "github:nix-community/nix-vscode-extensions";
 
+    nixos-wsl = {
+      url = "github:nix-community/NixOS-WSL/main";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
     pre-commit.inputs.nixpkgs.follows = "nixpkgs";
 
@@ -32,6 +37,7 @@
     lanzaboote,
     nix-flatpak,
     nix-vscode-extensions,
+    nixos-wsl,
     ...
   }: let
     system = "x86_64-linux";
@@ -75,15 +81,22 @@
 
     apps.${system} = secretApps;
 
-    nixosConfigurations."enterprise-d" = mkNixosSystem [
-      ./hosts/enterprise-d
-      {
-        home-manager.users.thomasga.programs.firefox.configPath = ".mozilla/firefox";
-        nixpkgs.overlays = [nix-vscode-extensions.overlays.default];
-      }
-      disko.nixosModules.disko
-      lanzaboote.nixosModules.lanzaboote
-      nix-flatpak.nixosModules.nix-flatpak
-    ];
+    nixosConfigurations = {
+      "enterprise-d" = mkNixosSystem [
+        ./hosts/enterprise-d
+        {
+          home-manager.users.thomasga.programs.firefox.configPath = ".mozilla/firefox";
+          nixpkgs.overlays = [nix-vscode-extensions.overlays.default];
+        }
+        disko.nixosModules.disko
+        lanzaboote.nixosModules.lanzaboote
+        nix-flatpak.nixosModules.nix-flatpak
+      ];
+
+      "holodeck-01" = mkNixosSystem [
+        ./hosts/holodeck-01
+        nixos-wsl.nixosModules.default
+      ];
+    };
   };
 }
