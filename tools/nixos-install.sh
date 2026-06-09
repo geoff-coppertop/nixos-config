@@ -218,6 +218,13 @@ done
 
 echo "Installing host: $FLAKE_TARGET"
 
+if [[ ! -f "$REPO_TMP/hosts/$FLAKE_TARGET/disko.nix" ]]; then
+  echo
+  echo "Host '$FLAKE_TARGET' is not a physical machine (no disko.nix found)."
+  echo "For WSL machines, use tools/install-wsl.ps1 on your Windows host."
+  exit 1
+fi
+
 # ------------------------------------------------------------------------------
 # disko
 # ------------------------------------------------------------------------------
