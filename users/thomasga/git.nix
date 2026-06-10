@@ -45,6 +45,7 @@ in {
         upd = "submodule update --recursive --init";
         lnc = "log --pretty=format:\"%h %s\" --graph --decorate";
         amd = "commit --amend";
+        amdn = "commit --amend --no-edit";
         doze = "!git reset --hard && git clean -xffd";
         wash = "!git clean -xffd && git submodule foreach --recursive 'git clean -xffd'";
         nuke = "!git doze && git submodule foreach --recursive 'git doze'";
