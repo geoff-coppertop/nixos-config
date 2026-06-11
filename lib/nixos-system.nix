@@ -1,9 +1,11 @@
 {
   nixpkgs,
-  system,
   home-manager,
   agenix,
-}: extraModules:
+}: {
+  system,
+  extraModules,
+}:
 nixpkgs.lib.nixosSystem {
   inherit system;
   modules =
