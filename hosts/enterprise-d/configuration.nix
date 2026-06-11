@@ -1,5 +1,6 @@
 _: let
   nas = import ../../lib/nas.nix;
+  thomasga = import ../../users/thomasga/account.nix;
 in {
   imports = [
     ./hardware.nix
@@ -13,6 +14,13 @@ in {
   ];
 
   custom = {
+    users.thomasga = thomasga // {groups = ["wheel" "networkmanager"];};
+
+    wifi.enable = true;
+    gaming.enable = true;
+    flatpak.enable = true;
+    vr.enable = true;
+
     networkDrives = {
       enable = true;
       nas.host = nas.host;

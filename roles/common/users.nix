@@ -1,34 +1,82 @@
 {
+  config,
   lib,
   pkgs,
   ...
 }: let
+  inherit
+    (lib)
+    concatLists
+    filterAttrs
+    mapAttrs
+    mapAttrsToList
+    mkOption
+    optionals
+    types
+    ;
   sshHosts = import ../../lib/ssh-hosts.nix;
-  authorizedKeys =
-    lib.mapAttrsToList (_: host: host.userPublicKey)
-    (lib.filterAttrs (_: host: host.userPublicKey != null) sshHosts);
-in {
-  programs.fish.enable = true;
+  cfg = config.custom.users;
 
-  users.users.thomasga = {
+  authorizedKeysFor = userName:
+    mapAttrsToList (_: host: host.userPublicKeys.${userName})
+    (filterAttrs (_: host: host.userPublicKeys ? ${userName}) sshHosts);
+
+  mkUserConfig = userName: userCfg: {
     isNormalUser = true;
-    description = "Geoffrey Thomas";
-    extraGroups = ["wheel" "networkmanager"];
-    hashedPassword = "$6$wDwCuj.CXA58mdJ4$IxPk211Ubqn8ZZp7pezRajIaQye6dp47gMVd4xpnmiCmml8MfSqDiR3SU8FXn1r/urLDEsNz/oOM3GTGHiitD.";
-    shell = pkgs.fish;
-    openssh.authorizedKeys.keys = authorizedKeys;
+    inherit (userCfg) description hashedPassword shell;
+    extraGroups = userCfg.groups;
+    openssh.authorizedKeys.keys = authorizedKeysFor userName;
   };
 
-  # GDM reads avatars from AccountsService, not ~/.face.
-  # L+ symlinks the icon so it updates on rebuild.
-  # C seeds the user config only if it doesn't already exist so AccountsService
-  # can still write to it (e.g. if the user changes their avatar via Settings).
-  systemd.tmpfiles.rules = [
-    "L+ /var/lib/AccountsService/icons/thomasga - - - - ${../../users/thomasga/files/face.png}"
-    "C /var/lib/AccountsService/users/thomasga 0644 root root - ${pkgs.writeText "thomasga-accountsservice" ''
-      [User]
-      Icon=/var/lib/AccountsService/icons/thomasga
-      SystemAccount=false
-    ''}"
-  ];
+  accountsServiceFile = userName:
+    pkgs.writeText "${userName}-accountsservice"
+    "[User]\nIcon=/var/lib/AccountsService/icons/${userName}\nSystemAccount=false\n";
+
+  mkTmpfileRules = userName: userCfg:
+    optionals (userCfg.avatar != null) [
+      "L+ /var/lib/AccountsService/icons/${userName} - - - - ${toString userCfg.avatar}"
+      "C /var/lib/AccountsService/users/${userName} 0644 root root - ${accountsServiceFile userName}"
+    ];
+
+  tmpfileRules = concatLists (mapAttrsToList mkTmpfileRules cfg);
+in {
+  options.custom.users = mkOption {
+    default = {};
+    description = "System user accounts to create on this host.";
+    type = types.attrsOf (types.submodule ({name, ...}: {
+      options = {
+        description = mkOption {
+          type = types.str;
+          default = name;
+        };
+        hashedPassword = mkOption {
+          type = types.str;
+        };
+        shell = mkOption {
+          type = types.package;
+          default = pkgs.fish;
+        };
+        groups = mkOption {
+          type = types.listOf types.str;
+          default = [];
+        };
+        avatar = mkOption {
+          type = types.nullOr types.path;
+          default = null;
+        };
+      };
+    }));
+  };
+
+  config = {
+    programs.fish.enable = true;
+
+    users.users = mapAttrs mkUserConfig cfg;
+
+    # GDM reads avatars from AccountsService, not ~/.face.
+    # L+ symlinks the icon so it updates on rebuild.
+    # C seeds the user config only if it doesn't already exist so AccountsService
+    # can still write to it (e.g. if the user changes their avatar via Settings).
+    systemd.tmpfiles.rules = tmpfileRules;
+  };
 }
