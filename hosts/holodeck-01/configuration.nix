@@ -19,6 +19,8 @@
     startMenuLaunchers = true;
   };
 
+  custom.syncthing.enable = true;
+
   custom.backups = {
     enable = true;
 
