@@ -1,4 +1,11 @@
 {
+  defiant = {
+    aliases = ["defiant"];
+    hostName = "defiant";
+    publicKey = null;
+    user = "thomasga";
+    userPublicKey = null;
+  };
   enterprise-d = {
     aliases = ["enterprise-d"];
     hostName = "enterprise-d";
