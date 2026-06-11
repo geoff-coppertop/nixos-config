@@ -1,10 +1,8 @@
 {
   imports = [
+    ./backups.nix
     ./base.nix
-    ./networking.nix
     ./users.nix
-    ./gaming.nix
-    ./flatpak.nix
-    ./vr.nix
+    ./wifi.nix
   ];
 }
