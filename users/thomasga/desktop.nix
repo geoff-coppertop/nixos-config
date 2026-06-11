@@ -8,6 +8,7 @@
     ./git.nix
     ./ghostty.nix
     ./gnome.nix
+    ./obsidian.nix
     ./ssh.nix
     ./ssh-key.nix
     ./vscode.nix
@@ -18,6 +19,7 @@
 
   custom.appearance.darkMode = true;
   custom.ai.claude.enable = true;
+  custom.ai.obsidian.enable = true;
 
   home.packages = [
     pkgs.vim
