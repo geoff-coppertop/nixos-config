@@ -41,6 +41,7 @@ This repo is the source of truth for machine setup, user setup, secrets wiring, 
   - [Users And Configuration](#users-and-configuration)
   - [Dotfiles And Shell Scripts](#dotfiles-and-shell-scripts)
   - [Desktop Application Policy](#desktop-application-policy)
+  - [Obsidian MCP Integration](#obsidian-mcp-integration)
   - [Validation Commands](#validation-commands)
 
 ## Repository Model
@@ -462,6 +463,14 @@ Do not add `password=`. Do not add quotes. Do not use JSON.
 username=nas-user
 password=nas-password
 ```
+
+`secrets/thomasga/obsidian-api-key.age` decrypts to exactly one plaintext line — the API key shown in Obsidian's Local REST API plugin settings:
+
+```text
+your-api-key-here
+```
+
+Do not add a key name, quotes, or any other prefix. Just the raw key value on a single line.
 
 Each Wi-Fi secret decrypts to exactly one line:
 
@@ -1281,6 +1290,56 @@ For `thomasga`, the concrete setup is:
 - Resulting linked wallpaper: `~/Pictures/Wallpapers/space-shuttle.png`
 
 `users/thomasga/gnome.nix` converts the checked-in Fedora `.jxl` source to `.png` with `pkgs.libjxl` and points both `picture-uri` and `picture-uri-dark` at the generated PNG. That avoids relying on runtime JPEG XL wallpaper support.
+
+### Obsidian MCP Integration
+
+`custom.ai.obsidian.enable = true` (set in `users/thomasga/default.nix`) wires Claude Code to an Obsidian vault via two components:
+
+1. **`pkgs/obsidian-local-rest-api.nix`** — the [Local REST API](https://github.com/coddingtonbear/obsidian-local-rest-api) community plugin, copied into the vault at `~/Documents/obsidian/.obsidian/plugins/obsidian-local-rest-api/` by a home-manager activation hook in `users/thomasga/obsidian.nix`.
+2. **`pkgs/mcp-obsidian.nix`** — the [mcp-obsidian](https://github.com/MarkusPfundstein/mcp-obsidian) Python stdio MCP server, wrapped in a launcher that reads the API key from `/run/agenix/thomasga/obsidian-api-key` and exports it as `OBSIDIAN_API_KEY`. The launcher path is written to `~/.claude/.mcp.json` by home-manager.
+
+#### First-time activation
+
+Before running `nixos-rebuild switch` for the first time with this feature, fill in the real hashes for `pkgs/obsidian-local-rest-api.nix` (which currently uses `lib.fakeHash` as placeholders):
+
+```bash
+# Fetch the source hash
+nix-prefetch-github coddingtonbear obsidian-local-rest-api --rev 4.1.3
+
+# Build to get the npm deps hash — the build will fail but print the expected hash
+nix build .#legacyPackages.x86_64-linux.callPackage\ ./pkgs/obsidian-local-rest-api.nix\ \{\} 2>&1 | grep "got:"
+```
+
+Replace both `lib.fakeHash` values in `pkgs/obsidian-local-rest-api.nix` with the output.
+
+#### API key setup
+
+The API key must be obtained from Obsidian after the plugin is installed:
+
+1. Run `nixos-rebuild switch --flake .#enterprise-d` — the activation hook copies the plugin into the vault.
+2. Open Obsidian, go to **Settings → Community Plugins**, enable **Local REST API**.
+3. Copy the API key shown in the plugin's settings pane.
+4. Store it as an agenix secret (one line, no quotes):
+   ```bash
+   EDITOR=nano nix run .#secret-edit -- secrets/thomasga/obsidian-api-key.age
+   ```
+5. Run `nixos-rebuild switch --flake .#enterprise-d` again — agenix deploys the secret and home-manager writes `~/.claude/.mcp.json`.
+
+#### Verification
+
+```bash
+# Confirm the MCP config points to the launcher
+cat ~/.claude/.mcp.json
+
+# Confirm the launcher binary exists and is executable
+ls -la $(jq -r '.mcpServers.obsidian.command' ~/.claude/.mcp.json)
+
+# Confirm the API key secret is deployed
+ls -la /run/agenix/thomasga/obsidian-api-key
+
+# Test the MCP server directly (Obsidian must be running with the plugin enabled)
+$(jq -r '.mcpServers.obsidian.command' ~/.claude/.mcp.json)
+```
 
 ### Validation Commands
 
