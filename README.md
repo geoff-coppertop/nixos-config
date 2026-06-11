@@ -25,6 +25,11 @@ This repo is the source of truth for machine setup, user setup, secrets wiring, 
   - [Run the Installer Script From the Live Session](#run-the-installer-script-from-the-live-session)
   - [Enroll Secure Boot After Install](#enroll-secure-boot-after-install)
   - [Post-Install Validation](#post-install-validation)
+- [Provisioning defiant (Raspberry Pi 4)](#provisioning-defiant-raspberry-pi-4)
+  - [Phase 0 — Preparation](#phase-0--preparation-on-enterprise-d-before-touching-the-pi)
+  - [Phase 1 — First boot and Unifi setup](#phase-1--first-boot-and-unifi-setup)
+  - [Phase 2 — First full deploy and identity extraction](#phase-2--first-full-deploy-and-identity-extraction)
+  - [Phase 3 — Service setup](#phase-3--service-setup)
 - [Defining a New Machine](#defining-a-new-machine)
   - [Repository Structure](#repository-structure)
   - [Secrets and SSH Setup](#secrets-and-ssh-setup)
@@ -51,8 +56,8 @@ The repo is split by responsibility.
 When placing new configuration:
 
 - If it affects machine operation, put it in the system layer: `hosts/<machine>/` for machine-specific behavior, `roles/` for shared system policy, or `modules/` for reusable NixOS features.
-- If it affects a person's workflow, put it in that user's home-manager config under `users/<name>/`, usually in `users/<name>/default.nix` or a user module imported from there.
-- If several users may want it, create a reusable opt-in user module under `users/common/` and let each user import it from `users/<name>/default.nix` instead of forcing it globally.
+- If it affects a person's workflow, put it in that user's home-manager config under `users/<name>/`, in a profile such as `users/<name>/desktop.nix` (full GUI) or `users/<name>/headless.nix` (CLI-only).
+- If several users may want it, create a reusable opt-in user module under `users/common/` and import it from the relevant profile instead of forcing it globally.
 
 ## Machine Naming
 
@@ -68,8 +73,9 @@ The machines in this repo are:
 
 | Machine | Type | Host entrypoint |
 | --- | --- | --- |
-| `enterprise-d` | Framework laptop (physical) | `hosts/enterprise-d/configuration.nix` |
-| `holodeck-01` | NixOS WSL on Windows | `hosts/holodeck-01/configuration.nix` |
+| `enterprise-d` | Framework laptop (physical, x86\_64) | `hosts/enterprise-d/configuration.nix` |
+| `holodeck-01` | NixOS WSL on Windows (x86\_64) | `hosts/holodeck-01/configuration.nix` |
+| `defiant` | Raspberry Pi 4 homelab server (aarch64) | `hosts/defiant/configuration.nix` |
 
 - Flake entry: `flake.nix`
 
@@ -162,7 +168,7 @@ custom.backups = {
 };
 ```
 
-Also add `./secrets.nix` to the `users/thomasga/wsl.nix` imports so `RESTIC_PASSWORD_FILE` is set in the user session. Then commit, push, and rebuild inside WSL:
+Also add `./secrets.nix` to the `users/thomasga/headless.nix` imports so `RESTIC_PASSWORD_FILE` is set in the user session. Then commit, push, and rebuild inside WSL:
 
 ```bash
 sudo nixos-rebuild switch --flake github:geoff-coppertop/nixos-config#holodeck-01
@@ -242,6 +248,7 @@ sudo nixos-rebuild switch --flake /path/to/nixos-config#holodeck-01
 | --- | --- | --- |
 | `enterprise-d` | `sudo nixos-rebuild switch --flake .#enterprise-d` | On `enterprise-d` |
 | `holodeck-01` | `sudo nixos-rebuild switch --flake .#holodeck-01` | Inside the WSL distro |
+| `defiant` | `nixos-rebuild switch --flake .#defiant --target-host thomasga@defiant --use-remote-sudo` | From any machine with SSH + Nix |
 | `enterprise-d` (remote) | `nixos-rebuild switch --target-host thomasga@enterprise-d --flake .#enterprise-d` | From any machine with SSH + Nix |
 
 Monthly flake update workflow (run on `enterprise-d`):
@@ -688,7 +695,19 @@ sudo restic --repo /mnt/nas-backups/thomasga/<hostname> snapshots
 
 #### Limitations
 
-- Backups target `/home` only. Add explicit paths such as `/var/lib/<service>` for mutable service state.
+- Backups target `/home/<user>` by default. For service state outside `/home`, override `paths` explicitly. Example from `defiant` backing up Home Assistant and Syncthing:
+
+  ```nix
+  custom.backups.users = {
+    hass = {
+      enable = true;
+      paths = ["/var/lib/hass"];
+      excludePatterns = ["/var/lib/hass/.storage/lovelace*"];
+      passwordFile = "/run/agenix/defiant/restic-password";
+    };
+  };
+  ```
+
 - Snapper manages local btrfs snapshots for rollback; it is not involved in NAS backups.
 - If SMB is unavailable at boot, the automount fails silently and the next timer invocation will retry.
 
@@ -750,6 +769,121 @@ After the system boots:
 4. **Test hibernation** (see [Hibernation And Power](#hibernation-and-power))
 5. **Validate the system** (see [Validation Commands](#validation-commands))
 
+## Provisioning defiant (Raspberry Pi 4)
+
+defiant is a headless aarch64 homelab server running Traefik, Home Assistant, Syncthing, AdGuard Home, Zigbee2MQTT, Z-Wave JS, and ADS-B.
+
+### Phase 0 — Preparation (on enterprise-d, before touching the Pi)
+
+**Enroll the machine:**
+
+```bash
+nix develop -c bash tools/enroll-machine.sh defiant
+# Choose: 2) Generate a new keypair here
+```
+
+**Create service secrets** (one by one, storing passphrases in Bitwarden):
+
+```bash
+EDITOR=nano nix run .#secret-edit -- secrets/defiant/cloudflare-api-token.age
+# Contents: CF_DNS_API_TOKEN=<Cloudflare Zone:DNS:Edit token for coppertop.ca>
+
+EDITOR=nano nix run .#secret-edit -- secrets/defiant/nas-smb-credentials.age
+# Contents: username=<nas-user>\npassword=<nas-password>
+
+EDITOR=nano nix run .#secret-edit -- secrets/defiant/restic-password.age
+# Contents: single passphrase line
+```
+
+**Build and flash the SD card** (cross-compile from x86\_64 — takes several minutes):
+
+```bash
+nix build .#nixosConfigurations.defiant.config.system.build.sdImage
+zstd -d result/sd-image/*.img.zst -o /tmp/defiant.img
+lsblk                            # identify the SD card device
+sudo dd if=/tmp/defiant.img of=/dev/sdX bs=4M status=progress conv=fsync
+```
+
+### Phase 1 — First boot and Unifi setup
+
+1. Connect ethernet, insert SD card, power on. Wait ~2 minutes.
+2. In Unifi console → Clients, find defiant by hostname or MAC. Note the IP.
+3. Set a DHCP reservation for defiant's MAC address (fixed LAN IP).
+4. Set defiant's reserved IP as DNS Server 1 in the LAN DHCP settings.
+5. Collect the SSH host key and pin it:
+
+   ```bash
+   ssh-keyscan -t ed25519 <defiant-ip> 2>/dev/null
+   # Verify fingerprint: ssh thomasga@<defiant-ip> "ssh-keygen -l -f /etc/ssh/ssh_host_ed25519_key.pub"
+   # Paste verified key into lib/ssh-hosts.nix as publicKey = "ssh-ed25519 AAAA..."
+   ```
+
+6. Update the `lanIp` placeholder in `hosts/defiant/configuration.nix` with the reserved IP. Commit and push.
+
+### Phase 2 — First full deploy and identity extraction
+
+```bash
+nixos-rebuild switch --flake .#defiant \
+  --target-host thomasga@defiant \
+  --use-remote-sudo
+```
+
+After deploy, extract Zigbee network key and Syncthing identity **before pairing any devices**:
+
+```bash
+# Zigbee network key (extract before pairing any devices — losing it requires re-pairing all)
+ssh thomasga@defiant "sudo cat /var/lib/zigbee2mqtt/configuration.yaml" | grep network_key
+EDITOR=nano nix run .#secret-edit -- secrets/defiant/zigbee-network-key.age
+# Contents: paste the full network_key line
+
+# Syncthing identity (extract before pairing any devices — losing it changes the device ID)
+ssh thomasga@defiant "sudo cat /var/lib/syncthing/key.pem" > /tmp/st-key.pem
+ssh thomasga@defiant "sudo cat /var/lib/syncthing/cert.pem" > /tmp/st-cert.pem
+EDITOR=nano nix run .#secret-edit -- secrets/defiant/syncthing-key.age   # paste key.pem
+EDITOR=nano nix run .#secret-edit -- secrets/defiant/syncthing-cert.age  # paste cert.pem
+shred -u /tmp/st-key.pem /tmp/st-cert.pem
+```
+
+Uncomment the `certFile`/`keyFile` lines in `hosts/defiant/configuration.nix` and add the secret declarations to `hosts/defiant/secrets.nix`. Rekey, commit, push, redeploy.
+
+### Phase 3 — Service setup
+
+| Service | URL | Action |
+| --- | --- | --- |
+| AdGuard Home | `https://dns.coppertop.ca` | Complete setup wizard; upstream DNS: `127.0.0.1:5335` |
+| Home Assistant | `https://homeassistant.coppertop.ca` | Restore backup or complete onboarding |
+| Syncthing | `https://syncthing.coppertop.ca` | Add client device IDs; share Obsidian vault folder |
+| Zigbee2MQTT | `https://zigbee.coppertop.ca` | Enable join mode; pair devices (see notes below) |
+| Z-Wave JS | HA → Integrations | Connect to `ws://localhost:3000`; include Z-Wave devices |
+| Bambu Lab | HA → Integrations | Add integration; choose LAN mode (disables Handy app) or cloud mode |
+
+**IKEA device pairing notes:**
+
+- **Somrig button** — pair normally; automations should use `initial_press` only (`long_press`/`double_press` unreliable); re-pair after any OTA update.
+- **VALLHORN/PARASOLL** — if the interview fails, retry pairing. Do not set occupancy timeout below 90 s on any IKEA motion sensor.
+- **E1745 motion sensor** — do **not** apply OTA firmware; it disables motion detection.
+- **STARKVIND air purifier** — no known issues; pair normally.
+
+### DNS bypass
+
+Clients needing unfiltered DNS (skips AdGuard ad-blocking, retains `coppertop.ca` resolution):
+
+```bash
+dig @defiant -p 5335 homeassistant.coppertop.ca
+```
+
+Point a device at `<defiant-ip>:5335` in its DNS settings to bypass AdGuard permanently.
+
+### Syncthing non-NixOS clients
+
+The Syncthing hub on defiant speaks the standard Syncthing protocol. Windows machines pair without any NixOS involvement:
+
+```powershell
+winget install Syncthing.Syncthing   # or use SyncTrayzor for a system-tray wrapper
+```
+
+Open `https://syncthing.coppertop.ca`, add the Windows device ID, share the Obsidian vault folder. Accept the share request on the Windows client.
+
 ## Defining a New Machine
 
 To add an entirely new machine to this repo:
@@ -764,13 +898,16 @@ To add an entirely new machine to this repo:
 6. Register the machine in `flake.nix` under `nixosConfigurations` using `mkNixosSystem`:
 
 ```nix
-nixosConfigurations."<machine-name>" = mkNixosSystem [
-  ./hosts/<machine-name>
-  # add machine-specific modules as needed:
-  # disko.nixosModules.disko        (physical machines with declarative disk layout)
-  # lanzaboote.nixosModules.lanzaboote  (Secure Boot)
-  # nixos-wsl.nixosModules.default  (WSL machines)
-];
+nixosConfigurations."<machine-name>" = mkNixosSystem {
+  system = "x86_64-linux";  # or "aarch64-linux" for ARM machines
+  extraModules = [
+    ./hosts/<machine-name>
+    # add machine-specific modules as needed:
+    # disko.nixosModules.disko            (physical machines with declarative disk layout)
+    # lanzaboote.nixosModules.lanzaboote  (Secure Boot)
+    # nixos-wsl.nixosModules.default      (WSL machines)
+  ];
+};
 ```
 
 `mkNixosSystem` is defined in `lib/nixos-system.nix` and wires in `home-manager`, `agenix`, `allowUnfree`, and shared settings automatically.
@@ -988,11 +1125,12 @@ users.users.thomasga = {
 
 `wheel` is the admin group here, so this is the file to change if `thomasga` should be able to administer enterprise-d.
 
-Home-manager attachment lives in `flake.nix`:
+Home-manager attachment lives in `hosts/<machine>/default.nix`:
 
 ```nix
-home-manager.users = {
-  thomasga = import ./users/thomasga;
+home-manager.users.thomasga = {
+  imports = [../../users/thomasga/desktop.nix];
+  custom.ssh.identitySecret = "ssh-id-ed25519-enterprise-d";
 };
 ```
 
@@ -1000,7 +1138,7 @@ home-manager.users = {
 
 To add `alice`:
 
-1. Create `users/alice/default.nix`.
+1. Create `users/alice/desktop.nix` (or `headless.nix` for servers/WSL).
 2. Add optional user modules such as `users/alice/secrets.nix` or `users/alice/vscode.nix`.
 3. Declare the Unix user in a shared or host-specific NixOS module.
 4. Attach the home-manager config for each host that should include `alice`.
@@ -1015,7 +1153,9 @@ users.users.alice = {
 ```
 
 ```nix
-home-manager.users.alice = import ./users/alice;
+home-manager.users.alice = {
+  imports = [./users/alice/desktop.nix];  # or headless.nix for servers/WSL
+};
 ```
 
 ### Assign A User To One Host Or All Hosts
@@ -1100,13 +1240,13 @@ Shared optional apps for a user can live in `users/common/`. For example, a modu
 
 Current concrete ownership in this repo:
 
-- `roles/desktop/gnome.nix` enables GNOME and dconf settings.
+- `roles/desktop/gnome.nix` enables GNOME, GDM, and dconf settings. `roles/desktop/audio.nix` enables pipewire. `roles/desktop/power.nix` runs the logind idle inhibitor.
 - `roles/common/flatpak.nix` enables Flatpak and Flatseal as optional platform services.
 - `roles/common/gaming.nix` enables Steam as an optional gaming platform.
 - `roles/common/base.nix` contains core system policy.
 - `flake.nix` enables unfree packages needed by Chrome and Steam.
 - `users/common/gui-apps.nix` enables Firefox and adds Fedora Media Writer, Bitwarden, Chrome, and Signal Desktop for any user that imports it.
-- `users/thomasga/default.nix` opts `thomasga` into that shared GUI app set.
+- `users/thomasga/desktop.nix` opts `thomasga` into that shared GUI app set on desktop machines.
 - `roles/common/users.nix` puts `thomasga` in `wheel`, which is why that user can administer enterprise-d.
 
 Example opt-in browser module:
