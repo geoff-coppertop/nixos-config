@@ -1,3 +1,7 @@
 {
-  imports = [./gnome.nix];
+  imports = [
+    ./audio.nix
+    ./gnome.nix
+    ./power.nix
+  ];
 }
