@@ -74,10 +74,12 @@ in {
   secret-edit = {
     type = "app";
     program = "${secretEdit}/bin/secret-edit";
+    meta.description = "Edit encrypted agenix secrets";
   };
 
   secret-rekey = {
     type = "app";
     program = "${secretRekey}/bin/secret-rekey";
+    meta.description = "Rekey agenix secrets with new host keys";
   };
 }
