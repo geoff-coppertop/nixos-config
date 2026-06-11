@@ -5,27 +5,29 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
     disko.url = "github:nix-community/disko";
+    disko.inputs.nixpkgs.follows = "nixpkgs";
     home-manager.url = "github:nix-community/home-manager";
+    home-manager.inputs.nixpkgs.follows = "nixpkgs";
     agenix.url = "github:ryantm/agenix";
+    agenix.inputs.nixpkgs.follows = "nixpkgs";
     pre-commit.url = "github:cachix/pre-commit-hooks.nix";
+    pre-commit.inputs.nixpkgs.follows = "nixpkgs";
 
     nix-flatpak.url = "github:gmodena/nix-flatpak/?ref=latest";
     nix-vscode-extensions.url = "github:nix-community/nix-vscode-extensions";
+    nix-vscode-extensions.inputs.nixpkgs.follows = "nixpkgs";
 
     nixos-wsl = {
       url = "github:nix-community/NixOS-WSL/main";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    home-manager.inputs.nixpkgs.follows = "nixpkgs";
-    pre-commit.inputs.nixpkgs.follows = "nixpkgs";
-
     lanzaboote = {
+      url = "github:nix-community/lanzaboote/v1.0.0";
       inputs = {
         nixpkgs.follows = "nixpkgs";
         pre-commit.follows = "pre-commit";
       };
-      url = "github:nix-community/lanzaboote/v1.0.0";
     };
   };
 
@@ -54,25 +56,12 @@
       inherit pkgs agenixCli;
     };
 
-    rawSecretApps = import ./lib/secret-apps.nix {
+    secretApps = import ./lib/secret-apps.nix {
       inherit pkgs agenixCli;
     };
 
-    secretApps = {
-      secret-edit =
-        rawSecretApps.secret-edit
-        // {
-          meta = {description = "Edit encrypted agenix secrets";};
-        };
-      secret-rekey =
-        rawSecretApps.secret-rekey
-        // {
-          meta = {description = "Rekey agenix secrets with new host keys";};
-        };
-    };
-
     mkNixosSystem = import ./lib/nixos-system.nix {
-      inherit nixpkgs system home-manager agenix;
+      inherit nixpkgs home-manager agenix lanzaboote nix-flatpak nix-vscode-extensions;
     };
   in {
     devShells.${system}.default = devShell;
@@ -82,21 +71,27 @@
     apps.${system} = secretApps;
 
     nixosConfigurations = {
-      "enterprise-d" = mkNixosSystem [
-        ./hosts/enterprise-d
-        {
-          home-manager.users.thomasga.programs.firefox.configPath = ".mozilla/firefox";
-          nixpkgs.overlays = [nix-vscode-extensions.overlays.default];
-        }
-        disko.nixosModules.disko
-        lanzaboote.nixosModules.lanzaboote
-        nix-flatpak.nixosModules.nix-flatpak
-      ];
+      "enterprise-d" = mkNixosSystem {
+        system = "x86_64-linux";
+        extraModules = [
+          ./hosts/enterprise-d
+          {home-manager.users.thomasga.programs.firefox.configPath = ".mozilla/firefox";}
+          disko.nixosModules.disko
+        ];
+      };
 
-      "holodeck-01" = mkNixosSystem [
-        ./hosts/holodeck-01
-        nixos-wsl.nixosModules.default
-      ];
+      "holodeck-01" = mkNixosSystem {
+        system = "x86_64-linux";
+        extraModules = [
+          ./hosts/holodeck-01
+          nixos-wsl.nixosModules.default
+        ];
+      };
+
+      "defiant" = mkNixosSystem {
+        system = "aarch64-linux";
+        extraModules = [./hosts/defiant];
+      };
     };
   };
 }
