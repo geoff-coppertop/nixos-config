@@ -1,13 +1,21 @@
 {
   imports = [
-    ./btrfs.nix
+    ./adsb.nix
     ./backups.nix
+    ./btrfs.nix
+    ./dns.nix
+    ./framework-control.nix
+    ./framework.nix
+    ./home-assistant.nix
+    ./mqtt.nix
     ./network-drives.nix
-    ./snapper.nix
     ./secrets.nix
     ./secure-boot.nix
+    ./snapper.nix
+    ./syncthing.nix
     ./tpm-luks.nix
-    ./framework.nix
-    ./framework-control.nix
+    ./traefik.nix
+    ./zigbee.nix
+    ./zwave.nix
   ];
 }
