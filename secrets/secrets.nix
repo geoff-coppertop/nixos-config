@@ -3,6 +3,9 @@ let
 
   holodeck-01 = "age1v6sv24jgrpdfex74d4d9xf92dpfy228lxmled4y4505py6ec7ghq4kmxz0";
 
+  # defiant age public key — populated by: nix develop -c bash tools/enroll-machine.sh defiant
+  # defiant = "age1...";
+
   # Replace this with a distinct offline recovery key before expanding the fleet.
   offlineAdmin = "age135v2shcv64lul85dy5qqpwlnqw4rvdcsukymx63neqp37d9hpe0sp2jzp9";
 in {

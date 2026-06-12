@@ -20,6 +20,7 @@ in {
     loader.grub.enable = false;
     loader.generic-extlinux-compatible.enable = true;
     initrd.availableKernelModules = ["xhci_pci" "usbhid" "usb_storage"];
+    supportedFilesystems.zfs = false;
   };
 
   # ── Hardware ──────────────────────────────────────────────────────────────
