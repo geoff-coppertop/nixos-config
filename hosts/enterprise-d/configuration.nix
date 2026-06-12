@@ -44,6 +44,7 @@ in {
     btrfs.enable = true;
     framework.enable = true;
     isLaptop = true;
+    syncthing.enable = true;
     secureBoot.enable = true;
     snapper.enable = true;
     tpmLuks.enable = true;
