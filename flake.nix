@@ -63,6 +63,26 @@
     mkNixosSystem = import ./lib/nixos-system.nix {
       inherit nixpkgs home-manager agenix lanzaboote nix-flatpak nix-vscode-extensions;
     };
+
+    mkHomeConfig = {
+      user,
+      machine,
+      hostSystem,
+    }:
+      home-manager.lib.homeManagerConfiguration {
+        pkgs = import nixpkgs {
+          system = hostSystem;
+          config.allowUnfree = true;
+          overlays = [nix-vscode-extensions.overlays.default];
+        };
+        modules = [
+          ./hosts/${machine}/home/${user}.nix
+          {
+            home.username = user;
+            home.homeDirectory = "/home/${user}";
+          }
+        ];
+      };
   in {
     devShells.${system}.default = devShell;
 
@@ -86,6 +106,19 @@
           ./hosts/holodeck-01
           nixos-wsl.nixosModules.default
         ];
+      };
+    };
+
+    homeConfigurations = {
+      "thomasga@enterprise-d" = mkHomeConfig {
+        user = "thomasga";
+        machine = "enterprise-d";
+        hostSystem = "x86_64-linux";
+      };
+      "thomasga@holodeck-01" = mkHomeConfig {
+        user = "thomasga";
+        machine = "holodeck-01";
+        hostSystem = "x86_64-linux";
       };
     };
   };
