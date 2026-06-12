@@ -113,25 +113,13 @@ Copy `~/.config/agenix/holodeck-01.age` from `enterprise-d` to your Windows mach
 
 **Step 4 — Run the bootstrap script:**
 
-No repo clone needed — run directly from Windows Terminal (PowerShell), replacing the path with wherever you saved the age identity file:
+From a Windows Terminal (PowerShell) inside the repo checkout:
 
 ```powershell
-& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/geoff-coppertop/nixos-config/master/tools/install-wsl.ps1'))) -AgeIdentityPath "E:\holodeck-01.age"
+python tools\install.py
 ```
 
-If you already have the repo cloned on Windows:
-
-```powershell
-.\tools\install-wsl.ps1 -AgeIdentityPath "E:\holodeck-01.age"
-```
-
-The script downloads NixOS-WSL, imports the distro, installs the identity at `/var/lib/agenix/identity`, and applies the `holodeck-01` flake from GitHub.
-
-> **Testing a feature branch before it is merged to master?** Pass `-FlakeBranch`:
->
-> ```powershell
-> & ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/geoff-coppertop/nixos-config/<branch>/tools/install-wsl.ps1'))) -AgeIdentityPath "E:\holodeck-01.age" -FlakeBranch "<branch>"
-> ```
+Select `holodeck-01` from the menu, then choose **1) File path** and enter the path to the age identity file saved in Step 3. The script downloads NixOS-WSL, imports the distro, installs the identity at `/var/lib/agenix/identity`, and applies the `holodeck-01` flake from GitHub.
 
 **Step 5 — Post-boot cleanup:**
 
@@ -172,18 +160,8 @@ sudo nixos-rebuild switch --flake github:geoff-coppertop/nixos-config#holodeck-0
 
 ### Option B: Bootstrap first, enroll secrets after
 
-No repo clone needed — run directly from Windows Terminal (PowerShell):
-
 ```powershell
-irm 'https://raw.githubusercontent.com/geoff-coppertop/nixos-config/master/tools/install-wsl.ps1' | iex
-```
-
-> **Note:** `irm ... | iex` does not support parameters. To pass `-AgeIdentityPath` or `-FlakeBranch`, use the scriptblock form from Option A Step 4.
-
-If you already have the repo cloned on Windows:
-
-```powershell
-.\tools\install-wsl.ps1
+python tools\install.py
 ```
 
 At the age identity prompt choose **2) Skip**. The script imports the NixOS-WSL base distro but skips `nixos-rebuild` — the holodeck-01 config uses agenix secrets, so the rebuild requires the age private key to be installed first.

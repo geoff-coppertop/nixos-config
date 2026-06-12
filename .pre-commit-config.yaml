@@ -37,6 +37,6 @@ repos:
 
       - id: no-plaintext-secrets
         name: no-plaintext-secrets
-        entry: bash ./tools/check-no-plaintext-secrets.sh
+        entry: python3 ./tools/check_no_plaintext_secrets.py
         language: system
         pass_filenames: false

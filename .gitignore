@@ -12,3 +12,8 @@ secrets/**/keys.txt
 secrets/**/*.agekey
 
 *.patch
+
+# Claude Code local state — machine-specific, not shared
+.claude/settings.local.json
+.claude/worktrees/
+__pycache__/
