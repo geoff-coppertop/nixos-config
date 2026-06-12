@@ -1,6 +1,7 @@
 {
   lib,
   config,
+  pkgs,
   ...
 }: {
   options.custom.ssh.identitySecret = lib.mkOption {
@@ -17,7 +18,7 @@
         $DRY_RUN_CMD chmod 700 "$HOME/.ssh"
         $DRY_RUN_CMD cp -f "$keyfile" "$HOME/.ssh/id_ed25519"
         $DRY_RUN_CMD chmod 600 "$HOME/.ssh/id_ed25519"
-        run ssh-keygen -y -f "$keyfile" > "$HOME/.ssh/id_ed25519.pub"
+        run ${pkgs.openssh}/bin/ssh-keygen -y -f "$keyfile" > "$HOME/.ssh/id_ed25519.pub"
         $DRY_RUN_CMD chmod 644 "$HOME/.ssh/id_ed25519.pub"
       fi
     '';
