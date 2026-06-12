@@ -56,7 +56,7 @@
       inherit pkgs agenixCli;
     };
 
-    secretApps = import ./lib/secret-apps.nix {
+    nixApps = import ./lib/apps.nix {
       inherit pkgs agenixCli;
     };
 
@@ -68,7 +68,7 @@
 
     checks.${system} = checks;
 
-    apps.${system} = secretApps;
+    apps.${system} = nixApps;
 
     nixosConfigurations = {
       "enterprise-d" = mkNixosSystem {
