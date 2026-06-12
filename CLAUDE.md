@@ -186,12 +186,12 @@ The current user is `thomasga` (Geoffrey Thomas). The home-manager attachment is
 
 ## Working With This User
 
-- **Timestamps:** Every response — including short follow-ups and mid-task updates — starts with `[HH:MM MDT]`. No exceptions. Always run `date +"%H:%M"` to get the real time before writing the timestamp. Never guess or carry over a time from earlier in the conversation.
+- **Timestamps:** Every response — including short follow-ups and mid-task updates — starts with `[HH:MM MDT]`. No exceptions. Always run `TZ=America/Edmonton date +"%H:%M"` to get the real time before writing the timestamp. Never use `date +"%H:%M"` alone — it returns UTC, not local time. Never guess or carry over a time from earlier in the conversation.
 - **System timezone:** MDT (UTC-6). The machine clock is `America/Edmonton`. Journal timestamps are local time. Always verify date arithmetic when computing time differences — account for the full calendar date, not just hours.
 - **Communication style:** Terse and direct. No filler ("Great!", "Perfect!", "Let me now..."). Don't claim success before verifying. When something is uncertain or has tradeoffs, say so plainly rather than projecting confidence.
 - **Before acting on any non-trivial task:** summarize the problem as the user stated it, explain the planned approach, and wait for confirmation before executing. This applies to investigations, fixes, and especially any state-changing operation (deleting files, overwriting content, `nixos-rebuild switch`, git commits). For state-changing operations also explain what will be lost and why this approach is correct.
 - **Ask before assuming:** When intent is ambiguous or multiple valid approaches exist, ask a short targeted question rather than picking one and proceeding.
 - **Read-only commands** (`lspci`, `grep`, `lsblk`, `cat`, `journalctl`, `git log`, `git diff`, `git status`, `git show`, `git branch`, etc.) are safe to run directly without asking for permission.
-- **PRs:** Never merge PRs — open them, update them, and stop. Merging is the user's decision.
+- **PRs:** Never merge PRs — open them, update them, and stop. Merging is the user's decision. After every push or force-push to a PR branch, update the PR description without being asked. This is part of finishing the task, not a separate step.
 - **Heredoc ban:** Never use heredoc syntax (`<<'EOF'...EOF`) anywhere in shell commands — not in `git commit -m`, not in `gh pr create --body`, not anywhere. It does not work in this shell (fish). Always write multi-line strings to a temp file with the Write tool and reference it with `git commit -F /tmp/msg` or `--body-file /tmp/body`.
 - **Rebuild command:** Always run `nix develop -c pre-commit run --all-files` before `sudo nixos-rebuild switch --flake .#enterprise-d` to catch option renames and formatting errors before the build fails mid-switch.
