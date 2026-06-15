@@ -61,6 +61,7 @@ REPO_TMP = Path("/tmp/nixos-config")
 
 NIXOS_WSL_RELEASES_URL = "https://api.github.com/repos/nix-community/NixOS-WSL/releases/latest"
 WSL_DISTRO_NAME = "NixOS"
+WSL_DEFAULT_DISK_SIZE_GB = 50
 
 LINUX_TYPES = {"disko", "sd-card"}
 WINDOWS_TYPES = {"wsl"}
@@ -431,6 +432,46 @@ def _fetch_wsl_asset() -> tuple[str, str]:
     return asset["browser_download_url"], asset["name"]
 
 
+def _resize_wsl_vhd(install_dir: Path, size_gb: int) -> None:
+    vhd_path = install_dir / "ext4.vhdx"
+    if not vhd_path.exists():
+        print(f"Warning: VHD not found at {vhd_path} — skipping resize.")
+        return
+
+    result = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-Command",
+         f"(Get-VHD -Path '{vhd_path}').Size"],
+        capture_output=True, text=True, check=False,
+    )
+    if result.returncode != 0 or not result.stdout.strip().isdigit():
+        print(f"Warning: Could not query VHD size — skipping resize.")
+        return
+
+    current_gb = int(result.stdout.strip()) // (1024 ** 3)
+    requested_bytes = size_gb * 1024 ** 3
+
+    if current_gb >= size_gb:
+        print(
+            f"Warning: VHD is already {current_gb} GB — requested {size_gb} GB is not larger. "
+            "Skipping resize."
+        )
+        return
+
+    subprocess.run(["wsl.exe", "--terminate", WSL_DISTRO_NAME], capture_output=True)
+
+    result = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-Command",
+         f"Resize-VHD -Path '{vhd_path}' -SizeBytes {requested_bytes}"],
+        capture_output=True, text=True, check=False,
+    )
+    if result.returncode != 0:
+        print(f"Warning: Resize-VHD failed — VHD remains at {current_gb} GB.")
+        if result.stderr.strip():
+            print(f"  {result.stderr.strip()}")
+    else:
+        print(f"VHD resized to {size_gb} GB.")
+
+
 def _wsl_flow(machine: str, flake_branch: str = "") -> None:
     if subprocess.run(["wsl.exe", "--version"], capture_output=True).returncode != 0:
         _die("wsl.exe not found or WSL2 not enabled.\nRun: wsl --install    then reboot.")
@@ -459,6 +500,17 @@ def _wsl_flow(machine: str, flake_branch: str = "") -> None:
     else:
         _die("Invalid choice.")
 
+    # ── disk size ─────────────────────────────────────────────────────────────
+
+    print()
+    raw_size = input(f"VHD size in GB [{WSL_DEFAULT_DISK_SIZE_GB}]: ").strip()
+    if raw_size == "":
+        disk_size_gb = WSL_DEFAULT_DISK_SIZE_GB
+    elif raw_size.isdigit() and int(raw_size) > 0:
+        disk_size_gb = int(raw_size)
+    else:
+        _die(f"Invalid disk size: '{raw_size}' — enter a positive integer.")
+
     # ── download + import ──────────────────────────────────────────────────────
 
     print()
@@ -481,6 +533,12 @@ def _wsl_flow(machine: str, flake_branch: str = "") -> None:
         )
         if result.returncode != 0:
             _die(f"wsl --import failed (exit {result.returncode})")
+
+    # ── resize VHD ────────────────────────────────────────────────────────────
+
+    print()
+    print(f"Resizing VHD to {disk_size_gb} GB...")
+    _resize_wsl_vhd(install_dir, disk_size_gb)
 
     # ── age identity ──────────────────────────────────────────────────────────
 
