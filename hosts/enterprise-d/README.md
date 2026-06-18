@@ -93,9 +93,63 @@ The 30 s window applies from when the login screen goes idle, which itself follo
 
 | File | Responsibility |
 | --- | --- |
-| `hosts/enterprise-d/power.nix` | logind lid/key actions, `IdleAction` for GDM, `HibernateDelaySec` |
+| `hosts/enterprise-d/power.nix` | logind lid/key actions, `IdleAction` for GDM, `HibernateDelaySec`, wakeup suppression, systemd-sleep patch |
 | `roles/desktop/gnome.nix` | `logind-idle-inhibitor` user service — blocks logind `IdleAction` during user sessions so GNOME manages sleep instead |
 | `users/thomasga/gnome.nix` | GNOME idle/sleep dconf settings: screen blank at 4 min, battery sleep at 5 min, lock on blank, critical battery hibernate |
+
+### Hardware workarounds for suspend-then-hibernate
+
+This hardware requires several workarounds to make `suspend-then-hibernate`
+reliable. All are implemented in `power.nix`.
+
+#### systemd POLLIN race (`patches/systemd-s2h-boottime-fallback.patch`)
+
+On AMD platforms, `CLOCK_BOOTTIME_ALARM` routes through the EC (GPE 0x0B /
+IRQ 9). When the alarm fires, the EC wakes s2idle before the timerfd POLLIN
+callback arrives. systemd's `fd_wait_for_event(tfd, POLLIN, 0)` returns 0,
+and the code treats the wake as user-initiated — no hibernate.
+
+The patch adds a `CLOCK_BOOTTIME` fallback to both code paths where the
+race occurs:
+
+- **`custom_timer_suspend()`** (line 401): uses
+  `now(CLOCK_BOOTTIME) + 5 s >= hibernate_timestamp`. The 5-second grace
+  is needed because this path computes the timerfd interval from a
+  `before_timestamp` sampled ~1 s after `hibernate_timestamp` is set, so
+  the timer fires ~1 s before the deadline — a plain `>=` check would be
+  false at resume.
+- **`execute_s2h()` hardware-BTP path** (line 577): plain
+  `now(CLOCK_BOOTTIME) >= hibernate_timestamp`. The timerfd is reprogrammed
+  from the current time each cycle so the gap is negligible.
+
+Applied only to the `systemd-suspend-then-hibernate` binary via `ExecStart`
+override — avoids rebuilding the ~600 packages that depend on systemd.
+
+#### Spurious wakeup sources (`disable-spurious-wakeup.service`)
+
+Four classes of device wake s2idle before `HibernateDelaySec` elapses or
+immediately abort S4:
+
+| Class | Devices | Effect |
+| --- | --- | --- |
+| ACPI battery/AC (EC) | PNP0C0A:00, ACAD | Wake s2idle as battery discharges |
+| ACPI lid (EC) | PNP0C0D:00 | Phantom lid-open events abort S4 image write |
+| USB xHCI (S3) | c1:00.3, c1:00.4, c3:00.3, c3:00.4 | Phantom USB activity wakes during S3 |
+| PCI bridges (S4) | 00:02.2, 00:03.1, 00:04.1, c3:00.5, c3:00.6 | Fire the instant S4 is entered, causing immediate resume |
+
+`disable-spurious-wakeup.service` writes `disabled` to each device's
+`power/wakeup` sysfs node at boot and after every resume (S4 resume resets
+`power/wakeup` to `enabled`). udev rules handle the initial device-add at
+boot.
+
+The hardware battery low-alarm (`BAT1/alarm`, ~34%) routes through a
+separate EC mechanism and is unaffected by suppressing PNP0C0A.
+
+#### Lid holdoff (`HoldoffTimeoutSec = 60s`)
+
+PNP0C0D emits a spurious lid-open ACPI event while the machine briefly wakes
+from s2idle to write the hibernate image. Without a holdoff, logind
+re-triggers suspend. 60 s is enough for S4 to complete.
 
 ### Why the idle inhibitor is needed
 
@@ -130,4 +184,10 @@ systemctl --user status logind-idle-inhibitor
 
 # Check which inhibitors are currently held
 systemd-inhibit --list
+
+# After a sleep cycle: check wakeup source diagnostics
+journalctl -t sleep-wakeup
+
+# After a sleep cycle: check what execute_s2h / custom_timer_suspend decided
+journalctl -b -u systemd-suspend-then-hibernate
 ```
