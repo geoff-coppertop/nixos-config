@@ -13,3 +13,7 @@ secrets/**/*.agekey
 
 *.patch
 !patches/*.patch
+
+# Claude Code local state — not part of the config
+.claude/settings.local.json
+.claude/worktrees/
