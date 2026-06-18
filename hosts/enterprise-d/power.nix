@@ -125,12 +125,40 @@ in {
         };
       };
 
-      # Use the patched systemd-sleep binary (CLOCK_BOOTTIME fallback fix).
-      "systemd-suspend-then-hibernate" = {
-        serviceConfig.ExecStart = lib.mkForce [
-          ""
-          "${patchedSystemd}/lib/systemd/systemd-sleep suspend-then-hibernate"
+      # Log wakeup source after each sleep cycle for diagnosis.
+      log-sleep-wakeup = {
+        description = "Log wakeup source after sleep";
+        wantedBy = [
+          "suspend.target"
+          "hibernate.target"
+          "suspend-then-hibernate.target"
         ];
+        after = [
+          "suspend.target"
+          "hibernate.target"
+          "suspend-then-hibernate.target"
+        ];
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = pkgs.writeShellScript "log-sleep-wakeup" ''
+            ${pkgs.util-linux}/bin/logger -t sleep-wakeup "pm_wakeup_timestamp: $(cat /sys/power/pm_wakeup_timestamp 2>/dev/null)"
+            ${pkgs.util-linux}/bin/logger -t sleep-wakeup "IRQ 9 count: $(awk '/^ *9:/{print $2}' /proc/interrupts 2>/dev/null)"
+            ${pkgs.util-linux}/bin/logger -t sleep-wakeup "IRQ 9 spurious: $(cat /sys/kernel/irq/9/spurious 2>/dev/null)"
+          '';
+        };
+      };
+
+      # Use the patched systemd-sleep binary (CLOCK_BOOTTIME fallback fix).
+      # SYSTEMD_LOG_LEVEL=debug is intentionally left on to diagnose the
+      # execute_s2h() / custom_timer_suspend() decision path.
+      "systemd-suspend-then-hibernate" = {
+        serviceConfig = {
+          ExecStart = lib.mkForce [
+            ""
+            "${patchedSystemd}/lib/systemd/systemd-sleep suspend-then-hibernate"
+          ];
+          Environment = "SYSTEMD_LOG_LEVEL=debug";
+        };
       };
     };
   };
