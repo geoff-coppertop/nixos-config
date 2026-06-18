@@ -1,0 +1,60 @@
+From: Geoffrey Thomas <kztbbv97dh@privaterelay.appleid.com>
+Date: Sat, 14 Jun 2026
+Subject: [PATCH] sleep: fall back to boot-time check when timerfd POLLIN races
+
+On AMD platforms the RTC alarm that backs CLOCK_BOOTTIME_ALARM routes
+through the EC.  When the alarm fires the EC raises GPE 0x0B (ACPI SCI,
+IRQ 9), which wakes s2idle and sets pm_wakeup_irq=9.  The timerfd's own
+POLLIN callback fires through a separate in-kernel path, but it can
+arrive a few milliseconds after the EC path has already caused s2idle to
+exit and user-space to resume.  By the time fd_wait_for_event(tfd,
+POLLIN, 0) is called with a zero timeout the timerfd is not yet readable,
+so the code treats the wake as a manual wakeup and skips hibernate.
+
+The race exists in two code paths:
+
+1. custom_timer_suspend(): woken_by_timer = FLAGS_SET(r, POLLIN) — if
+   false, the function returns 0 (no hibernate) even when the deadline
+   has passed.
+
+2. execute_s2h() hardware-BTP path: if (FLAGS_SET(r, POLLIN)) — if
+   false, falls through to return 0 (no hibernate).
+
+Fix both by adding a CLOCK_BOOTTIME fallback.
+
+In custom_timer_suspend(), hibernate_timestamp is computed at function
+entry (line 405) but the timerfd interval is measured from a later
+before_timestamp (line 447), so the timer fires 1–2 seconds before
+hibernate_timestamp.  Resume latency from s2idle is sub-second, so a
+plain >= check would be false.  Use a 5-second grace period to cover
+this structural gap while remaining safe against legitimate manual
+wakeups (which occur seconds to minutes early, not within 5 s of the
+deadline).
+
+In execute_s2h() the timerfd is reprogrammed each cycle from the
+current time so the gap is negligible; a plain >= check suffices.
+
+---
+ src/sleep/sleep.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/src/sleep/sleep.c b/src/sleep/sleep.c
+--- a/src/sleep/sleep.c
++++ b/src/sleep/sleep.c
+@@ -500,7 +500,7 @@
+                 if (r < 0)
+                         return log_error_errno(r, "Error polling timerfd: %m");
+                 /* Store fd_wait status */
+-                woken_by_timer = FLAGS_SET(r, POLLIN);
++                woken_by_timer = FLAGS_SET(r, POLLIN) || now(CLOCK_BOOTTIME) + 5 * USEC_PER_SEC >= hibernate_timestamp;
+
+                 r = fetch_batteries_capacity_by_name(&current_capacity);
+                 if (r < 0 || hashmap_isempty(current_capacity)) {
+@@ -577,7 +577,7 @@
+                                 r = fd_wait_for_event(tfd, POLLIN, 0);
+                                 if (r < 0)
+                                         return log_error_errno(r, "Error polling timerfd: %m");
+-                                if (FLAGS_SET(r, POLLIN)) {
++                                if (FLAGS_SET(r, POLLIN) || now(CLOCK_BOOTTIME) >= hibernate_timestamp) {
+                                         /* Timer fired - but respect HibernateOnACPower setting */
+                                         if (!sleep_config->hibernate_on_ac_power && on_ac_power() > 0) {

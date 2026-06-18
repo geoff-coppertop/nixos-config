@@ -12,3 +12,4 @@ secrets/**/keys.txt
 secrets/**/*.agekey
 
 *.patch
+!patches/*.patch
