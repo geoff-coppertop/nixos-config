@@ -12,3 +12,11 @@ secrets/**/keys.txt
 secrets/**/*.agekey
 
 *.patch
+
+# nix build output symlinks
+result
+result-*
+
+# Claude Code agent-isolation worktrees (nested under .claude/ when created
+# from inside this repo rather than as a sibling directory).
+.claude/worktrees/
