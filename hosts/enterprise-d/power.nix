@@ -4,6 +4,11 @@
       "mem_sleep_default=s2idle"
       "button.lid_init_state=open"
       "amd_pstate=active"
+      # Switches RTC wakeup to ACPI alarms instead of HPET, avoiding an
+      # AMD EC/RTC timing race (rtc->aie_timer mismatch in amd-pmc's
+      # timer-based S0i3 wakeup handling) that otherwise causes the
+      # suspend-then-hibernate RTC alarm to be misread as a user wake.
+      "rtc_cmos.use_acpi_alarm=1"
     ];
     resumeDevice = "/dev/vg/swap";
   };
@@ -20,105 +25,61 @@
       HandleHibernateKey = "hibernate";
       IdleAction = "suspend-then-hibernate";
       IdleActionSec = "30s";
-      # PNP0C0D emits a spurious lid-open ACPI event when the system briefly
-      # wakes from s2idle to write the hibernate image (RTC alarm at
-      # HibernateDelaySec). Extending the holdoff window to 60s ensures logind
-      # ignores that event on the intermediate wakeup, allowing S4 to complete.
       HoldoffTimeoutSec = "60s";
     };
     power-profiles-daemon.enable = true;
   };
-  systemd.sleep.settings.Sleep = {
-    HibernateDelaySec = "10min";
-  };
-  # Three classes of spurious wakeup on this hardware:
-  #
-  # 1. s2idle phase of suspend-then-hibernate:
-  #    PNP0C0D:00 (ACPI lid on EC0) emits phantom events while the lid sits
-  #    open, causing systemd's wakeup-source check to treat the s2idle wake as
-  #    user-initiated and return to the desktop instead of proceeding to
-  #    hibernate.  Disabling this source leaves the RTC timer as the only wake,
-  #    so the transition to hibernate reliably fires after HibernateDelaySec.
-  #
-  # 2. S3 phase of suspend-then-hibernate (USB host controllers):
-  #    xHCI controllers fire wake events on phantom USB activity (port polling,
-  #    cable handshakes on empty ports, internal device twitches) during S3,
-  #    pulling the machine back to the desktop before HibernateDelaySec elapses
-  #    so the transition to hibernate never fires.  Affected on this hardware:
-  #      c1:00.3  XHC0  - hosts only the Goodix fingerprint reader
-  #      c1:00.4  XHC1  - hosts the internal webcam
-  #      c3:00.3  XHC3  - empty (external USB-C port)
-  #      c3:00.4  XHC4  - empty (external USB-C port)
-  #    None of these need to wake the system: the laptop's keyboard/trackpad is
-  #    handled by the EC at the ACPI level, not USB, and wake-on-USB-plug from
-  #    an empty port is the spurious behaviour we are eliminating.  See:
-  #    https://community.frame.work/t/solved-instant-wakeup-from-hibernate-with-linux-6-10-when-bluetooth-is-turned-on-when-xhc0-listens-to-wakeup-events/57044
-  #
-  # 3. S4 (hibernate) power-off phase:
-  #    Five PCI devices are enabled as S4 wakeup sources in the ACPI table and
-  #    fire an event the instant the machine enters S4, causing an immediate
-  #    resume-from-hibernate rather than a clean power-off:
-  #      00:02.2  GPP6  - PCIe root port bridging the Intel AX210 Wi-Fi card
-  #      00:03.1  GP11  - USB4/Thunderbolt PCIe tunnel 1
-  #      00:04.1  GP12  - USB4/Thunderbolt PCIe tunnel 2
-  #      c3:00.5  NHI0  - USB4/Thunderbolt NHI controller #1
-  #      c3:00.6  NHI1  - USB4/Thunderbolt NHI controller #2
-  #    The machine wakes from S4 via the power button only; disabling these
-  #    sources eliminates the instant S4 exit.
-  #
-  # power/wakeup resets to "enabled" on full resume from S4 (the device is
-  # re-initialised at power-on), so the disable is re-asserted after every
-  # sleep cycle (After= the sleep targets) as well as at boot (multi-user.target).
-  # udev only fires at device-add and does not cover post-resume, hence the
-  # service for the re-assertion.
-  systemd.services.disable-spurious-wakeup = {
-    description = "Disable spurious ACPI/PCI wakeup sources that prevent clean sleep";
-    wantedBy = [
-      "multi-user.target"
-      "suspend.target"
-      "hibernate.target"
-      "suspend-then-hibernate.target"
-      "hybrid-sleep.target"
-    ];
-    after = [
-      "suspend.target"
-      "hibernate.target"
-      "suspend-then-hibernate.target"
-      "hybrid-sleep.target"
-    ];
-    serviceConfig = {
-      Type = "oneshot";
-      ExecStart = pkgs.writeShellScript "disable-spurious-wakeup" ''
-        # s2idle: ACPI lid (PNP0C0D) on EC0
-        echo disabled > /sys/devices/pci0000:00/0000:00:14.3/PNP0C09:00/PNP0C0D:00/power/wakeup
-        # S3: USB host controllers (fingerprint, webcam, empty USB-C ports)
-        for dev in 0000:c1:00.3 0000:c1:00.4 0000:c3:00.3 0000:c3:00.4; do
-          echo disabled > /sys/bus/pci/devices/$dev/power/wakeup
-        done
-        # S4: Wi-Fi bridge, USB4/Thunderbolt PCIe tunnels and NHI controllers
-        for dev in 0000:00:02.2 0000:00:03.1 0000:00:04.1 0000:c3:00.5 0000:c3:00.6; do
-          echo disabled > /sys/bus/pci/devices/$dev/power/wakeup
-        done
-      '';
+  systemd = {
+    sleep.settings.Sleep = {
+      HibernateDelaySec = "10min";
+    };
+    # Permanent diagnostic logging for both suspend-then-hibernate trigger
+    # paths (HandleLidSwitch and IdleAction both route through this unit).
+    # Left in place indefinitely so any spurious-wake or non-hibernate cycle
+    # is visible in `journalctl -t hibernate-trigger` without needing extra
+    # workarounds re-added blind.
+    #
+    # Hibernation detection greps this unit's own log (since this cycle's
+    # start) for systemd-sleep's "Attempting to hibernate" line. A prior
+    # version compared the kernel boot ID before/after, on the assumption
+    # that a real hibernate cycle resumes into a fresh boot — that's wrong:
+    # hibernate resume restores the original kernel's in-memory state
+    # (including boot_id) rather than booting a new one, so the boot ID
+    # never changes even on a genuine hibernate, making that check always
+    # report `hibernated: no`. Confirmed wrong by a real cycle whose
+    # systemd-sleep log showed "Attempting to hibernate" / "Using sleep
+    # state 'disk'" while the boot-ID check still said "no".
+    # Temporary diagnostic only: surfaces systemd-sleep's internal
+    # woken_by_timer/timerfd decision (custom_timer_suspend() in
+    # src/sleep/sleep.c), which is silent at the default log level. Needed
+    # to confirm whether failed suspend-then-hibernate cycles match the
+    # known upstream zero-timeout POLLIN race (systemd/systemd#38193)
+    # before deciding on a fix. Remove once that's confirmed either way.
+    services.systemd-suspend-then-hibernate = {
+      environment = {
+        SYSTEMD_LOG_LEVEL = "debug";
+      };
+      serviceConfig = {
+        ExecStartPre = [
+          (pkgs.writeShellScript "hibernate-trigger-pre" ''
+            ${pkgs.coreutils}/bin/date +%s > /run/hibernate-trigger-start
+            ${pkgs.util-linux}/bin/logger -t hibernate-trigger "suspend-then-hibernate starting at $(${pkgs.coreutils}/bin/date +%s)"
+          '')
+        ];
+        ExecStartPost = [
+          (pkgs.writeShellScript "hibernate-trigger-post" ''
+            now=$(${pkgs.coreutils}/bin/date +%s)
+            start=$(${pkgs.coreutils}/bin/cat /run/hibernate-trigger-start 2>/dev/null || echo "$now")
+            if ${pkgs.systemd}/bin/journalctl -u systemd-suspend-then-hibernate.service --since "@$start" \
+                | ${pkgs.gnugrep}/bin/grep -q "Attempting to hibernate"; then
+              hibernated=yes
+            else
+              hibernated=no
+            fi
+            ${pkgs.util-linux}/bin/logger -t hibernate-trigger "resumed at $now, hibernated: $hibernated"
+          '')
+        ];
+      };
     };
   };
-  services.udev.extraRules = ''
-    # Runtime PM for PCI devices
-    ACTION=="add", SUBSYSTEM=="pci", ATTR{power/control}="auto"
-    # Runtime PM for USB devices
-    ACTION=="add", SUBSYSTEM=="usb", ATTR{power/control}="auto"
-    # Disable wakeup at boot for all spurious wakeup sources; re-asserted after
-    # every resume by disable-spurious-wakeup.service (see comment above).
-    # USB host controllers (S3): fingerprint reader, webcam, empty USB-C ports
-    ACTION=="add", SUBSYSTEM=="pci", KERNELS=="0000:c1:00.3", ATTR{power/wakeup}="disabled"
-    ACTION=="add", SUBSYSTEM=="pci", KERNELS=="0000:c1:00.4", ATTR{power/wakeup}="disabled"
-    ACTION=="add", SUBSYSTEM=="pci", KERNELS=="0000:c3:00.3", ATTR{power/wakeup}="disabled"
-    ACTION=="add", SUBSYSTEM=="pci", KERNELS=="0000:c3:00.4", ATTR{power/wakeup}="disabled"
-    # PCI bridges (S4): Wi-Fi bridge and Thunderbolt/USB4 devices
-    ACTION=="add", SUBSYSTEM=="pci", KERNELS=="0000:00:02.2", ATTR{power/wakeup}="disabled"
-    ACTION=="add", SUBSYSTEM=="pci", KERNELS=="0000:00:03.1", ATTR{power/wakeup}="disabled"
-    ACTION=="add", SUBSYSTEM=="pci", KERNELS=="0000:00:04.1", ATTR{power/wakeup}="disabled"
-    ACTION=="add", SUBSYSTEM=="pci", KERNELS=="0000:c3:00.5", ATTR{power/wakeup}="disabled"
-    ACTION=="add", SUBSYSTEM=="pci", KERNELS=="0000:c3:00.6", ATTR{power/wakeup}="disabled"
-  '';
 }

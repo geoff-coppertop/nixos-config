@@ -93,9 +93,45 @@ The 30 s window applies from when the login screen goes idle, which itself follo
 
 | File | Responsibility |
 | --- | --- |
-| `hosts/enterprise-d/power.nix` | logind lid/key actions, `IdleAction` for GDM, `HibernateDelaySec` |
+| `hosts/enterprise-d/power.nix` | logind lid/key actions, `IdleAction` for GDM, `HibernateDelaySec`, RTC wakeup kernel param, `hibernate-trigger` logging |
 | `roles/desktop/gnome.nix` | `logind-idle-inhibitor` user service — blocks logind `IdleAction` during user sessions so GNOME manages sleep instead |
 | `users/thomasga/gnome.nix` | GNOME idle/sleep dconf settings: screen blank at 4 min, battery sleep at 5 min, lock on blank, critical battery hibernate |
+
+### Why `rtc_cmos.use_acpi_alarm=1`
+
+`suspend-then-hibernate` previously failed to reach hibernate reliably: the
+RTC alarm that wakes the machine from s2idle to trigger the hibernate
+transition raced with the AMD `amd-pmc` driver's timer-based S0i3 wakeup
+handling (an `rtc->aie_timer` mismatch between the kernel's HPET-based RTC
+programming and the EC-routed alarm). systemd's own wake-source check would
+then read the wake as user-initiated and return to the desktop instead of
+proceeding to hibernate. This is a known issue on AMD laptops generally, not
+specific to this hardware.
+
+The fix is the kernel boot parameter `rtc_cmos.use_acpi_alarm=1`, which
+switches RTC wakeup to ACPI alarms instead of HPET, avoiding the race at the
+kernel/EC layer where it originates. This replaces an earlier, abandoned
+approach (a custom-patched `systemd` binary plus several ACPI/PCI
+wake-source suppressions) that regressed hibernate entirely; that approach
+is not used here. No wakeup sources are disabled — stock kernel/ACPI
+defaults decide what can wake the machine.
+
+### `hibernate-trigger` logging
+
+`systemd-suspend-then-hibernate.service` carries permanent
+`ExecStartPre`/`ExecStartPost` hooks, tagged `hibernate-trigger`, since both
+`HandleLidSwitch` and `IdleAction` route through this one unit. Check the
+outcome of any cycle with:
+
+```bash
+journalctl -t hibernate-trigger
+```
+
+Each cycle logs a start timestamp and, on resume, whether the machine
+actually went through S4 (`hibernated: yes`/`no`, derived from
+`journalctl -k -b -1`). If hibernate is ever skipped or a spurious wake
+reappears, this is the first thing to check, alongside `journalctl -k -b -1`
+for the wake cause.
 
 ### Why the idle inhibitor is needed
 
