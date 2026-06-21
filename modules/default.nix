@@ -4,6 +4,7 @@
     ./flatpak.nix
     ./framework-control.nix
     ./framework.nix
+    ./fwupd.nix
     ./gaming.nix
     ./network-drives.nix
     ./secrets.nix
