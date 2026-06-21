@@ -3,7 +3,7 @@
   lib,
   ...
 }: let
-  inherit (lib) mkEnableOption mkIf;
+  inherit (lib) mkEnableOption mkIf optionalAttrs;
 in {
   options.custom.flatpak.enable = mkEnableOption "declarative Flatpak management via nix-flatpak";
 
@@ -24,7 +24,20 @@ in {
       ];
 
       uninstallUnmanaged = true;
-      update.onActivation = true;
+
+      update = {
+        onActivation = true;
+        auto = {
+          enable = true;
+          onCalendar = "weekly";
+        };
+      };
+    };
+
+    # On laptops, skip the scheduled update while on battery — same gating as
+    # NAS backups and the NixOS auto-upgrade.
+    systemd.services.flatpak-automatic-update.unitConfig = optionalAttrs config.custom.isLaptop {
+      ConditionACPower = true;
     };
   };
 }

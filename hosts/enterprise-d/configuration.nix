@@ -43,6 +43,7 @@ in {
     };
     btrfs.enable = true;
     framework.enable = true;
+    fwupd.enable = true;
     isLaptop = true;
     secureBoot.enable = true;
     snapper.enable = true;

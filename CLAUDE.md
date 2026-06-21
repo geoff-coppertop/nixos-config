@@ -103,7 +103,7 @@ flake.nix
 Modules expose behavior through `custom.*` options rather than direct NixOS options. Known options:
 
 - `custom.backups` — enable per-user restic backups to NAS (SMB or NFS), AC-only gating for laptops
-- `custom.isLaptop` — gates backup service on AC power when `true`
+- `custom.isLaptop` — defined in `roles/common/base.nix`; gates AC-power-sensitive maintenance jobs (NAS backups, NixOS auto-upgrade, Flatpak auto-update) when `true`
 - `custom.cli.shell` — controls which shell user modules activate
 - `custom.framework.enable` — Framework-specific driver/kernel config (fingerprint reader, keyboard brightness, charge limit) plus the `framework-control` GUI service from `pkgs/`
 - `custom.secureBoot.enable` — lanzaboote Secure Boot

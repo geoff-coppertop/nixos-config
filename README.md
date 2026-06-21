@@ -11,6 +11,9 @@ This repo is the source of truth for machine setup, user setup, secrets wiring, 
   - [Option B: Bootstrap first, enroll secrets after](#option-b-bootstrap-first-enroll-secrets-after)
   - [Rebuilding an existing install](#rebuilding-an-existing-install)
 - [Updating Machines](#updating-machines)
+  - [Automatic updates](#automatic-updates)
+  - [Manual rebuild](#manual-rebuild)
+  - [Monthly flake input update](#monthly-flake-input-update)
 - [Setup](#setup)
   - [Prerequisites](#prerequisites)
   - [Setting Up On Non-NixOS Linux Or WSL](#setting-up-on-non-nixos-linux-or-wsl)
@@ -238,13 +241,28 @@ sudo nixos-rebuild switch --flake /path/to/nixos-config#holodeck-01
 
 ## Updating Machines
 
+### Automatic updates
+
+`roles/common/base.nix` enables `system.autoUpgrade` for every host: it fetches `github:geoff-coppertop/nixos-config#<hostname>` weekly and stages the result as the next boot entry (`operation = boot`, `allowReboot = false`). Nothing reboots automatically; apply the staged generation at your convenience. Because it tracks the GitHub remote, only pushed commits are picked up.
+
+On hosts with `custom.isLaptop = true` (currently `enterprise-d`), the upgrade additionally skips while on battery — the same `ConditionACPower` gating used for NAS backups.
+
+Two more opt-in modules add update mechanisms for specific hosts:
+
+| Module | Option | Host(s) enabled | What it does |
+| --- | --- | --- | --- |
+| `modules/flatpak.nix` | `custom.flatpak.enable` | `enterprise-d` | Weekly Flatpak update timer (also AC-gated on laptops), plus update-on-activation |
+| `modules/fwupd.nix` | `custom.fwupd.enable` | `enterprise-d` | Enables the fwupd daemon for LVFS firmware updates; apply with `fwupdmgr refresh && fwupdmgr update` |
+
+### Manual rebuild
+
 | Machine | Update command | Where to run |
 | --- | --- | --- |
 | `enterprise-d` | `sudo nixos-rebuild switch --flake .#enterprise-d` | On `enterprise-d` |
 | `holodeck-01` | `sudo nixos-rebuild switch --flake .#holodeck-01` | Inside the WSL distro |
 | `enterprise-d` (remote) | `nixos-rebuild switch --target-host thomasga@enterprise-d --flake .#enterprise-d` | From any machine with SSH + Nix |
 
-Monthly flake update workflow (run on `enterprise-d`):
+### Monthly flake input update
 
 ```bash
 nix flake update
