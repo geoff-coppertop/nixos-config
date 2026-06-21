@@ -6,6 +6,7 @@
     ../common/gui-apps.nix
     ./ai.nix
     ./git.nix
+    ./ghostty.nix
     ./gnome.nix
     ./ssh.nix
     ./ssh-key.nix
