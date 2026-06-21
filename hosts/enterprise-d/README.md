@@ -69,7 +69,7 @@ A non-empty result confirms TPM2 enrollment is active.
 | --- | --- |
 | Lid close | Suspend immediately, hibernate after 10 min |
 | 4 min idle | Screen blanks and locks |
-| 5 min idle | `suspend-then-hibernate` starts |
+| 5 min idle | Suspend, hibernate after 10 min |
 | 10 min suspended | Hibernate |
 | Critical battery | Immediate hibernate, bypassing suspend |
 
@@ -79,7 +79,7 @@ Behaviour is identical on AC and battery — there are no running user processes
 
 | Trigger | Action |
 | --- | --- |
-| 30 s idle | `suspend-then-hibernate` starts |
+| 30 s idle | Suspend, hibernate after 10 min |
 | 10 min suspended | Hibernate |
 
 The 30 s window applies from when the login screen goes idle, which itself follows GNOME's default `idle-delay`. In practice the screen is unattended from first appearance, so this fires approximately 30 s after GDM starts.
@@ -93,9 +93,60 @@ The 30 s window applies from when the login screen goes idle, which itself follo
 
 | File | Responsibility |
 | --- | --- |
-| `hosts/enterprise-d/power.nix` | logind lid/key actions, `IdleAction` for GDM, `HibernateDelaySec` |
+| `hosts/enterprise-d/power.nix` | logind lid/key actions, `IdleAction`, RTC wakeup kernel param, `hibernate-trigger` system-sleep hook (arms RTC wakealarm, decides hibernate on resume, logging) |
 | `roles/desktop/gnome.nix` | `logind-idle-inhibitor` user service — blocks logind `IdleAction` during user sessions so GNOME manages sleep instead |
 | `users/thomasga/gnome.nix` | GNOME idle/sleep dconf settings: screen blank at 4 min, battery sleep at 5 min, lock on blank, critical battery hibernate |
+
+### Why a self-owned RTC trigger instead of `suspend-then-hibernate`
+
+`suspend-then-hibernate` previously failed to reach hibernate reliably,
+roughly 43% of cycles in testing. The kernel boot parameter
+`rtc_cmos.use_acpi_alarm=1` (still set, see below) addresses a related but
+distinct AMD/EC timing issue — it switches RTC wakeup to ACPI alarms
+instead of HPET, avoiding an `rtc->aie_timer` mismatch in the `amd-pmc`
+driver's timer-based S0i3 wakeup handling — but it did not fix the failures
+seen here, because the actual cause is a separate, upstream bug inside
+systemd itself: a zero-timeout `POLLIN` race in `custom_timer_suspend()`
+(`src/sleep/sleep.c`, tracked as `systemd/systemd#38193`, open/unfixed),
+where the RTC/EC wake reaches the process before systemd's own poll on the
+timerfd reports readable, so systemd treats the wake as user-initiated and
+skips hibernate.
+
+Since the race is in systemd's own internal timer logic, not at the
+RTC/EC hardware layer, the fix is to stop using `suspend-then-hibernate`
+entirely. `HandleLidSwitch` and `IdleAction` are both set to plain
+`suspend`, and a `/etc/systemd/system-sleep/hibernate-trigger` hook (an
+officially documented, stable systemd extension point — not a patch
+against, or override of, unit internals) arms `/sys/class/rtc/rtc0/wakealarm`
+directly on suspend and, on resume, makes its own non-racy decision based
+on wall-clock elapsed time: if elapsed time is close enough to the
+configured delay, the RTC alarm fired as scheduled and the hook triggers
+`systemctl hibernate`; otherwise a real user action woke the machine early
+and nothing further happens. This replaces both `suspend-then-hibernate`
+and the earlier, abandoned patched-`systemd` approach (PR#52) that
+regressed hibernate entirely; neither is used here. No wakeup sources are
+disabled — stock kernel/ACPI defaults decide what can wake the machine.
+
+One trade-off: because the RTC alarm causes a real, brief S3 resume before
+the hook re-triggers hibernate, there can be a momentary screen/keyboard
+light flicker on the timer-driven hibernate path that `suspend-then-hibernate`
+didn't have, since that mechanism transitioned straight from suspend to
+hibernate inside one systemd sleep transaction.
+
+### `hibernate-trigger` logging
+
+The `hibernate-trigger` system-sleep hook logs every cycle under that tag,
+since both `HandleLidSwitch` and `IdleAction` route through stock
+`systemd-suspend.service`. Check the outcome of any cycle with:
+
+```bash
+journalctl -t hibernate-trigger
+```
+
+Each cycle logs the wakealarm arming time on suspend, and on resume, the
+elapsed time and whether hibernate was triggered. If hibernate is ever
+skipped unexpectedly, or a spurious wake reappears, this is the first thing
+to check, alongside `journalctl -k -b -1` for the wake cause.
 
 ### Why the idle inhibitor is needed
 
@@ -119,8 +170,8 @@ A system-sleep hook to enforce this from inside `systemd-hibernate.service` was 
 # Verify hibernate works end-to-end
 systemctl hibernate
 
-# Check the hibernate delay setting
-cat /etc/systemd/sleep.conf.d/*.conf
+# Check the hibernate-trigger hook is installed
+ls -l /etc/systemd/system-sleep/hibernate-trigger
 
 # Check logind configuration
 loginctl show-session | grep -i idle

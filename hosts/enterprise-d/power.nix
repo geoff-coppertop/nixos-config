@@ -4,6 +4,11 @@
       "mem_sleep_default=s2idle"
       "button.lid_init_state=open"
       "amd_pstate=active"
+      # Switches RTC wakeup to ACPI alarms instead of HPET, avoiding an
+      # AMD EC/RTC timing race (rtc->aie_timer mismatch in amd-pmc's
+      # timer-based S0i3 wakeup handling) that otherwise causes the
+      # suspend-then-hibernate RTC alarm to be misread as a user wake.
+      "rtc_cmos.use_acpi_alarm=1"
     ];
     resumeDevice = "/dev/vg/swap";
   };
@@ -14,111 +19,81 @@
   networking.networkmanager.wifi.powersave = true;
   services = {
     logind.settings.Login = {
-      HandleLidSwitch = "suspend-then-hibernate";
+      # Plain suspend, not suspend-then-hibernate: systemd's own
+      # suspend-then-hibernate logic (execute_s2h()/custom_timer_suspend()
+      # in src/sleep/sleep.c) has a zero-timeout POLLIN race where the
+      # RTC/EC timer wake reaches the process before systemd's own poll on
+      # the timerfd reports readable, so it treats the wake as
+      # user-initiated and skips hibernate (systemd/systemd#38193, open,
+      # unfixed). Measured ~43% failure rate on this hardware across 7 real
+      # cycles even with rtc_cmos.use_acpi_alarm=1 set above, because that
+      # param only affects how the RTC alarm is routed at the kernel/EC
+      # layer — it doesn't touch systemd's own racy poll logic. The
+      # hibernate-trigger system-sleep hook below replaces systemd's timer
+      # decision with our own non-racy wall-clock check.
+      HandleLidSwitch = "suspend";
       HandleLidSwitchExternalPower = "lock";
       HandleLidSwitchDocked = "ignore";
       HandleHibernateKey = "hibernate";
-      IdleAction = "suspend-then-hibernate";
+      IdleAction = "suspend";
       IdleActionSec = "30s";
-      # PNP0C0D emits a spurious lid-open ACPI event when the system briefly
-      # wakes from s2idle to write the hibernate image (RTC alarm at
-      # HibernateDelaySec). Extending the holdoff window to 60s ensures logind
-      # ignores that event on the intermediate wakeup, allowing S4 to complete.
       HoldoffTimeoutSec = "60s";
     };
     power-profiles-daemon.enable = true;
   };
-  systemd.sleep.settings.Sleep = {
-    HibernateDelaySec = "10min";
-  };
-  # Three classes of spurious wakeup on this hardware:
-  #
-  # 1. s2idle phase of suspend-then-hibernate:
-  #    PNP0C0D:00 (ACPI lid on EC0) emits phantom events while the lid sits
-  #    open, causing systemd's wakeup-source check to treat the s2idle wake as
-  #    user-initiated and return to the desktop instead of proceeding to
-  #    hibernate.  Disabling this source leaves the RTC timer as the only wake,
-  #    so the transition to hibernate reliably fires after HibernateDelaySec.
-  #
-  # 2. S3 phase of suspend-then-hibernate (USB host controllers):
-  #    xHCI controllers fire wake events on phantom USB activity (port polling,
-  #    cable handshakes on empty ports, internal device twitches) during S3,
-  #    pulling the machine back to the desktop before HibernateDelaySec elapses
-  #    so the transition to hibernate never fires.  Affected on this hardware:
-  #      c1:00.3  XHC0  - hosts only the Goodix fingerprint reader
-  #      c1:00.4  XHC1  - hosts the internal webcam
-  #      c3:00.3  XHC3  - empty (external USB-C port)
-  #      c3:00.4  XHC4  - empty (external USB-C port)
-  #    None of these need to wake the system: the laptop's keyboard/trackpad is
-  #    handled by the EC at the ACPI level, not USB, and wake-on-USB-plug from
-  #    an empty port is the spurious behaviour we are eliminating.  See:
-  #    https://community.frame.work/t/solved-instant-wakeup-from-hibernate-with-linux-6-10-when-bluetooth-is-turned-on-when-xhc0-listens-to-wakeup-events/57044
-  #
-  # 3. S4 (hibernate) power-off phase:
-  #    Five PCI devices are enabled as S4 wakeup sources in the ACPI table and
-  #    fire an event the instant the machine enters S4, causing an immediate
-  #    resume-from-hibernate rather than a clean power-off:
-  #      00:02.2  GPP6  - PCIe root port bridging the Intel AX210 Wi-Fi card
-  #      00:03.1  GP11  - USB4/Thunderbolt PCIe tunnel 1
-  #      00:04.1  GP12  - USB4/Thunderbolt PCIe tunnel 2
-  #      c3:00.5  NHI0  - USB4/Thunderbolt NHI controller #1
-  #      c3:00.6  NHI1  - USB4/Thunderbolt NHI controller #2
-  #    The machine wakes from S4 via the power button only; disabling these
-  #    sources eliminates the instant S4 exit.
-  #
-  # power/wakeup resets to "enabled" on full resume from S4 (the device is
-  # re-initialised at power-on), so the disable is re-asserted after every
-  # sleep cycle (After= the sleep targets) as well as at boot (multi-user.target).
-  # udev only fires at device-add and does not cover post-resume, hence the
-  # service for the re-assertion.
-  systemd.services.disable-spurious-wakeup = {
-    description = "Disable spurious ACPI/PCI wakeup sources that prevent clean sleep";
-    wantedBy = [
-      "multi-user.target"
-      "suspend.target"
-      "hibernate.target"
-      "suspend-then-hibernate.target"
-      "hybrid-sleep.target"
-    ];
-    after = [
-      "suspend.target"
-      "hibernate.target"
-      "suspend-then-hibernate.target"
-      "hybrid-sleep.target"
-    ];
+  # logind treats a sleep operation as in-progress until the job for
+  # systemd-suspend.service itself completes, which doesn't happen until
+  # this hook (run from inside that job's ExecStart) returns. Ordering
+  # this unit's job After= that service, rather than calling `systemctl
+  # hibernate` inline, lets systemd's own job scheduler defer it until
+  # the suspend job actually finishes and the lock clears — no polling,
+  # no fixed delay.
+  systemd.services.hibernate-trigger-hibernate = {
+    description = "Hibernate after an RTC-wakealarm-triggered resume";
+    after = ["systemd-suspend.service"];
     serviceConfig = {
       Type = "oneshot";
-      ExecStart = pkgs.writeShellScript "disable-spurious-wakeup" ''
-        # s2idle: ACPI lid (PNP0C0D) on EC0
-        echo disabled > /sys/devices/pci0000:00/0000:00:14.3/PNP0C09:00/PNP0C0D:00/power/wakeup
-        # S3: USB host controllers (fingerprint, webcam, empty USB-C ports)
-        for dev in 0000:c1:00.3 0000:c1:00.4 0000:c3:00.3 0000:c3:00.4; do
-          echo disabled > /sys/bus/pci/devices/$dev/power/wakeup
-        done
-        # S4: Wi-Fi bridge, USB4/Thunderbolt PCIe tunnels and NHI controllers
-        for dev in 0000:00:02.2 0000:00:03.1 0000:00:04.1 0000:c3:00.5 0000:c3:00.6; do
-          echo disabled > /sys/bus/pci/devices/$dev/power/wakeup
-        done
-      '';
+      ExecStart = "${pkgs.systemd}/bin/systemctl hibernate";
     };
   };
-  services.udev.extraRules = ''
-    # Runtime PM for PCI devices
-    ACTION=="add", SUBSYSTEM=="pci", ATTR{power/control}="auto"
-    # Runtime PM for USB devices
-    ACTION=="add", SUBSYSTEM=="usb", ATTR{power/control}="auto"
-    # Disable wakeup at boot for all spurious wakeup sources; re-asserted after
-    # every resume by disable-spurious-wakeup.service (see comment above).
-    # USB host controllers (S3): fingerprint reader, webcam, empty USB-C ports
-    ACTION=="add", SUBSYSTEM=="pci", KERNELS=="0000:c1:00.3", ATTR{power/wakeup}="disabled"
-    ACTION=="add", SUBSYSTEM=="pci", KERNELS=="0000:c1:00.4", ATTR{power/wakeup}="disabled"
-    ACTION=="add", SUBSYSTEM=="pci", KERNELS=="0000:c3:00.3", ATTR{power/wakeup}="disabled"
-    ACTION=="add", SUBSYSTEM=="pci", KERNELS=="0000:c3:00.4", ATTR{power/wakeup}="disabled"
-    # PCI bridges (S4): Wi-Fi bridge and Thunderbolt/USB4 devices
-    ACTION=="add", SUBSYSTEM=="pci", KERNELS=="0000:00:02.2", ATTR{power/wakeup}="disabled"
-    ACTION=="add", SUBSYSTEM=="pci", KERNELS=="0000:00:03.1", ATTR{power/wakeup}="disabled"
-    ACTION=="add", SUBSYSTEM=="pci", KERNELS=="0000:00:04.1", ATTR{power/wakeup}="disabled"
-    ACTION=="add", SUBSYSTEM=="pci", KERNELS=="0000:c3:00.5", ATTR{power/wakeup}="disabled"
-    ACTION=="add", SUBSYSTEM=="pci", KERNELS=="0000:c3:00.6", ATTR{power/wakeup}="disabled"
-  '';
+  # Arms the RTC wakealarm directly on suspend and decides on resume,
+  # using wall-clock elapsed time, whether to hibernate. Both HandleLidSwitch
+  # and IdleAction route through stock systemd-suspend.service, so this one
+  # hook covers both trigger paths. Permanent logging tagged
+  # `hibernate-trigger`, left in place indefinitely (see journalctl -t
+  # hibernate-trigger).
+  environment.etc."systemd/system-sleep/hibernate-trigger" = {
+    mode = "0755";
+    source = pkgs.writeShellScript "hibernate-trigger" ''
+      action="$1"
+      sleep_action="$2"
+      delay_sec=600
+      state_file=/run/hibernate-trigger-start
+      wakealarm=/sys/class/rtc/rtc0/wakealarm
+
+      [ "$sleep_action" = suspend ] || exit 0
+
+      case "$action" in
+        pre)
+          now=$(${pkgs.coreutils}/bin/date +%s)
+          echo "$now" > "$state_file"
+          wake_at=$((now + delay_sec))
+          echo "$wake_at" > "$wakealarm" 2>/dev/null || true
+          ${pkgs.util-linux}/bin/logger -t hibernate-trigger "suspend starting at $now, wakealarm armed for $wake_at (+''${delay_sec}s)"
+          ;;
+        post)
+          now=$(${pkgs.coreutils}/bin/date +%s)
+          start=$(${pkgs.coreutils}/bin/cat "$state_file" 2>/dev/null || echo "$now")
+          elapsed=$((now - start))
+          echo 0 > "$wakealarm" 2>/dev/null || true
+          if [ "$elapsed" -ge $((delay_sec - 5)) ]; then
+            ${pkgs.util-linux}/bin/logger -t hibernate-trigger "resumed at $now, elapsed=''${elapsed}s, triggering hibernate"
+            ${pkgs.systemd}/bin/systemctl start --no-block hibernate-trigger-hibernate.service
+          else
+            ${pkgs.util-linux}/bin/logger -t hibernate-trigger "resumed at $now, elapsed=''${elapsed}s, early wake, no hibernate"
+          fi
+          ;;
+      esac
+    '';
+  };
 }
