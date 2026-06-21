@@ -1,13 +1,15 @@
 {
   imports = [
     ./btrfs.nix
-    ./backups.nix
+    ./flatpak.nix
+    ./framework-control.nix
+    ./framework.nix
+    ./gaming.nix
     ./network-drives.nix
-    ./snapper.nix
     ./secrets.nix
     ./secure-boot.nix
+    ./snapper.nix
     ./tpm-luks.nix
-    ./framework.nix
-    ./framework-control.nix
+    ./vr.nix
   ];
 }
