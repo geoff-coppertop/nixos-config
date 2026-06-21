@@ -19,67 +19,81 @@
   networking.networkmanager.wifi.powersave = true;
   services = {
     logind.settings.Login = {
-      HandleLidSwitch = "suspend-then-hibernate";
+      # Plain suspend, not suspend-then-hibernate: systemd's own
+      # suspend-then-hibernate logic (execute_s2h()/custom_timer_suspend()
+      # in src/sleep/sleep.c) has a zero-timeout POLLIN race where the
+      # RTC/EC timer wake reaches the process before systemd's own poll on
+      # the timerfd reports readable, so it treats the wake as
+      # user-initiated and skips hibernate (systemd/systemd#38193, open,
+      # unfixed). Measured ~43% failure rate on this hardware across 7 real
+      # cycles even with rtc_cmos.use_acpi_alarm=1 set above, because that
+      # param only affects how the RTC alarm is routed at the kernel/EC
+      # layer — it doesn't touch systemd's own racy poll logic. The
+      # hibernate-trigger system-sleep hook below replaces systemd's timer
+      # decision with our own non-racy wall-clock check.
+      HandleLidSwitch = "suspend";
       HandleLidSwitchExternalPower = "lock";
       HandleLidSwitchDocked = "ignore";
       HandleHibernateKey = "hibernate";
-      IdleAction = "suspend-then-hibernate";
+      IdleAction = "suspend";
       IdleActionSec = "30s";
       HoldoffTimeoutSec = "60s";
     };
     power-profiles-daemon.enable = true;
   };
-  systemd = {
-    sleep.settings.Sleep = {
-      HibernateDelaySec = "10min";
+  # logind treats a sleep operation as in-progress until the job for
+  # systemd-suspend.service itself completes, which doesn't happen until
+  # this hook (run from inside that job's ExecStart) returns. Ordering
+  # this unit's job After= that service, rather than calling `systemctl
+  # hibernate` inline, lets systemd's own job scheduler defer it until
+  # the suspend job actually finishes and the lock clears — no polling,
+  # no fixed delay.
+  systemd.services.hibernate-trigger-hibernate = {
+    description = "Hibernate after an RTC-wakealarm-triggered resume";
+    after = ["systemd-suspend.service"];
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = "${pkgs.systemd}/bin/systemctl hibernate";
     };
-    # Permanent diagnostic logging for both suspend-then-hibernate trigger
-    # paths (HandleLidSwitch and IdleAction both route through this unit).
-    # Left in place indefinitely so any spurious-wake or non-hibernate cycle
-    # is visible in `journalctl -t hibernate-trigger` without needing extra
-    # workarounds re-added blind.
-    #
-    # Hibernation detection greps this unit's own log (since this cycle's
-    # start) for systemd-sleep's "Attempting to hibernate" line. A prior
-    # version compared the kernel boot ID before/after, on the assumption
-    # that a real hibernate cycle resumes into a fresh boot — that's wrong:
-    # hibernate resume restores the original kernel's in-memory state
-    # (including boot_id) rather than booting a new one, so the boot ID
-    # never changes even on a genuine hibernate, making that check always
-    # report `hibernated: no`. Confirmed wrong by a real cycle whose
-    # systemd-sleep log showed "Attempting to hibernate" / "Using sleep
-    # state 'disk'" while the boot-ID check still said "no".
-    # Temporary diagnostic only: surfaces systemd-sleep's internal
-    # woken_by_timer/timerfd decision (custom_timer_suspend() in
-    # src/sleep/sleep.c), which is silent at the default log level. Needed
-    # to confirm whether failed suspend-then-hibernate cycles match the
-    # known upstream zero-timeout POLLIN race (systemd/systemd#38193)
-    # before deciding on a fix. Remove once that's confirmed either way.
-    services.systemd-suspend-then-hibernate = {
-      environment = {
-        SYSTEMD_LOG_LEVEL = "debug";
-      };
-      serviceConfig = {
-        ExecStartPre = [
-          (pkgs.writeShellScript "hibernate-trigger-pre" ''
-            ${pkgs.coreutils}/bin/date +%s > /run/hibernate-trigger-start
-            ${pkgs.util-linux}/bin/logger -t hibernate-trigger "suspend-then-hibernate starting at $(${pkgs.coreutils}/bin/date +%s)"
-          '')
-        ];
-        ExecStartPost = [
-          (pkgs.writeShellScript "hibernate-trigger-post" ''
-            now=$(${pkgs.coreutils}/bin/date +%s)
-            start=$(${pkgs.coreutils}/bin/cat /run/hibernate-trigger-start 2>/dev/null || echo "$now")
-            if ${pkgs.systemd}/bin/journalctl -u systemd-suspend-then-hibernate.service --since "@$start" \
-                | ${pkgs.gnugrep}/bin/grep -q "Attempting to hibernate"; then
-              hibernated=yes
-            else
-              hibernated=no
-            fi
-            ${pkgs.util-linux}/bin/logger -t hibernate-trigger "resumed at $now, hibernated: $hibernated"
-          '')
-        ];
-      };
-    };
+  };
+  # Arms the RTC wakealarm directly on suspend and decides on resume,
+  # using wall-clock elapsed time, whether to hibernate. Both HandleLidSwitch
+  # and IdleAction route through stock systemd-suspend.service, so this one
+  # hook covers both trigger paths. Permanent logging tagged
+  # `hibernate-trigger`, left in place indefinitely (see journalctl -t
+  # hibernate-trigger).
+  environment.etc."systemd/system-sleep/hibernate-trigger" = {
+    mode = "0755";
+    source = pkgs.writeShellScript "hibernate-trigger" ''
+      action="$1"
+      sleep_action="$2"
+      delay_sec=600
+      state_file=/run/hibernate-trigger-start
+      wakealarm=/sys/class/rtc/rtc0/wakealarm
+
+      [ "$sleep_action" = suspend ] || exit 0
+
+      case "$action" in
+        pre)
+          now=$(${pkgs.coreutils}/bin/date +%s)
+          echo "$now" > "$state_file"
+          wake_at=$((now + delay_sec))
+          echo "$wake_at" > "$wakealarm" 2>/dev/null || true
+          ${pkgs.util-linux}/bin/logger -t hibernate-trigger "suspend starting at $now, wakealarm armed for $wake_at (+''${delay_sec}s)"
+          ;;
+        post)
+          now=$(${pkgs.coreutils}/bin/date +%s)
+          start=$(${pkgs.coreutils}/bin/cat "$state_file" 2>/dev/null || echo "$now")
+          elapsed=$((now - start))
+          echo 0 > "$wakealarm" 2>/dev/null || true
+          if [ "$elapsed" -ge $((delay_sec - 5)) ]; then
+            ${pkgs.util-linux}/bin/logger -t hibernate-trigger "resumed at $now, elapsed=''${elapsed}s, triggering hibernate"
+            ${pkgs.systemd}/bin/systemctl start --no-block hibernate-trigger-hibernate.service
+          else
+            ${pkgs.util-linux}/bin/logger -t hibernate-trigger "resumed at $now, elapsed=''${elapsed}s, early wake, no hibernate"
+          fi
+          ;;
+      esac
+    '';
   };
 }
