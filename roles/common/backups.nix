@@ -122,113 +122,105 @@
       };
     };
 in {
-  options.custom = {
-    isLaptop = mkOption {
-      type = types.bool;
-      default = false;
-      description = "Whether this host should treat backup jobs as laptop workloads and require AC power.";
+  options.custom.backups = {
+    enable = mkEnableOption "client-pushed NAS backups";
+
+    schedule = mkOption {
+      type = types.str;
+      default = "daily";
+      description = "systemd calendar expression for NAS backup timers.";
     };
 
-    backups = {
-      enable = mkEnableOption "client-pushed NAS backups";
+    nas = {
+      protocol = mkOption {
+        type = types.enum ["cifs" "nfs"];
+        default = "cifs";
+        description = "Transport used to mount the NAS share.";
+      };
 
-      schedule = mkOption {
+      host = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = "Hostname or IP address of the NAS.";
+      };
+
+      share = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = "Share or export name on the NAS.";
+      };
+
+      mountPoint = mkOption {
         type = types.str;
-        default = "daily";
-        description = "systemd calendar expression for NAS backup timers.";
+        default = "/mnt/nas-backups";
+        description = "Local mount point used for the NAS share.";
       };
 
-      nas = {
-        protocol = mkOption {
-          type = types.enum ["cifs" "nfs"];
-          default = "cifs";
-          description = "Transport used to mount the NAS share.";
-        };
-
-        host = mkOption {
-          type = types.nullOr types.str;
-          default = null;
-          description = "Hostname or IP address of the NAS.";
-        };
-
-        share = mkOption {
-          type = types.nullOr types.str;
-          default = null;
-          description = "Share or export name on the NAS.";
-        };
-
-        mountPoint = mkOption {
-          type = types.str;
-          default = "/mnt/nas-backups";
-          description = "Local mount point used for the NAS share.";
-        };
-
-        credentialsFile = mkOption {
-          type = types.nullOr types.str;
-          default = null;
-          description = "Path to an SMB credentials file, typically provided by agenix.";
-        };
-
-        mountOptions = mkOption {
-          type = types.listOf types.str;
-          default = [];
-          description = "Extra mount options appended to the NAS filesystem mount.";
-        };
+      credentialsFile = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = "Path to an SMB credentials file, typically provided by agenix.";
       };
 
-      retention = {
-        daily = mkOption {
-          type = types.ints.unsigned;
-          default = 7;
-          description = "Number of daily restic snapshots to keep.";
-        };
+      mountOptions = mkOption {
+        type = types.listOf types.str;
+        default = [];
+        description = "Extra mount options appended to the NAS filesystem mount.";
+      };
+    };
 
-        weekly = mkOption {
-          type = types.ints.unsigned;
-          default = 4;
-          description = "Number of weekly restic snapshots to keep.";
-        };
-
-        monthly = mkOption {
-          type = types.ints.unsigned;
-          default = 12;
-          description = "Number of monthly restic snapshots to keep.";
-        };
-
-        yearly = mkOption {
-          type = types.ints.unsigned;
-          default = 3;
-          description = "Number of yearly restic snapshots to keep.";
-        };
+    retention = {
+      daily = mkOption {
+        type = types.ints.unsigned;
+        default = 7;
+        description = "Number of daily restic snapshots to keep.";
       };
 
-      users = mkOption {
-        default = {};
-        description = "Per-user NAS backup jobs.";
-        type = types.attrsOf (types.submodule ({name, ...}: {
-          options = {
-            enable = mkEnableOption "NAS backups for ${name}";
+      weekly = mkOption {
+        type = types.ints.unsigned;
+        default = 4;
+        description = "Number of weekly restic snapshots to keep.";
+      };
 
-            paths = mkOption {
-              type = types.listOf types.str;
-              default = ["/home/${name}"];
-              description = "Paths to include in the user's backup set.";
-            };
+      monthly = mkOption {
+        type = types.ints.unsigned;
+        default = 12;
+        description = "Number of monthly restic snapshots to keep.";
+      };
 
-            passwordFile = mkOption {
-              type = types.str;
-              default = "/run/agenix/${name}/restic-password";
-              description = "Path to the restic password file for this user.";
-            };
+      yearly = mkOption {
+        type = types.ints.unsigned;
+        default = 3;
+        description = "Number of yearly restic snapshots to keep.";
+      };
+    };
 
-            excludePatterns = mkOption {
-              type = types.listOf types.str;
-              default = ["/home/${name}/.cache"];
-              description = "restic exclude patterns for this user's backup.";
-            };
+    users = mkOption {
+      default = {};
+      description = "Per-user NAS backup jobs.";
+      type = types.attrsOf (types.submodule ({name, ...}: {
+        options = {
+          enable = mkEnableOption "NAS backups for ${name}";
+
+          paths = mkOption {
+            type = types.listOf types.str;
+            default = ["/home/${name}"];
+            description = "Paths to include in the user's backup set.";
           };
-        }));
-      };
+
+          passwordFile = mkOption {
+            type = types.str;
+            default = "/run/agenix/${name}/restic-password";
+            description = "Path to the restic password file for this user.";
+          };
+
+          excludePatterns = mkOption {
+            type = types.listOf types.str;
+            default = ["/home/${name}/.cache"];
+            description = "restic exclude patterns for this user's backup.";
+          };
+        };
+      }));
     };
   };
 
