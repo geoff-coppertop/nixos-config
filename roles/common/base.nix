@@ -1,4 +1,9 @@
-{pkgs, ...}: let
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}: let
   keepGenerations = 10;
 in {
   nix.settings.experimental-features = ["nix-command" "flakes"];
@@ -31,6 +36,25 @@ in {
       done
     '';
   };
+
+  # Fetch from GitHub and stage the new build as the next boot entry weekly.
+  # operation = "boot" means no automatic reboot; the user reboots at their
+  # convenience. The flake target is derived from the machine's hostname so
+  # this applies to every host without per-machine configuration.
+  system.autoUpgrade = {
+    enable = true;
+    flake = "github:geoff-coppertop/nixos-config#${config.networking.hostName}";
+    operation = "boot";
+    allowReboot = false;
+    dates = "weekly";
+    randomizedDelaySec = "45min";
+  };
+
+  # On laptops, skip the upgrade while on battery — same gating as NAS backups.
+  systemd.services.nixos-upgrade.unitConfig = lib.optionalAttrs config.custom.isLaptop {
+    ConditionACPower = true;
+  };
+
   time.timeZone = "America/Edmonton";
   i18n.defaultLocale = "en_CA.UTF-8";
 
