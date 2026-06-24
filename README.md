@@ -35,6 +35,7 @@ This repo is the source of truth for machine setup, user setup, secrets wiring, 
   - [Secrets Management](#secrets-management)
   - [Wi-Fi Pre-configuration](#wi-fi-pre-configuration)
   - [Hibernation And Power](#hibernation-and-power)
+  - [Connect IQ SDK (Garmin)](#connect-iq-sdk-garmin)
   - [Change GNOME Or Kernel Policy Later](#change-gnome-or-kernel-policy-later)
   - [Users And Configuration](#users-and-configuration)
   - [Dotfiles And Shell Scripts](#dotfiles-and-shell-scripts)
@@ -973,6 +974,33 @@ systemctl hibernate
 ```
 
 Then verify the machine resumes correctly.
+
+### Connect IQ SDK (Garmin)
+
+`roles/dev/tools.nix` installs `connect-iq-sdk-manager` (a non-interactive
+Go CLI replacement for Garmin's broken Electron/webkit2gtk SDK Manager GUI —
+[lindell/connect-iq-sdk-manager-cli](https://github.com/lindell/connect-iq-sdk-manager-cli))
+and a JDK, since the SDK's `monkeyc` compiler is a Java app.
+
+Two things are automated so a fresh machine needs no interactive setup:
+
+- `users/thomasga/connect-iq.nix` creates `~/.Garmin/ConnectIQ/Sdks` and
+  accepts Garmin's SDK license agreement on first home-manager activation.
+- `users/thomasga/shell.nix` adds the currently selected SDK's `bin/` to
+  `PATH` on fish startup, so `monkeyc` is on `PATH` without a manual export
+  and stays correct across `sdk set <version>` switches.
+- `modules/bin-compat.nix` (`custom.binCompat.enable`) symlinks `/bin/bash`,
+  since `monkeyc`'s shebang expects it and NixOS doesn't provide it by
+  default.
+
+Manage SDK versions and devices with:
+
+```bash
+connect-iq-sdk-manager sdk list
+connect-iq-sdk-manager sdk download <version>
+connect-iq-sdk-manager sdk set <version>
+connect-iq-sdk-manager device download
+```
 
 ### Change GNOME Or Kernel Policy Later
 
