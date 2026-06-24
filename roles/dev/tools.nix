@@ -9,5 +9,8 @@
 
     # Non-interactive replacement for Garmin's broken Connect IQ SDK Manager GUI
     (callPackage ../../pkgs/connect-iq-sdk-manager-cli.nix {})
+
+    # monkeyc (ConnectIQ SDK) is a Java app and needs a JRE on PATH
+    jdk
   ];
 }
