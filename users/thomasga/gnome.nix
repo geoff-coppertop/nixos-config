@@ -259,10 +259,12 @@ in {
 
     "org/gnome/settings-daemon/plugins/power" = {
       critical-battery-action = "hibernate";
-      # gsd-power does not call SuspendThenHibernate() — even with
-      # sleep-inactive-battery-type="suspend-then-hibernate" it falls back to
-      # plain Suspend(), which never sets the RTC alarm for HibernateDelaySec.
-      # logind's IdleAction=suspend-then-hibernate owns battery idle sleep instead.
+      # gsd-power respects application suspend inhibitors, so it cannot be
+      # trusted to sleep on battery when an app holds one (e.g. Firefox
+      # "Playing video"). Battery idle sleep is owned by logind's
+      # IdleAction=suspend, backed by the battery-idle-suspend watchdog
+      # (roles/desktop/power.nix) that forces `suspend -i` past 300s idle to
+      # override inhibitors.
       sleep-inactive-battery-type = "nothing";
       sleep-inactive-ac-timeout = 0; # on AC: only blank+lock, no sleep
     };

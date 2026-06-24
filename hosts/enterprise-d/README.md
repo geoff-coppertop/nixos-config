@@ -69,9 +69,11 @@ A non-empty result confirms TPM2 enrollment is active.
 | --- | --- |
 | Lid close | Suspend immediately, hibernate after 10 min |
 | 4 min idle | Screen blanks and locks |
-| 5 min idle | Suspend, hibernate after 10 min |
+| 5 min idle | Suspend, hibernate after 10 min — forced even if an app holds a suspend inhibitor |
 | 10 min suspended | Hibernate |
 | Critical battery | Immediate hibernate, bypassing suspend |
+
+On battery, sustained idle always wins: logind's `IdleAction` suspends at ~4.5 min when nothing inhibits, and the `battery-idle-suspend` watchdog forces `systemctl suspend -i` at 5 min if an application (e.g. a Firefox tab "Playing video") holds a suspend inhibitor that would otherwise block it indefinitely. The forced suspend relies on a polkit rule granting root the `suspend-ignore-inhibit` action non-interactively (the watchdog is a system service with no auth agent). Each forced suspend is logged under `journalctl -t battery-idle-suspend`.
 
 ### GDM login screen (no user logged in)
 
@@ -94,7 +96,7 @@ The 30 s window applies from when the login screen goes idle, which itself follo
 | File | Responsibility |
 | --- | --- |
 | `hosts/enterprise-d/power.nix` | logind lid/key actions, `IdleAction`, RTC wakeup kernel param, `hibernate-trigger` system-sleep hook (arms RTC wakealarm, decides hibernate on resume, logging) |
-| `roles/desktop/gnome.nix` | `logind-idle-inhibitor` user service — blocks logind `IdleAction` during user sessions so GNOME manages sleep instead |
+| `roles/desktop/power.nix` | `logind-idle-inhibitor` user service (blocks logind `IdleAction` only while on AC) and the `battery-idle-suspend` watchdog (forces `suspend -i` on battery past 5 min idle, overriding application inhibitors, via a root polkit grant); shared Mains-only AC-detection helper |
 | `users/thomasga/gnome.nix` | GNOME idle/sleep dconf settings: screen blank at 4 min, battery sleep at 5 min, lock on blank, critical battery hibernate |
 
 ### Why a self-owned RTC trigger instead of `suspend-then-hibernate`
