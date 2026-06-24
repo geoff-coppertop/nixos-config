@@ -6,6 +6,13 @@
       enable = true;
       interactiveShellInit = ''
         set fish_greeting
+
+        if command -q connect-iq-sdk-manager
+          set -l connect_iq_bin (connect-iq-sdk-manager sdk current-path --bin 2>/dev/null)
+          if test -n "$connect_iq_bin" -a -d "$connect_iq_bin"
+            fish_add_path --path "$connect_iq_bin"
+          end
+        end
       '';
 
       shellAliases = {
