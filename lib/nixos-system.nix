@@ -5,6 +5,7 @@
   lanzaboote,
   nix-flatpak,
   nix-vscode-extensions,
+  dotfiles,
 }: {
   system,
   extraModules,
@@ -24,6 +25,9 @@ nixpkgs.lib.nixosSystem {
           useGlobalPkgs = true;
           useUserPackages = true;
           backupFileExtension = "backup";
+          extraSpecialArgs = {
+            inherit dotfiles;
+          };
         };
       }
       home-manager.nixosModules.home-manager

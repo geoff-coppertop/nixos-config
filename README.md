@@ -1072,26 +1072,53 @@ home-manager.users.alice = import ./users/alice;
 
 ### Dotfiles And Shell Scripts
 
-Do not manually copy dotfiles after installation. Manage them through home-manager.
+Do not manually copy dotfiles after installation. Manage them through home-manager and the shared `dotfiles` repo.
 
-Use one of two patterns.
+There are now three patterns, in order of preference.
 
-#### Pattern 1: Use Native Home-Manager Options
+#### Pattern 1: Shared "Look And Feel" Via `dotfiles`
 
-Current Git config already follows this pattern:
+Fish aliases/functions and git aliases/commit-template are no longer rendered by home-manager. They live once in
+[`geoff-coppertop/dotfiles`](https://github.com/geoff-coppertop/dotfiles), a plain-file repo also consumed by
+`devcontainer-features`' `shell-baseline` feature, so the same shell/git behavior shows up on this machine and in
+devcontainers without being hand-copied in three places.
+
+- `dotfiles` is pinned as a non-flake input (`inputs.dotfiles = { url = "github:geoff-coppertop/dotfiles"; flake = false; };`)
+  in `flake.nix`, the same way every other input is pinned via `flake.lock`.
+- `users/common/cli/dotfiles.nix` links `${dotfiles}/fish/config.fish`, `${dotfiles}/git/config`, and
+  `${dotfiles}/git/commit-template` straight into place with plain `home.file.<path>.source` — no extra package, no
+  activation step. home-manager's own collision detection hard-errors at eval time if anything else tries to write
+  those same paths.
+- Because `programs.fish` stays disabled and `programs.git`/`programs.fzf`/`programs.starship`/`programs.zoxide` must
+  not also write `~/.config/fish/config.fish` or `~/.config/git/config`, `fzf.nix`/`starship.nix`/`zoxide.nix` set
+  `enableFishIntegration = false` (the init lines already live in `dotfiles`' `config.fish`), `git.nix` drops
+  `programs.git.enable` entirely (installing the `git` binary via `home.packages` instead), and
+  `users/thomasga/git.nix` no longer sets `alias`/`color`/`commit.template`/etc. through `programs.git.settings`.
+- Machine-specific git identity (`user.name`/`user.email`, `core.editor`, `safe.directory`, the `gh` credential-helper
+  stanzas) is **not** published to the shared `dotfiles` repo. It stays home-manager-owned, written to
+  `~/.config/git/config-local`, which `dotfiles`' `~/.config/git/config` pulls in via
+  `[include] path = ~/.config/git/config-local`. Neither side clobbers the other's file.
+- To change the shared shell/git look and feel, edit `dotfiles` directly and bump the pinned commit (`nix flake update dotfiles`
+  here; bump the `dotfilesRef` default in `devcontainer-features`' `shell-baseline` separately).
+
+#### Pattern 2: Use Native Home-Manager Options
+
+Use this for machine-specific or package-installation concerns a good native option already covers, e.g.:
 
 ```nix
 programs.git = {
-  userName = "Geoffrey Thomas";
-  userEmail = "you@example.com";
+  enable = true;
+  settings.user = {
+    name = "Geoffrey Thomas";
+    email = "you@example.com";
+  };
 };
 ```
 
-Use this pattern first when a good native option exists.
+#### Pattern 3: Keep A Literal File In The Repo
 
-#### Pattern 2: Keep A Literal File In The Repo
-
-If you want to preserve an existing file mostly as-is, create a per-user files directory such as `users/thomasga/files/` and link it with `home.file`.
+If you want to preserve an existing file mostly as-is and it isn't shared with devcontainers, create a per-user files
+directory such as `users/thomasga/files/` and link it with `home.file`.
 
 Example `.gitconfig`:
 

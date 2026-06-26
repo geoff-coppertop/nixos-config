@@ -80,6 +80,22 @@
         "type": "github"
       }
     },
+    "dotfiles": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1782398903,
+        "narHash": "sha256-yM3GsAKSbHMEJCcxStXcLXstvi/Xtwtwgcr+GNklFhM=",
+        "owner": "geoff-coppertop",
+        "repo": "dotfiles",
+        "rev": "75100ca540a531938db147aa5abcc1059189272e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "geoff-coppertop",
+        "repo": "dotfiles",
+        "type": "github"
+      }
+    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -300,6 +316,7 @@
       "inputs": {
         "agenix": "agenix",
         "disko": "disko",
+        "dotfiles": "dotfiles",
         "home-manager": "home-manager_2",
         "lanzaboote": "lanzaboote",
         "nix-flatpak": "nix-flatpak",

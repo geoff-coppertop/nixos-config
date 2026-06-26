@@ -29,6 +29,14 @@
         pre-commit.follows = "pre-commit";
       };
     };
+
+    # Shared fish/git "look and feel", consumed directly by home-manager
+    # here (home.file.source) and by devcontainer-features' shell-baseline
+    # feature. Not a flake; pinned by flake.lock like every other input.
+    dotfiles = {
+      url = "github:geoff-coppertop/dotfiles";
+      flake = false;
+    };
   };
 
   outputs = {
@@ -40,6 +48,7 @@
     nix-flatpak,
     nix-vscode-extensions,
     nixos-wsl,
+    dotfiles,
     ...
   }: let
     system = "x86_64-linux";
@@ -61,7 +70,7 @@
     };
 
     mkNixosSystem = import ./lib/nixos-system.nix {
-      inherit nixpkgs home-manager agenix lanzaboote nix-flatpak nix-vscode-extensions;
+      inherit nixpkgs home-manager agenix lanzaboote nix-flatpak nix-vscode-extensions dotfiles;
     };
 
     mkHomeConfig = {
@@ -74,6 +83,9 @@
           system = hostSystem;
           config.allowUnfree = true;
           overlays = [nix-vscode-extensions.overlays.default];
+        };
+        extraSpecialArgs = {
+          inherit dotfiles;
         };
         modules = [
           ./hosts/${machine}/home/${user}.nix

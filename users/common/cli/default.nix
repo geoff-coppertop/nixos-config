@@ -6,7 +6,7 @@
   };
 
   imports = [
-    ./fish.nix
+    ./dotfiles.nix
     ./fzf.nix
     ./git.nix
     ./modern-unix.nix
