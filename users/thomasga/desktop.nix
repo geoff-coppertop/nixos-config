@@ -13,6 +13,7 @@
     ./vscode.nix
     ./github.nix
     ./secrets.nix
+    ./connect-iq.nix
     ./shell.nix
   ];
 

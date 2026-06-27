@@ -1,5 +1,6 @@
 {
   imports = [
+    ./bin-compat.nix
     ./btrfs.nix
     ./flatpak.nix
     ./framework-control.nix
