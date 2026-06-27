@@ -1,9 +1,4 @@
 {lib, ...}: {
-  programs.gh = {
-    enable = true;
-    gitCredentialHelper.enable = true;
-  };
-
   home.activation.writeGhCredentials = lib.hm.dag.entryAfter ["writeBoundary"] ''
     if [ -f "/run/agenix/thomasga/github-token" ]; then
       $DRY_RUN_CMD mkdir -p "$HOME/.config/gh"
