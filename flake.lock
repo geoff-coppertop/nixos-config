@@ -83,11 +83,11 @@
     "dotfiles": {
       "flake": false,
       "locked": {
-        "lastModified": 1782398903,
-        "narHash": "sha256-yM3GsAKSbHMEJCcxStXcLXstvi/Xtwtwgcr+GNklFhM=",
+        "lastModified": 1782700895,
+        "narHash": "sha256-SLA/QBYgYX8trh6vttS6yEU9O9a0OErJB48F7GGzegY=",
         "owner": "geoff-coppertop",
         "repo": "dotfiles",
-        "rev": "75100ca540a531938db147aa5abcc1059189272e",
+        "rev": "2af9c5bd414e59ee581813e43b644481091a01a2",
         "type": "github"
       },
       "original": {
