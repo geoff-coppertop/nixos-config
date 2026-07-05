@@ -35,6 +35,7 @@ This repo is the source of truth for machine setup, user setup, secrets wiring, 
   - [Secrets Management](#secrets-management)
   - [Wi-Fi Pre-configuration](#wi-fi-pre-configuration)
   - [Hibernation And Power](#hibernation-and-power)
+  - [USB Debug Probes (udev)](#usb-debug-probes-udev)
   - [Connect IQ SDK (Garmin)](#connect-iq-sdk-garmin)
   - [Change GNOME Or Kernel Policy Later](#change-gnome-or-kernel-policy-later)
   - [Users And Configuration](#users-and-configuration)
@@ -974,6 +975,51 @@ systemctl hibernate
 ```
 
 Then verify the machine resumes correctly.
+
+### USB Debug Probes (udev)
+
+`custom.debugProbes.enable` (`modules/debug-probes.nix`) installs udev rules
+for common USB JTAG/SWD debug probes — ST-Link, J-Link, FTDI-based adapters,
+and CMSIS-DAP compatible devices (which includes the Raspberry Pi Debug
+Probe). The rules themselves live in
+`modules/udev-rules/69-probe-rs.rules`, a verbatim copy of the
+[probe-rs](https://probe.rs/)/OpenOCD project's udev rules (same file also
+kept in the `helicopter-collective` repo's `.devcontainer/`), and are loaded
+via `services.udev.packages` — **not** `services.udev.extraRules`. The
+module also creates the `plugdev` group (the rules' `GROUP="plugdev"`
+fallback) and `thomasga` is a member of it via
+`hosts/enterprise-d/configuration.nix`.
+
+**Why `services.udev.packages` and not `extraRules`:** this file's own name
+matters. It's called `69-probe-rs.rules` upstream specifically so it sorts
+*before* systemd's own `70-uaccess.rules`/`73-seat-late.rules` — those files
+only queue the `uaccess` ACL-granting builtin if a device is already
+`TAG=="uaccess"` at the point they're evaluated, and udev processes all rule
+files in one linear pass sorted by filename. `services.udev.extraRules`
+merges its content into a single generated file always named
+`99-local.rules`, which sorts *after* 73 — silently breaking the ACL grant
+on every first-ever enumeration of a device, since our `TAG+="uaccess"`
+assignment would run too late to be seen. `services.udev.packages` preserves
+each file's own name in `/etc/udev/rules.d/`, restoring the intended
+ordering. (This bug is easy to miss because re-triggering an
+already-enumerated device "fixes" it — the tag persists in that device's
+udev database entry from an earlier pass — making it look like an
+intermittent timing race rather than a deterministic ordering bug.)
+
+This is necessary because embedded-dev devcontainers (e.g.
+`helicopter-collective`) don't create their own USB device nodes — they
+bind-mount the host's `/dev/bus/usb` into the container
+(`devcontainer.json`'s `mounts`) and rely on `--userns=keep-id` to map the
+container user to the host user's UID. Permission checks on that bind mount
+are enforced by the kernel against the same device node the host owns, so
+whatever the *host's* udev grants `thomasga` (via `plugdev` group membership
+and the rules' `TAG+="uaccess"` ACL) is exactly what the container process
+gets — there's no way to grant this access from inside the container image.
+The udev rules must live here, on the NixOS host, not in the devcontainer.
+
+With the ordering fixed, a fresh `nixos-rebuild switch` plus a normal
+plug-in of the probe is enough — no manual `udevadm trigger` or replug
+workaround needed.
 
 ### Connect IQ SDK (Garmin)
 

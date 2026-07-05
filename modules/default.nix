@@ -2,6 +2,7 @@
   imports = [
     ./bin-compat.nix
     ./btrfs.nix
+    ./debug-probes.nix
     ./flatpak.nix
     ./framework-control.nix
     ./framework.nix
