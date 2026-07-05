@@ -87,7 +87,7 @@ flake.nix
 | --- | --- |
 | `flake.nix` | Single entry point; defines inputs, dev shell, checks, secret apps, and `nixosConfigurations.enterprise-d` |
 | `hosts/enterprise-d/` | Hardware scan, disko disk layout, power/hibernate policy, machine imports |
-| `roles/common/` | Base OS settings, single user (`thomasga`), NetworkManager Wi-Fi profiles, Steam, Flatpak |
+| `roles/common/` | Base OS settings, single user (`thomasga`), NetworkManager Wi-Fi profiles, network discovery (avahi/mDNS), Steam, Flatpak |
 | `roles/desktop/gnome.nix` | GNOME baseline, unwanted app removal, search-light extension |
 | `roles/dev/` | Dev tooling: GitHub CLI, podman/podman-compose |
 | `modules/` | Opt-in NixOS features: backups, btrfs, snapper, agenix secrets, secure boot, TPM-LUKS, SSH known-hosts |
@@ -132,13 +132,15 @@ Secrets never exist as plaintext on disk. The flow is:
 
 The host age private key lives at `/var/lib/agenix/identity` on the deployed machine. The offline admin key is kept only in Bitwarden, never on machines.
 
-`modules/secrets.nix` sets the identity path only. Machine-specific `age.secrets.*` entries live in `hosts/enterprise-d/secrets.nix` (NAS credentials, SSH key, GitHub token). Wi-Fi secret declarations live alongside the NetworkManager profiles in `roles/common/networking.nix`.
+`modules/secrets.nix` sets the identity path only. Machine-specific `age.secrets.*` entries live in `hosts/enterprise-d/secrets.nix` (NAS credentials, SSH key, GitHub token). Wi-Fi secret declarations live alongside the NetworkManager profiles in `roles/common/wifi.nix`.
 
-Wi-Fi credentials use environment variable substitution: `psk = "$WIFI_AGT_HOME_PASSWORD"` in `roles/common/networking.nix`, with the variable sourced from the agenix secret at activation time.
+Wi-Fi credentials use environment variable substitution: `psk = "$WIFI_AGT_HOME_PASSWORD"` in `roles/common/wifi.nix`, with the variable sourced from the agenix secret at activation time.
 
 ### Adding a New Wi-Fi Network
 
-Changes needed in three places: `secrets/secrets.nix` (add recipient keys), `roles/common/networking.nix` (add both the `age.secrets."wifi/<name>".file` declaration and the NetworkManager profile), and create `secrets/wifi/<name>.age`. See README § Wi-Fi Pre-configuration for exact syntax.
+Changes needed in three places: `secrets/secrets.nix` (add recipient keys), `roles/common/wifi.nix` (add both the `age.secrets."wifi/<name>".file` declaration and the NetworkManager profile), and create `secrets/wifi/<name>.age`. See README § Wi-Fi Pre-configuration for exact syntax.
+
+Note: `roles/common/networking.nix` is a separate file for general network-discovery config (e.g. avahi/mDNS), kept apart from `wifi.nix` for clear separation of concerns.
 
 ### Flake Inputs
 
@@ -191,3 +193,4 @@ The current user is `thomasga` (Geoffrey Thomas). The home-manager attachment is
 - **Copyable commands go in a plain markdown code block in the message body, never inside an `AskUserQuestion` option's label/description.** Those aren't copyable from the option UI.
 - **Standing preferences captured mid-task (like the ones in this list) go in their own dedicated commit/PR against `master`, never bundled into whatever feature branch happens to be checked out at the time.** They're a process concern orthogonal to the feature being worked on; landing them separately keeps feature PR history and process-preference history each legible on their own.
 - **Don't guess about repo/PR state when a real check is one call away.** If asked whether two PRs conflict, whether content is identical, or anything else answerable by actually reading the diff/file/commit, fetch it first — don't answer from memory of having written or seen it earlier in the conversation.
+- **Favor one file per concern over lumping unrelated settings into an existing catch-all file, anywhere in the tree** (`roles/`, `modules/`, `users/`, etc.) — not just `roles/common/`. e.g. network-discovery config (avahi/mDNS) belongs in its own `roles/common/networking.nix`, separate from `wifi.nix` (NetworkManager/Wi-Fi) and `base.nix` (unconditional OS settings). When adding a setting, ask whether it fits an existing file's concern or needs a new one — don't default to the nearest catch-all just because it's already imported.
