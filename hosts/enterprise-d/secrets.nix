@@ -14,5 +14,13 @@
       file = ../../secrets/thomasga/github-token.age;
       owner = "thomasga";
     };
+    "thomasga/garmin-username" = {
+      file = ../../secrets/thomasga/garmin-username.age;
+      owner = "thomasga";
+    };
+    "thomasga/garmin-password" = {
+      file = ../../secrets/thomasga/garmin-password.age;
+      owner = "thomasga";
+    };
   };
 }

@@ -10,6 +10,8 @@ in {
   "thomasga/nas-smb-credentials.age".publicKeys = [enterprise-d offlineAdmin];
   "thomasga/ssh-id-ed25519-enterprise-d.age".publicKeys = [enterprise-d offlineAdmin];
   "thomasga/github-token.age".publicKeys = [enterprise-d offlineAdmin];
+  "thomasga/garmin-username.age".publicKeys = [enterprise-d offlineAdmin];
+  "thomasga/garmin-password.age".publicKeys = [enterprise-d offlineAdmin];
   "wifi/agt-home.age".publicKeys = [enterprise-d offlineAdmin];
   "wifi/agt-iot.age".publicKeys = [enterprise-d offlineAdmin];
   "wifi/agt-work.age".publicKeys = [enterprise-d offlineAdmin];
