@@ -14,12 +14,13 @@ in {
   ];
 
   custom = {
-    users.thomasga = thomasga // {groups = ["wheel" "networkmanager"];};
+    users.thomasga = thomasga // {groups = ["wheel" "networkmanager" "plugdev"];};
 
     wifi.enable = true;
     gaming.enable = true;
     flatpak.enable = true;
     vr.enable = true;
+    debugProbes.enable = true;
 
     networkDrives = {
       enable = true;
