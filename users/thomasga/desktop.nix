@@ -15,6 +15,7 @@
     ./secrets.nix
     ./connect-iq.nix
     ./shell.nix
+    ./drawio.nix
   ];
 
   custom.appearance.darkMode = true;
