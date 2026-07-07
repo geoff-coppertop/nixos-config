@@ -9,6 +9,13 @@
     etc."containers/registries.conf.d/short-name-mode.conf".text = ''
       short-name-mode = "disabled"
     '';
+
+    # Devcontainer configs pass --userns=${localEnv:DEVCONTAINER_USERNS:host}
+    # so one devcontainer.json works on Docker and rootless Podman alike.
+    # Rootless Podman needs keep-id for bind-mounted workspace files to keep
+    # the host UID.  Session-level (PAM) rather than shell-level so
+    # GUI-launched VS Code sees it, not just interactive shells.
+    sessionVariables.DEVCONTAINER_USERNS = "keep-id";
   };
 
   virtualisation = {
