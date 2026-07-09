@@ -36,6 +36,7 @@ This repo is the source of truth for machine setup, user setup, secrets wiring, 
   - [Wi-Fi Pre-configuration](#wi-fi-pre-configuration)
   - [Hibernation And Power](#hibernation-and-power)
   - [USB Debug Probes (udev)](#usb-debug-probes-udev)
+  - [draw.io And Obsidian](#drawio-and-obsidian)
   - [Connect IQ SDK (Garmin)](#connect-iq-sdk-garmin)
   - [Change GNOME Or Kernel Policy Later](#change-gnome-or-kernel-policy-later)
   - [Users And Configuration](#users-and-configuration)
@@ -1020,6 +1021,28 @@ The udev rules must live here, on the NixOS host, not in the devcontainer.
 With the ordering fixed, a fresh `nixos-rebuild switch` plus a normal
 plug-in of the probe is enough — no manual `udevadm trigger` or replug
 workaround needed.
+
+### draw.io And Obsidian
+
+`users/thomasga/drawio.nix` installs `pkgs.drawio` (the standalone draw.io
+desktop app) alongside Obsidian, and registers `*.drawio`/`*.dio` as a
+shared-mime-info type (`application/vnd.jgraph.mxfile`) so file managers and
+"Open With" dialogs default those extensions to draw.io instead of treating
+them as plain XML.
+
+Editing `.drawio` diagrams *inside* Obsidian notes requires the community
+plugin "draw.io" (id `drawio`, by somesanity —
+[somesanity/draw-io-obsidian](https://github.com/somesanity/draw-io-obsidian),
+listed at
+[community.obsidian.md/plugins/drawio](https://community.obsidian.md/plugins/drawio)).
+It runs a bundled local Express server to edit diagrams fully offline. Its
+build artifacts are only published as GitHub release assets, not committed
+to the repo, so it isn't vendored declaratively here. Install it once per
+vault via Obsidian's UI: **Settings → Community plugins → Browse**, search
+"draw.io", install, and enable. Obsidian owns
+`.obsidian/community-plugins.json` from then on (it rewrites the file live
+as plugins are toggled), so this repo intentionally doesn't manage that file
+— doing so would clobber plugin state on every `nixos-rebuild switch`.
 
 ### Connect IQ SDK (Garmin)
 
