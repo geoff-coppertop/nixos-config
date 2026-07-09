@@ -4,6 +4,7 @@
     ../common/base.nix
     ../common/cli
     ../common/gui-apps.nix
+    ../common/excalidraw.nix
     ./ai.nix
     ./git.nix
     ./ghostty.nix
