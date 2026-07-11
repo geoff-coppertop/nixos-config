@@ -17,7 +17,7 @@
 
   install = pkgs.writeShellApplication {
     name = "install";
-    runtimeInputs = with pkgs; [python3 age openssh git coreutils util-linux gnugrep findutils];
+    runtimeInputs = with pkgs; [python3 age openssh git coreutils util-linux parted zstd gnugrep findutils udisks2];
     text = ''
       export PYTHONPATH="${tools-src}:''${PYTHONPATH:-}"
       exec python3 ${tools-src}/install.py "$@"
