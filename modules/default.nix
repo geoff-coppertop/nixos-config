@@ -1,18 +1,25 @@
 {
   imports = [
+    ./adsb.nix
     ./bin-compat.nix
     ./btrfs.nix
     ./debug-probes.nix
+    ./dns.nix
     ./flatpak.nix
     ./framework-control.nix
     ./framework.nix
     ./fwupd.nix
     ./gaming.nix
+    ./home-assistant.nix
+    ./mqtt.nix
     ./network-drives.nix
     ./secrets.nix
     ./secure-boot.nix
     ./snapper.nix
     ./tpm-luks.nix
+    ./traefik.nix
     ./vr.nix
+    ./zigbee.nix
+    ./zwave.nix
   ];
 }
