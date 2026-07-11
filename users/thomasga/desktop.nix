@@ -3,8 +3,9 @@
     ../common/appearance.nix
     ../common/base.nix
     ../common/cli
-    ../common/gui-apps.nix
     ../common/excalidraw.nix
+    ../common/gui-apps.nix
+    ../common/syncthing.nix
     ./ai.nix
     ./git.nix
     ./ghostty.nix
@@ -19,8 +20,11 @@
     ./drawio.nix
   ];
 
-  custom.appearance.darkMode = true;
-  custom.ai.claude.enable = true;
+  custom = {
+    appearance.darkMode = true;
+    ai.claude.enable = true;
+    syncthingClient.enable = true;
+  };
 
   home.packages = [
     pkgs.vim
