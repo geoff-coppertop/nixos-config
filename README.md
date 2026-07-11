@@ -7,8 +7,6 @@ This repo is the source of truth for machine setup, user setup, secrets wiring, 
 - [Repository Model](#repository-model)
 - [Machine Naming](#machine-naming)
 - [WSL Setup](#wsl-setup)
-  - [Option A: Pre-provision from enterprise-d (recommended)](#option-a-pre-provision-from-enterprise-d-recommended)
-  - [Option B: Bootstrap first, enroll secrets after](#option-b-bootstrap-first-enroll-secrets-after)
   - [Rebuilding an existing install](#rebuilding-an-existing-install)
 - [Updating Machines](#updating-machines)
   - [Automatic updates](#automatic-updates)
@@ -83,150 +81,9 @@ The machines in this repo are:
 
 **Prerequisite:** WSL2 must be enabled on Windows. If it isn't, open an elevated PowerShell and run `wsl --install`, then reboot once.
 
-There are two paths. **Option A** (recommended) does all config work on `enterprise-d` first so secrets are active from the very first WSL boot. **Option B** bootstraps the machine first and wires up secrets afterward.
+**Fresh WSL bootstrap is not currently available.** `install.py`'s WSL flow (fetch NixOS-WSL, `wsl --import`, apply the flake) was pulled out of the Python tooling rewrite pending real validation — it had never actually been run end to end, unlike the disko flow, which was tested thoroughly. It'll return in a follow-up once there's an environment to validate it against, or may not return at all if WSL usage here winds down as expected. If you need to bootstrap a **new** WSL machine before that lands, ask first rather than reaching for old instructions — nothing in this repo currently automates it.
 
-**Already have a NixOS WSL distro running?** Skip to [Rebuilding an existing install](#rebuilding-an-existing-install).
-
-### Option A: Pre-provision from enterprise-d (recommended)
-
-**Step 1 — Enroll the machine on enterprise-d:**
-
-```bash
-nix develop -c bash tools/enroll-machine.sh holodeck-01
-```
-
-At the age identity prompt choose **2) Generate a new keypair here**. The script:
-
-- Generates an age keypair at `~/.config/agenix/holodeck-01.age`
-- Generates and age-encrypts an SSH keypair (private key shredded immediately)
-- Creates `hosts/holodeck-01/secrets.nix` and wires it into `configuration.nix`
-- Updates `secrets/secrets.nix` and `lib/ssh-hosts.nix`
-- Re-keys all secrets so `holodeck-01` is a recipient
-
-**Step 2 — Commit and push:**
-
-```bash
-git add -p
-git commit -m "feat: enroll holodeck-01"
-git push
-```
-
-The bootstrap script applies the flake from GitHub, so the config must be pushed before continuing.
-
-**Step 3 — Transfer the age identity to Windows:**
-
-Copy `~/.config/agenix/holodeck-01.age` from `enterprise-d` to your Windows machine (shared drive, USB, or `scp`). Keep it out of cloud-synced folders; it will be deleted after install.
-
-**Step 4 — Run the bootstrap script:**
-
-No repo clone needed — run directly from Windows Terminal (PowerShell), replacing the path with wherever you saved the age identity file:
-
-```powershell
-& ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/geoff-coppertop/nixos-config/master/tools/install-wsl.ps1'))) -AgeIdentityPath "E:\holodeck-01.age"
-```
-
-If you already have the repo cloned on Windows:
-
-```powershell
-.\tools\install-wsl.ps1 -AgeIdentityPath "E:\holodeck-01.age"
-```
-
-The script downloads NixOS-WSL, imports the distro, installs the identity at `/var/lib/agenix/identity`, and applies the `holodeck-01` flake from GitHub.
-
-> **Testing a feature branch before it is merged to master?** Pass `-FlakeBranch`:
->
-> ```powershell
-> & ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/geoff-coppertop/nixos-config/<branch>/tools/install-wsl.ps1'))) -AgeIdentityPath "E:\holodeck-01.age" -FlakeBranch "<branch>"
-> ```
-
-**Step 5 — Post-boot cleanup:**
-
-```powershell
-# Delete the age private key from Windows once the distro is running
-Remove-Item "E:\holodeck-01.age"
-```
-
-Inside WSL:
-
-```bash
-# Authenticate GitHub CLI (browser/token flow — no SSH key needed)
-gh auth login
-
-# Collect the SSH host public key and pin it in lib/ssh-hosts.nix on enterprise-d
-ssh-keyscan -t ed25519 holodeck-01
-```
-
-**Enabling backups (optional — can be done any time after setup):**
-
-In `hosts/holodeck-01/configuration.nix`, flip the backups flags:
-
-```nix
-custom.backups = {
-  enable = true;
-  nas    = { ... };                      # already present
-  users.thomasga.enable = true;          # change false → true
-};
-```
-
-Also add `./secrets.nix` to the `users/thomasga/wsl.nix` imports so `RESTIC_PASSWORD_FILE` is set in the user session. Then commit, push, and rebuild inside WSL:
-
-```bash
-sudo nixos-rebuild switch --flake github:geoff-coppertop/nixos-config#holodeck-01
-```
-
----
-
-### Option B: Bootstrap first, enroll secrets after
-
-No repo clone needed — run directly from Windows Terminal (PowerShell):
-
-```powershell
-irm 'https://raw.githubusercontent.com/geoff-coppertop/nixos-config/master/tools/install-wsl.ps1' | iex
-```
-
-> **Note:** `irm ... | iex` does not support parameters. To pass `-AgeIdentityPath` or `-FlakeBranch`, use the scriptblock form from Option A Step 4.
-
-If you already have the repo cloned on Windows:
-
-```powershell
-.\tools\install-wsl.ps1
-```
-
-At the age identity prompt choose **2) Skip**. The script imports the NixOS-WSL base distro but skips `nixos-rebuild` — the holodeck-01 config uses agenix secrets, so the rebuild requires the age private key to be installed first.
-
-**Step 1 — Generate the age identity inside holodeck-01:**
-
-```bash
-wsl -d NixOS
-sudo age-keygen -o /var/lib/agenix/identity   # prints: Public key: age1...
-sudo chmod 400 /var/lib/agenix/identity
-```
-
-**Step 2 — Enroll the identity on enterprise-d:**
-
-```bash
-nix develop -c bash tools/enroll-machine.sh holodeck-01
-# Choose: 1) I have the age public key  →  paste the age1... printed above
-```
-
-The script updates `secrets/secrets.nix`, generates and encrypts a per-machine SSH keypair, updates all config files, and re-keys secrets.
-
-Commit and push:
-
-```bash
-git add -p
-git commit -m "feat: enroll holodeck-01"
-git push
-```
-
-**Step 3 — Apply the config inside holodeck-01:**
-
-```bash
-wsl -d NixOS
-sudo nixos-rebuild switch --flake github:geoff-coppertop/nixos-config#holodeck-01
-```
-
----
+`holodeck-01` already exists and boots normally; none of the above affects rebuilding it.
 
 ### Rebuilding an existing install
 
@@ -412,7 +269,7 @@ Run these steps from your Linux or WSL shell after verifying setup above.
 6. Before the first `nixos-install`, copy the host private key into the mounted target so the installed system can decrypt secrets on first boot. The installer script handles this interactively, or run it manually:
 
    ```bash
-   sudo bash tools/install-age-identity.sh --file ~/.config/agenix/enterprise-d.age
+   sudo python3 tools/install_age_identity.py --file ~/.config/agenix/enterprise-d.age
    ```
 
    Pass `--shred` to erase the source file after copying.
@@ -420,7 +277,7 @@ Run these steps from your Linux or WSL shell after verifying setup above.
 7. On an already-installed machine, install or rotate the dedicated host identity in place with:
 
    ```bash
-   sudo bash tools/install-age-identity.sh --file ~/.config/agenix/enterprise-d.age \
+   sudo python3 tools/install_age_identity.py --file ~/.config/agenix/enterprise-d.age \
      --target /var/lib/agenix/identity
    ```
 
@@ -541,10 +398,10 @@ SSH trust is managed separately from agenix secrets.
 
 #### Generate SSH Login Credentials
 
-Use `tools/enroll-machine.sh` to generate a per-machine SSH keypair, encrypt it as an agenix secret, and wire everything up automatically:
+Use `tools/enroll.py` to generate a per-machine SSH keypair, encrypt it as an agenix secret, and wire everything up automatically:
 
 ```bash
-nix develop -c bash tools/enroll-machine.sh <machine-name>
+nix develop -c python3 tools/enroll.py <machine-name>
 ```
 
 The script:
@@ -594,7 +451,7 @@ After enterprise-d boots for the first time:
 
 `modules/ssh-known-hosts.nix` turns non-null `publicKey` values into `programs.ssh.knownHosts` so clients don't prompt on first connect. `roles/common/users.nix` aggregates non-null `userPublicKey` values into `openssh.authorizedKeys.keys` so every enrolled machine accepts logins from every other enrolled machine automatically.
 
-`tools/enroll-machine.sh` populates `userPublicKey` as part of enrollment. To pin `publicKey` after first boot, collect the host key and paste it in:
+`tools/enroll.py` populates `userPublicKey` as part of enrollment. To pin `publicKey` after first boot, collect the host key and paste it in:
 
 ```bash
 ssh-keyscan -t ed25519 <machine> 2>/dev/null
@@ -724,28 +581,33 @@ sudo restic --repo /mnt/nas-backups/thomasga/<hostname> snapshots
 
 ### Run the Installer Script From the Live Session
 
-Once booted into the NixOS installer, open a terminal and run the installer script. Have ready:
+Once booted into the NixOS installer, open a terminal and run the installer. Have ready:
 
 - The target disk device name (run `lsblk` to identify it, e.g. `/dev/nvme0n1`)
 - The LUKS passphrase you want to use for disk encryption
 - A second USB drive with the machine's age identity file (optional — see "Defining a New Machine"; you can add the key after install if needed)
 
-The script will prompt for each of these, then automatically:
-
-1. Secure the live `nixos` session
-2. Create the target directory with restricted permissions
-3. Clone the repo into `/mnt/etc/nixos/nixos-config`
-4. Select the target host from the hosts available in the repo
-5. Run disko to partition, format, and mount the disk
-6. Optionally install the age identity key from a second USB drive (skip if you plan to add it later)
-7. Run `nixos-install`
-
-**WARNING:** disko will destroy all data on the target disk.
+The stock installer ISO ships with flakes disabled, so fetch and run the installer through `nix-shell` (the classic, non-flake Nix CLI, which needs no extra flags on a stock ISO) rather than `nix run`. `install.py` clones the full repo to `/tmp/nixos-config` and re-execs itself from there automatically if it doesn't find its sibling modules alongside it — so this is the entire command, no separate clone step needed:
 
 ```bash
-nix-shell -p git --run \
-  'bash <(curl -fsSL https://raw.githubusercontent.com/geoff-coppertop/nixos-config/master/tools/nixos-install.sh)'
+nix-shell -p python3 git --run \
+  'python3 <(curl -fsSL https://raw.githubusercontent.com/geoff-coppertop/nixos-config/master/tools/install.py)'
 ```
+
+The tool will prompt for a machine to install from the menu, then automatically:
+
+1. Clone the repo to `/tmp/nixos-config` and re-run itself from there
+2. Enroll the machine if it isn't already (generate its age identity and SSH host key) — prompts inline
+3. List disks and prompt for the target device and LUKS passphrase
+4. Prompt for an age identity key source (USB drive, file path, or skip — add it after install if needed)
+5. Secure the live `nixos` session
+6. Run disko to partition, format, and mount the disk
+7. Copy the repo into `/mnt/etc/nixos/nixos-config`
+8. Install the age identity key, if provided
+9. Generate Secure Boot keys under `/mnt/etc/secureboot`
+10. Run `nixos-install`
+
+**WARNING:** disko will destroy all data on the target disk.
 
 The LUKS passphrase you enter will be used to unlock the disk if TPM auto-unlock is ever unavailable. Store it in Bitwarden before proceeding.
 
@@ -801,7 +663,7 @@ nixosConfigurations."<machine-name>" = mkNixosSystem [
 Run the enrollment script to generate the age identity, SSH keypair, and all config wiring in one step:
 
 ```bash
-nix develop -c bash tools/enroll-machine.sh <machine-name>
+nix develop -c python3 tools/enroll.py <machine-name>
 ```
 
 See [Generate SSH Login Credentials](#generate-ssh-login-credentials) for a full description of what the script does and the options it presents.

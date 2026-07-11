@@ -10,6 +10,7 @@ pkgs.mkShell {
     pkgs.deadnix
     pkgs.markdownlint-cli
     pkgs.pre-commit
+    pkgs.python3
     pkgs.statix
   ];
 }
