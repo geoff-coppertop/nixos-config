@@ -119,6 +119,11 @@
           nixos-wsl.nixosModules.default
         ];
       };
+
+      "defiant" = mkNixosSystem {
+        system = "aarch64-linux";
+        extraModules = [./hosts/defiant];
+      };
     };
 
     homeConfigurations = {
@@ -131,6 +136,11 @@
         user = "thomasga";
         machine = "holodeck-01";
         hostSystem = "x86_64-linux";
+      };
+      "thomasga@defiant" = mkHomeConfig {
+        user = "thomasga";
+        machine = "defiant";
+        hostSystem = "aarch64-linux";
       };
     };
   };

@@ -58,6 +58,44 @@ def _get_existing_age_key(secrets_nix: Path, machine_name: str) -> str | None:
     return None
 
 
+def _merge_user_public_key(
+    ssh_hosts_nix: Path, machine: str, username: str, ssh_pub_key: str
+) -> bool:
+    """Merge username's key into machine's userPublicKeys attrset in
+    lib/ssh-hosts.nix, preserving any other users already registered there.
+
+    Returns False (and writes nothing) if the machine's block or its
+    userPublicKeys attrset can't be located with confidence — callers should
+    fall back to printing manual instructions rather than risk corrupting
+    the file with a partial match.
+    """
+    content = ssh_hosts_nix.read_text()
+    block_match = re.search(
+        rf"(  {re.escape(machine)} = \{{.*?\n  \}};)", content, re.DOTALL
+    )
+    if not block_match:
+        return False
+    block = block_match.group(1)
+
+    upk_match = re.search(r"userPublicKeys = \{(.*?)\};", block, re.DOTALL)
+    if not upk_match:
+        return False
+
+    existing = dict(re.findall(r'(\S+)\s*=\s*"([^"]*)";', upk_match.group(1)))
+    existing[username] = ssh_pub_key
+
+    if len(existing) == 1:
+        new_upk = f'userPublicKeys = {{\n      {username} = "{ssh_pub_key}";\n    }};'
+    else:
+        lines = "\n".join(f'      {u} = "{k}";' for u, k in existing.items())
+        new_upk = f"userPublicKeys = {{\n{lines}\n    }};"
+
+    new_block = block[: upk_match.start()] + new_upk + block[upk_match.end() :]
+    content = content[: block_match.start()] + new_block + content[block_match.end() :]
+    ssh_hosts_nix.write_text(content)
+    return True
+
+
 def enroll_machine(machine: str, username: str = "thomasga") -> bool:
     """
     Enroll a machine. Returns True if enrollment succeeded or was already done.
@@ -310,17 +348,22 @@ def enroll_machine(machine: str, username: str = "thomasga") -> bool:
     if f"  {machine} = {{" in ssh_hosts_content:
         print(f"Entry for {machine} already exists in lib/ssh-hosts.nix")
         if ssh_pub_key:
-            print("  Update the userPublicKey field manually:")
-            print(f'    userPublicKey = "{ssh_pub_key}";')
+            if _merge_user_public_key(ssh_hosts_nix, machine, username, ssh_pub_key):
+                print(f"  Merged {username}'s key into its userPublicKeys attrset")
+            else:
+                print(f"  Could not auto-merge — update its userPublicKeys attrset manually:")
+                print(f'    userPublicKeys = {{ {username} = "{ssh_pub_key}"; }};')
     else:
-        user_pub_key_expr = f'"{ssh_pub_key}"' if ssh_pub_key else "null"
+        user_pub_keys_expr = (
+            f'{{{username} = "{ssh_pub_key}";}}' if ssh_pub_key else "{}"
+        )
         new_entry = (
             f'  {machine} = {{\n'
             f'    aliases = ["{machine}"];\n'
             f'    hostName = "{machine}";\n'
             f'    publicKey = null;\n'
             f'    user = "{username}";\n'
-            f'    userPublicKey = {user_pub_key_expr};\n'
+            f'    userPublicKeys = {user_pub_keys_expr};\n'
             f'  }};'
         )
         ssh_hosts_content = re.sub(
@@ -346,12 +389,11 @@ def enroll_machine(machine: str, username: str = "thomasga") -> bool:
         if result.returncode == 0:
             print("Rekey complete.")
         else:
+            # secret-rekey already printed a per-secret summary listing exactly
+            # which secrets were skipped and why; don't second-guess it here.
             print(
-                "Rekey finished with errors — some secrets could not be re-encrypted.\n"
-                "This is expected if a secret is deliberately scoped to a different\n"
-                "machine that this one cannot decrypt (e.g. another host's own SSH key)\n"
-                "rather than a sign anything is broken.\n"
-                f"Review what changed: git -C {root} diff --stat -- secrets/"
+                "Rekey skipped one or more secrets — see the per-secret summary\n"
+                f"above. Review what changed: git -C {root} diff --stat -- secrets/"
             )
     else:
         print("Skipped (no age identity added). Run 'nix run .#secret-rekey' after adding the identity.")
