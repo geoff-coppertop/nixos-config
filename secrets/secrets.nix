@@ -3,6 +3,9 @@ let
 
   holodeck-01 = "age1v6sv24jgrpdfex74d4d9xf92dpfy228lxmled4y4505py6ec7ghq4kmxz0";
 
+  # defiant age public key — populated by: nix develop -c python3 tools/enroll.py defiant
+  defiant = "age18yumsydkuuz54uvj8rnxpehpnse6eduvghdcsf7pgc0pylywwg2s6yv6xr";
+
   # Replace this with a distinct offline recovery key before expanding the fleet.
   offlineAdmin = "age135v2shcv64lul85dy5qqpwlnqw4rvdcsukymx63neqp37d9hpe0sp2jzp9";
 in {
@@ -16,4 +19,11 @@ in {
   "wifi/agt-iot.age".publicKeys = [enterprise-d offlineAdmin];
   "wifi/agt-work.age".publicKeys = [enterprise-d offlineAdmin];
   "thomasga/ssh-id-ed25519-holodeck-01.age".publicKeys = [holodeck-01 offlineAdmin];
+  "thomasga/ssh-id-ed25519-defiant.age".publicKeys = [defiant offlineAdmin];
+  "defiant/cloudflare-api-token.age".publicKeys = [defiant offlineAdmin];
+  "defiant/nas-smb-credentials.age".publicKeys = [defiant offlineAdmin];
+  "hass/restic-password.age".publicKeys = [defiant offlineAdmin];
+  "zigbee2mqtt/restic-password.age".publicKeys = [defiant offlineAdmin];
+  "zwave-js/restic-password.age".publicKeys = [defiant offlineAdmin];
+  "adguardhome/restic-password.age".publicKeys = [defiant offlineAdmin];
 }
