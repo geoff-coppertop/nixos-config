@@ -63,8 +63,17 @@ in {
 
   services.framework-control.enable = true;
 
-  networking.hostName = "enterprise-d";
-  networking.hosts.${nas.ip} = [nas.host];
+  networking = {
+    # thomasga's syncthing client (users/common/syncthing.nix, home-manager) needs
+    # these open; home-manager modules can't touch system-level firewall options.
+    firewall = {
+      allowedTCPPorts = [22000];
+      allowedUDPPorts = [22000 21027];
+    };
+
+    hostName = "enterprise-d";
+    hosts.${nas.ip} = [nas.host];
+  };
 
   system.stateVersion = "25.11";
 }

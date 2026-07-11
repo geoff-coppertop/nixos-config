@@ -224,6 +224,7 @@ in {
         "org.gnome.seahorse.Application.desktop"
         "org.gnome.Papers.desktop"
         "btop.desktop"
+        "syncthing-ui.desktop"
       ];
     };
 

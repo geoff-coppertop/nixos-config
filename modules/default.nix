@@ -12,6 +12,7 @@
     ./secrets.nix
     ./secure-boot.nix
     ./snapper.nix
+    ./syncthing.nix
     ./tpm-luks.nix
     ./vr.nix
   ];
