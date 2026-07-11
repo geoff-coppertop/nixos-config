@@ -897,14 +897,32 @@ plugin "draw.io" (id `drawio`, by somesanity —
 [somesanity/draw-io-obsidian](https://github.com/somesanity/draw-io-obsidian),
 listed at
 [community.obsidian.md/plugins/drawio](https://community.obsidian.md/plugins/drawio)).
-It runs a bundled local Express server to edit diagrams fully offline. Its
-build artifacts are only published as GitHub release assets, not committed
-to the repo, so it isn't vendored declaratively here. Install it once per
-vault via Obsidian's UI: **Settings → Community plugins → Browse**, search
-"draw.io", install, and enable. Obsidian owns
-`.obsidian/community-plugins.json` from then on (it rewrites the file live
-as plugins are toggled), so this repo intentionally doesn't manage that file
-— doing so would clobber plugin state on every `nixos-rebuild switch`.
+It runs a bundled local Express server to edit diagrams fully offline.
+
+Obsidian community plugins are managed declaratively via home-manager's
+`programs.obsidian` module in `users/thomasga/obsidian.nix`. Plugin packages
+are built by `lib/obsidian-plugin.nix` (`mkObsidianPlugin`), which fetches the
+plugin's `main.js`/`manifest.json`/`styles.css` from a pinned GitHub release
+(community plugins publish their build artifacts only as release assets, never
+committed to the plugin repo) and pins each by hash. The module links each
+plugin into `<vault>/.obsidian/plugins/<id>/`.
+
+**Consequence — the module owns the config:** because plugins are declared in
+Nix, the module writes `.obsidian/community-plugins.json` from that list on
+every activation. So:
+
+- Every plugin you want enabled must be listed in `obsidian.nix`; any plugin
+  enabled only through Obsidian's UI is disabled on the next
+  `nixos-rebuild switch`.
+- Plugin files are read-only Nix-store symlinks — bump the plugin `version`
+  (and re-pin hashes) in Nix rather than updating inside Obsidian.
+- Set `vaults.main.target` to your actual vault path (relative to `$HOME`), or
+  the module populates a stray empty vault at the placeholder path.
+
+**Adding a plugin:** add one `mkObsidianPlugin` entry (owner/repo/version/id +
+the three asset hashes) and append it to `settings.communityPlugins`. Obtain
+the hashes by building once with `pkgs.lib.fakeHash` and copying the hash nix
+reports, or with `nix store prefetch-file <release-asset-url>`.
 
 ### Connect IQ SDK (Garmin)
 

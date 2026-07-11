@@ -16,6 +16,7 @@
     ./connect-iq.nix
     ./shell.nix
     ./drawio.nix
+    ./obsidian.nix
   ];
 
   custom.appearance.darkMode = true;
@@ -24,7 +25,6 @@
   home.packages = [
     pkgs.vim
     pkgs.nerd-fonts.droid-sans-mono
-    pkgs.obsidian
   ];
 
   # home-manager can't manage empty directories; .keep causes ~/builds to be created
