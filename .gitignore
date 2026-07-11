@@ -20,3 +20,6 @@ result-*
 # Claude Code agent-isolation worktrees (nested under .claude/ when created
 # from inside this repo rather than as a sibling directory).
 .claude/worktrees/
+
+# Python tooling
+__pycache__/
