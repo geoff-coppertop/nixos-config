@@ -159,6 +159,11 @@
         machine = "enterprise-d";
         hostSystem = "x86_64-linux";
       };
+      "thomasar@enterprise-d" = mkHomeConfig {
+        user = "thomasar";
+        machine = "enterprise-d";
+        hostSystem = "x86_64-linux";
+      };
       "thomasga@holodeck-01" = mkHomeConfig {
         user = "thomasga";
         machine = "holodeck-01";

@@ -1,6 +1,7 @@
 _: let
   nas = import ../../lib/nas.nix;
   thomasga = import ../../users/thomasga/account.nix;
+  thomasar = import ../../users/thomasar/account.nix;
 in {
   imports = [
     ./hardware.nix
@@ -17,6 +18,7 @@ in {
 
   custom = {
     users.thomasga = thomasga // {groups = ["wheel" "networkmanager" "plugdev"];};
+    users.thomasar = thomasar // {groups = [];};
 
     wifi.enable = true;
     gaming.enable = true;
