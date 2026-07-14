@@ -113,6 +113,7 @@ Modules expose behavior through `custom.*` options rather than direct NixOS opti
 - `custom.networkDrives` — auto-mount SMB shares at graphical login; configure `nas.host` and per-user `shares.<name>` entries
 - `custom.appearance.darkMode` — system-wide dark mode (home-manager, defined in `users/common/appearance.nix`)
 - `custom.ai.claude.enable` / `custom.ai.copilot.enable` — Claude AI tools / GitHub Copilot integration in VS Code
+- `custom.ai.claude.rtk.enable` — install RTK and register its Claude Code auto-rewrite hook (filters/compresses Bash tool output to cut token usage); defaults on when `custom.ai.claude.enable` is set
 - `custom.debugProbes.enable` — udev rules for USB JTAG/SWD debug probes (ST-Link, J-Link, FTDI, CMSIS-DAP incl. Raspberry Pi Debug Probe); required so rootless devcontainers that bind-mount `/dev/bus/usb` can access the hardware as a non-root user
 
 ### Home-manager Patterns

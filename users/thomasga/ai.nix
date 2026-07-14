@@ -4,6 +4,8 @@
   pkgs,
   ...
 }: {
+  imports = [./rtk.nix];
+
   options.custom.ai = {
     claude.enable = lib.mkEnableOption "Claude AI tools";
     copilot.enable = lib.mkEnableOption "GitHub Copilot integration";
