@@ -68,4 +68,11 @@ in {
   # shared with defiant like the hass/* secrets above, since reliant is the
   # only host running this integration.
   "hass/aqicn-token.age".publicKeys = [reliant offlineAdmin];
+  # Dedicated NAS service account for the Jellyfin media share, separate from
+  # thomasga's personal backup credentials.
+  "excelsior/nas-smb-credentials.age".publicKeys = [excelsior offlineAdmin];
+  # Traefik on excelsior: Cloudflare token for its own ACME wildcard cert, and
+  # htpasswd for the basicAuth middleware fronting the ARM/tinyMediaManager UIs.
+  "excelsior/cloudflare-api-token.age".publicKeys = [excelsior offlineAdmin];
+  "excelsior/media-admin-htpasswd.age".publicKeys = [excelsior offlineAdmin];
 }

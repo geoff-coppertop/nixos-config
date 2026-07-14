@@ -3,7 +3,7 @@
   lib,
   ...
 }: let
-  inherit (lib) mkEnableOption mkIf mkMerge mkOption types;
+  inherit (lib) mapAttrsToList mkEnableOption mkIf mkMerge mkOption types;
   mkTraefikRoute = import ../lib/traefik-route.nix;
   cfg = config.custom.dns;
 in {
@@ -30,6 +30,12 @@ in {
       type = types.listOf types.str;
       default = [];
       description = "Subdomains to resolve to lanIp (e.g. [\"homeassistant\" \"zigbee\"]).";
+    };
+
+    extraRecords = mkOption {
+      type = types.attrsOf types.str;
+      default = {};
+      description = "Extra A records (hostname -> IP) served for the local domain, for names that live on another host (e.g. {jellyfin = \"192.168.1.10\";}).";
     };
 
     adminSubdomain = mkOption {
@@ -71,7 +77,9 @@ in {
           # but falls through to real recursion for everything else in the
           # zone (SOA, NS, the bare domain, any other public record).
           local-zone = ["\"${cfg.domain}.\" transparent"];
-          local-data = map (sub: "\"${sub}.${cfg.domain}. A ${cfg.lanIp}\"") cfg.subdomains;
+          local-data =
+            map (sub: "\"${sub}.${cfg.domain}. A ${cfg.lanIp}\"") cfg.subdomains
+            ++ mapAttrsToList (host: ip: "\"${host}.${cfg.domain}. A ${ip}\"") cfg.extraRecords;
         };
       };
 

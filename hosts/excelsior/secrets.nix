@@ -18,5 +18,26 @@ _: {
     "thomasga/nas-smb-credentials".file = ../../secrets/thomasga/nas-smb-credentials.age;
     "adguardhome/restic-password".file = ../../secrets/adguardhome/restic-password.age;
     "thomasga/restic-password".file = ../../secrets/thomasga/restic-password.age;
+
+    # Dedicated NAS service account for the media share (not thomasga's personal
+    # backup credentials). Create with:
+    #   EDITOR=nano nix run .#secret-edit -- secrets/excelsior/nas-smb-credentials.age
+    # in username=…/password=… format.
+    "excelsior/nas-smb-credentials".file =
+      ../../secrets/excelsior/nas-smb-credentials.age;
+
+    # Cloudflare API token for Traefik's ACME DNS-01 wildcard cert.
+    "excelsior/cloudflare-api-token" = {
+      file = ../../secrets/excelsior/cloudflare-api-token.age;
+      owner = "traefik";
+    };
+
+    # htpasswd for the Traefik basicAuth middleware protecting the ARM and
+    # tinyMediaManager admin UIs (their own auth is weak). Create with:
+    #   htpasswd -nB <user>   (paste the line via secret-edit)
+    "excelsior/media-admin-htpasswd" = {
+      file = ../../secrets/excelsior/media-admin-htpasswd.age;
+      owner = "traefik";
+    };
   };
 }

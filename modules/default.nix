@@ -1,6 +1,7 @@
 {
   imports = [
     ./adsb.nix
+    ./auto-rip.nix
     ./backups.nix
     ./bin-compat.nix
     ./btrfs.nix
@@ -14,7 +15,10 @@
     ./gaming.nix
     ./home-assistant.nix
     ./is-laptop.nix
+    ./jellyfin.nix
     ./matter.nix
+    ./media-manager.nix
+    ./media-ripping.nix
     ./mqtt.nix
     ./network-drives.nix
     ./nix-gc.nix

@@ -6,6 +6,7 @@ in {
     ./secrets.nix
     ./hardware.nix
     ./disko.nix
+    ./media.nix
 
     ../../profiles/common
     # NOT: profiles/desktop — no display server
@@ -115,9 +116,25 @@ in {
       # 3 VLANs, all 192.168.x.0/24. Widened to match defiant's override so
       # direct (bypass) queries on port 5335 work from any of them.
       lanSubnet = "192.168.0.0/16";
-      # No custom.traefik here: Traefik stays single-instance on defiant,
-      # which proxies this host's AdGuard admin UI cross-host (see
-      # hosts/defiant/configuration.nix's dns2 router).
+      # Media services now run behind this host's own Traefik, so their names
+      # resolve here (both resolvers serve identical records; defiant carries
+      # the matching extraRecords). AdGuard's admin UI (dns2) still goes through
+      # defiant's cross-host router, so adminSubdomain is left at the default.
+      subdomains = ["jellyfin" "arm" "tmm"];
+    };
+
+    # Traefik on excelsior fronts its own media services so heavy Jellyfin
+    # traffic never traverses defiant (an aarch64 SBC) and the service ports
+    # (8096/8080/4000) stay closed off-machine. Uses its own ACME DNS-01
+    # wildcard cert, same mechanism as defiant.
+    traefik = {
+      enable = true;
+      acme = {
+        email = "geoff.coppertop@gmail.com";
+        dnsProvider = "cloudflare";
+        environmentFile = "/run/agenix/excelsior/cloudflare-api-token";
+        domain = "coppertop.ca";
+      };
     };
   };
 

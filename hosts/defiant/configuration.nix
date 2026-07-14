@@ -113,6 +113,13 @@ in {
       # Renamed from the module default "dns" now that a second independent
       # DNS instance (excelsior) exists — dns1/dns2 naming pairs the two.
       adminSubdomain = "dns1";
+      # Media services live on excelsior behind its own Traefik; both resolvers
+      # must return the same records, so serve excelsior's names here too.
+      extraRecords = {
+        jellyfin = "192.168.1.10";
+        arm = "192.168.1.10";
+        tmm = "192.168.1.10";
+      };
     };
 
     traefik = {
