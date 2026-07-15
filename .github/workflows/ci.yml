@@ -6,6 +6,23 @@ on:
   push:
     branches: [master]
 
+# access-tokens authenticates the github: flake input fetcher (used for
+# agenix) against api.github.com. Unauthenticated requests from shared GitHub
+# Actions runner IPs get rate-limited/flaky far more often than this repo's
+# own commit history suggested — dozens of runs failed on the exact same
+# 503 before this was added. The default GITHUB_TOKEN is sufficient (read
+# access to public repos only).
+#
+# Both jobs post a PR comment on failure via actions/github-script's
+# issues.createComment (the API PR comments actually go through). The
+# default GITHUB_TOKEN is read-only unless permissions are declared here,
+# so without this the comment step itself 403s and the real failure output
+# never reaches the PR — masked behind an unrelated HttpError instead.
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -16,6 +33,7 @@ jobs:
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
+            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
 
       - name: pre-commit
         id: precommit
@@ -54,6 +72,7 @@ jobs:
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
+            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
 
       - name: flake check (eval only, all machines incl. aarch64)
         id: flakecheck
