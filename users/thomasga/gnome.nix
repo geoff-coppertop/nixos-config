@@ -249,7 +249,11 @@ in {
     };
 
     "org/gnome/desktop/session" = {
-      idle-delay = lib.gvariant.mkUint32 240; # blank at 4 min, sleep at 5 min on battery
+      # Blank at 4 min. Also the moment Mutter sets the logind session
+      # IdleHint=yes — the trigger the DE-independent suspend chain keys on
+      # (see the idle-hint contract in roles/desktop/power.nix). Keep in sync
+      # with the 240s swayidle timeout there.
+      idle-delay = lib.gvariant.mkUint32 240;
     };
 
     "org/gnome/desktop/screensaver" = {
@@ -257,14 +261,14 @@ in {
       lock-delay = lib.gvariant.mkUint32 0;
     };
 
+    # Power policy is DE-independent: logind owns idle suspend and lid
+    # (hosts/enterprise-d/power.nix), UPower owns critical battery
+    # (roles/desktop/power.nix). These keys are the GNOME-side off switch so
+    # gsd-power never competes with that — it also respects application
+    # suspend inhibitors (e.g. Firefox "Playing video"), so it could not be
+    # trusted to sleep on battery anyway; the battery-idle-suspend watchdog
+    # forces `suspend -i` past 300s idle instead.
     "org/gnome/settings-daemon/plugins/power" = {
-      critical-battery-action = "hibernate";
-      # gsd-power respects application suspend inhibitors, so it cannot be
-      # trusted to sleep on battery when an app holds one (e.g. Firefox
-      # "Playing video"). Battery idle sleep is owned by logind's
-      # IdleAction=suspend, backed by the battery-idle-suspend watchdog
-      # (roles/desktop/power.nix) that forces `suspend -i` past 300s idle to
-      # override inhibitors.
       sleep-inactive-battery-type = "nothing";
       sleep-inactive-ac-timeout = 0; # on AC: only blank+lock, no sleep
     };

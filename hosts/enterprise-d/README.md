@@ -96,8 +96,8 @@ The 30 s window applies from when the login screen goes idle, which itself follo
 | File | Responsibility |
 | --- | --- |
 | `hosts/enterprise-d/power.nix` | logind lid/key actions, `IdleAction`, RTC wakeup kernel param, `hibernate-trigger` system-sleep hook (arms RTC wakealarm, decides hibernate on resume, logging) |
-| `roles/desktop/power.nix` | `logind-idle-inhibitor` user service (blocks logind `IdleAction` only while on AC) and the `battery-idle-suspend` watchdog (forces `suspend -i` on battery past 5 min idle, overriding application inhibitors, via a root polkit grant); shared Mains-only AC-detection helper |
-| `users/thomasga/gnome.nix` | GNOME idle/sleep dconf settings: screen blank at 4 min, battery sleep at 5 min, lock on blank, critical battery hibernate |
+| `roles/desktop/power.nix` | UPower critical-battery hibernate; `idle-hint` user service (swayidle sets logind `IdleHint` on `ext-idle-notify-v1` compositors, skipped on GNOME); `logind-idle-inhibitor` user service (blocks logind `IdleAction` only while on AC) and the `battery-idle-suspend` watchdog (forces `suspend -i` on battery past 5 min idle, overriding application inhibitors, via a root polkit grant); shared Mains-only AC-detection helper |
+| `users/thomasga/gnome.nix` | GNOME-side dconf only: screen blank at 4 min (which is also when Mutter sets logind `IdleHint` — the suspend chain's trigger), lock on blank, gsd-power disabled from sleeping the system |
 
 ### Why a self-owned RTC trigger instead of `suspend-then-hibernate`
 
@@ -150,9 +150,23 @@ elapsed time and whether hibernate was triggered. If hibernate is ever
 skipped unexpectedly, or a spurious wake reappears, this is the first thing
 to check, alongside `journalctl -k -b -1` for the wake cause.
 
+### DE independence
+
+Suspend/hibernate policy lives entirely at the systemd/logind/UPower layer, so it survives swapping GNOME/GDM for another desktop (COSMIC, Hyprland, …):
+
+- **logind** owns lid actions, idle suspend (`IdleAction`), and — via the `hibernate-trigger` hook — the suspend→hibernate chain (`hosts/enterprise-d/power.nix`).
+- **UPower** owns critical-battery hibernate (`criticalPowerAction = "Hibernate"` at 2%, `roles/desktop/power.nix`). The upower daemon performs the action itself; no DE involvement.
+- The one thing the active session must provide: set the logind session `IdleHint` at ~240 s of inactivity — that hint is what `IdleAction` and the `battery-idle-suspend` watchdog key off. GNOME/Mutter sets it natively at `idle-delay`. Any compositor implementing `ext-idle-notify-v1` (COSMIC, Hyprland, sway) is covered by the `idle-hint` swayidle user service, which skips itself on GNOME (Mutter doesn't speak that protocol).
+
+Requirements for a replacement DE:
+
+1. Its session must reach `graphical-session.target` in the systemd user manager (GNOME and COSMIC do; Hyprland needs its uwsm/systemd session variant), so the `idle-hint` and `logind-idle-inhibitor` services start.
+2. Its own power manager must be told not to sleep the system, so it never races logind — the GNOME equivalent is the `sleep-inactive-*` keys in `users/thomasga/gnome.nix`.
+3. Screen blank/lock timing stays a per-DE concern; only the `IdleHint` timing (240 s) needs to be kept consistent.
+
 ### Why the idle inhibitor is needed
 
-logind's `IdleAction = suspend-then-hibernate` fires for any session that goes idle, including logged-in user sessions. The `logind-idle-inhibitor` systemd user service holds a logind `idle` inhibitor while the user is active, preventing the 30 s GDM timer from also firing during desktop use. GNOME's own power plugin handles user-session sleep instead.
+logind's `IdleAction = suspend` fires for any session that goes idle, including logged-in user sessions. The `logind-idle-inhibitor` systemd user service holds a logind `idle` inhibitor while on AC, implementing the "on AC, never sleep" half of the policy; on battery no inhibitor is held and `IdleAction` fires ~30 s after the session sets `IdleHint`.
 
 ### Why `gdm.autoSuspend = false` and GDM screensaver disabled
 

@@ -28,13 +28,59 @@ in {
     });
   '';
 
+  # Critical-battery hibernate is owned by UPower, not the DE. The upower
+  # daemon performs CriticalPowerAction itself (via logind) when the battery
+  # reaches percentageAction, so this works identically under any
+  # desktop/compositor. Thresholds are the upstream defaults, made explicit
+  # because they are policy this host relies on.
+  services.upower = {
+    enable = true;
+    usePercentageForPolicy = true;
+    percentageLow = 10;
+    percentageCritical = 3;
+    percentageAction = 2;
+    criticalPowerAction = "Hibernate";
+  };
+
   systemd = {
+    # DE-independence contract: everything downstream — logind's
+    # IdleAction=suspend at +30s, the battery-idle-suspend watchdog at +60s,
+    # the suspend->hibernate RTC chain — keys off the logind session
+    # IdleHint. The only thing the active session must provide is setting
+    # IdleHint=yes at ~240s of user inactivity. GNOME/Mutter does that
+    # natively at its idle-delay (users/thomasga/gnome.nix, 240s) and does
+    # not implement ext-idle-notify-v1, so this unit skips itself there.
+    # Any compositor that does implement ext-idle-notify-v1 (COSMIC,
+    # Hyprland, sway, ...) is covered by swayidle instead. Keep the timeout
+    # in sync with GNOME's 240s idle-delay so the suspend chain behaves the
+    # same regardless of DE.
+    user.services.idle-hint = {
+      description = "Set logind IdleHint via ext-idle-notify on non-GNOME compositors";
+      wantedBy = ["graphical-session.target"];
+      partOf = ["graphical-session.target"];
+      after = ["graphical-session.target"];
+      serviceConfig = {
+        Type = "simple";
+        Restart = "on-failure";
+        RestartSec = "10s";
+        # ExecCondition exit 1 = skip cleanly, not a failure.
+        ExecCondition = pkgs.writeShellScript "idle-hint-not-gnome" ''
+          case "''${XDG_CURRENT_DESKTOP:-}" in
+            *GNOME*) exit 1 ;;
+          esac
+        '';
+        ExecStart = "${pkgs.swayidle}/bin/swayidle -w idlehint 240";
+      };
+    };
+
     # Hold the logind idle inhibitor only while on AC power.
     # On battery the service exits immediately (no inhibitor held), allowing
     # logind's IdleAction=suspend to fire after IdleActionSec. On AC the
     # inhibitor is held and the inner loop monitors power state, exiting when AC
-    # is disconnected so the service restarts and re-evaluates. gsd-power's
-    # sleep-inactive-battery-type is "nothing" so it does not race with logind.
+    # is disconnected so the service restarts and re-evaluates. The active DE's
+    # own power manager is disabled from sleeping the system (see the DE's
+    # file, e.g. the gsd-power keys in users/thomasga/gnome.nix) so nothing
+    # races with logind.
     user.services."logind-idle-inhibitor" = {
       description = "Block logind idle action while on AC power";
       wantedBy = ["graphical-session.target"];
@@ -56,12 +102,13 @@ in {
     };
 
     # Force suspend on battery after sustained idle, overriding application
-    # inhibitors. An app holding a GNOME "inhibit suspend" (relayed by
-    # gnome-session as a block-mode sleep inhibitor) otherwise makes logind
-    # refuse the idle suspend forever, draining the battery. Policy: on battery,
-    # sustained idle wins even if it interrupts a background task.
+    # inhibitors. An app holding a block-mode sleep inhibitor (e.g. a browser
+    # "Playing video" inhibit, relayed by the DE's session manager) otherwise
+    # makes logind refuse the idle suspend forever, draining the battery.
+    # Policy: on battery, sustained idle wins even if it interrupts a
+    # background task.
     #
-    # logind's own IdleAction fires at ~270s (idle-delay 240 + IdleActionSec 30)
+    # logind's own IdleAction fires at ~270s (IdleHint at 240 + IdleActionSec 30)
     # and handles the uninhibited case; this watchdog reaches its threshold only
     # when that suspend was refused, then forces it with `suspend -i` (authorised
     # for root by the polkit rule above). Idle duration is measured by how long
@@ -96,8 +143,9 @@ in {
           now=$(${pkgs.coreutils}/bin/date +%s)
           [ -f "$state" ] || echo "$now" > "$state"
           since=$(${pkgs.coreutils}/bin/cat "$state" 2>/dev/null || echo "$now")
-          # GNOME sets IdleHint=yes at idle-delay (240s); +60s here ~= 300s idle,
-          # just past logind's refused ~270s attempt.
+          # The session sets IdleHint=yes at ~240s idle (see the
+          # DE-independence contract on the idle-hint unit above); +60s here
+          # ~= 300s idle, just past logind's refused ~270s attempt.
           [ $((now - since)) -ge 60 ] || exit 0
 
           ${pkgs.util-linux}/bin/logger -t battery-idle-suspend "on battery, session idle, forcing suspend -i"
