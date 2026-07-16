@@ -123,11 +123,15 @@ Modules expose behavior through `custom.*` options rather than direct NixOS opti
 - `custom.networkDrives` — auto-mount SMB shares at graphical login; configure `nas.host` and per-user `shares.<name>` entries
 - `custom.appearance.darkMode` — system-wide dark mode (home-manager, defined in `users/common/appearance.nix`)
 - `custom.ai.claude.enable` / `custom.ai.copilot.enable` — Claude AI tools / GitHub Copilot integration in VS Code
+- `custom.syncthingHub.enable` — always-on Syncthing hub (defiant) holding per-user synced folders under `/var/lib/syncthing/<user>/`; enable-only, all pairing via GUI over SSH tunnel
+- `custom.syncthing` — per-user home-manager Syncthing instance (`users/common/syncthing.nix`); `guiPort` must be unique per user on a machine
 - `custom.debugProbes.enable` — udev rules for USB JTAG/SWD debug probes (ST-Link, J-Link, FTDI, CMSIS-DAP incl. Raspberry Pi Debug Probe); required so rootless devcontainers that bind-mount `/dev/bus/usb` can access the hardware as a non-root user
 
 ### Home-manager Patterns
 
 **VS Code:** `programs.vscode` uses `profiles.default` for `extensions` and `userSettings`; `argvSettings` (maps to `argv.json`, e.g. `disable-hardware-acceleration = true`) lives at the top level, not inside the profile.
+
+**Syncthing:** keep it enable-only, in both the NixOS and home-manager modules. Declarative `settings.*` sections are applied by `syncthing-init` PUT-replacing each whole config section on every rebuild, which silently wipes GUI-set state (device pairings, folder shares, GUI password). Pairing is done once via the GUI and persists. See README § Obsidian Vault Sync (Syncthing).
 
 **Overriding app launch flags:** Use `xdg.desktopEntries.<name>` in home-manager to replace a package's `.desktop` file with a modified `exec` line (e.g. adding `--disable-gpu`). Place it alongside the package declaration in `users/common/` or `users/thomasga/`.
 
