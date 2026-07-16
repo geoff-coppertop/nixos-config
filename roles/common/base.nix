@@ -14,12 +14,24 @@ in {
   };
 
   config = {
-    nix.settings.experimental-features = ["nix-command" "flakes"];
+    nix = {
+      settings = {
+        experimental-features = ["nix-command" "flakes"];
 
-    nix.gc = {
-      automatic = true;
-      dates = "weekly";
-      options = "--delete-older-than 30d";
+        # Remote deploys (nixos-rebuild --target-host) push locally-built
+        # store paths over SSH as the login user. The nix daemon only
+        # accepts unsigned paths from trusted-users (default: root only) —
+        # without this, deploying to any host over SSH as a non-root user
+        # fails with "lacks a signature by a trusted key". Confirmed live
+        # deploying to defiant as thomasga.
+        trusted-users = ["root" "@wheel"];
+      };
+
+      gc = {
+        automatic = true;
+        dates = "weekly";
+        options = "--delete-older-than 30d";
+      };
     };
 
     # Fetch from GitHub and stage the new build as the next boot entry weekly.
