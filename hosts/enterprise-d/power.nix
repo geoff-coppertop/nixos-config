@@ -75,27 +75,48 @@
       delay_sec=600
       state_file=/run/hibernate-trigger-start
       wakealarm=/sys/class/rtc/rtc0/wakealarm
+      log() {
+        ${pkgs.util-linux}/bin/logger -t hibernate-trigger "$1"
+      }
 
       [ "$sleep_action" = suspend ] || exit 0
 
       case "$action" in
         pre)
           now=$(${pkgs.coreutils}/bin/date +%s)
-          echo "$now" > "$state_file"
           wake_at=$((now + delay_sec))
-          echo "$wake_at" > "$wakealarm" 2>/dev/null || true
-          ${pkgs.util-linux}/bin/logger -t hibernate-trigger "suspend starting at $now, wakealarm armed for $wake_at (+''${delay_sec}s)"
+          # Clear any leftover alarm first: the sysfs interface rejects a new
+          # value while one is armed, so a stale alarm (e.g. crash between pre
+          # and post) would otherwise make this arm fail.
+          echo 0 > "$wakealarm" 2>/dev/null || true
+          # Verify the arm and record the outcome in the state file. Without
+          # this, a silently failed arm leaves the machine suspended until a
+          # real user wake hours later — whose huge elapsed time the post
+          # branch would misread as the timer firing, force-hibernating the
+          # machine right as the user resumes it.
+          if echo "$wake_at" > "$wakealarm" 2>/dev/null; then
+            echo "$now armed" > "$state_file"
+            log "suspend starting at $now, wakealarm armed for $wake_at (+''${delay_sec}s)"
+          else
+            echo "$now failed" > "$state_file"
+            log "suspend starting at $now, FAILED to arm wakealarm, timed hibernate disabled for this cycle"
+          fi
           ;;
         post)
           now=$(${pkgs.coreutils}/bin/date +%s)
-          start=$(${pkgs.coreutils}/bin/cat "$state_file" 2>/dev/null || echo "$now")
+          start=""
+          armed=""
+          [ -f "$state_file" ] && read -r start armed < "$state_file"
+          [ -n "$start" ] || start=$now
           elapsed=$((now - start))
           echo 0 > "$wakealarm" 2>/dev/null || true
-          if [ "$elapsed" -ge $((delay_sec - 5)) ]; then
-            ${pkgs.util-linux}/bin/logger -t hibernate-trigger "resumed at $now, elapsed=''${elapsed}s, triggering hibernate"
+          if [ "$armed" != armed ]; then
+            log "resumed at $now, elapsed=''${elapsed}s, wakealarm was never armed, not hibernating"
+          elif [ "$elapsed" -ge $((delay_sec - 5)) ]; then
+            log "resumed at $now, elapsed=''${elapsed}s, triggering hibernate"
             ${pkgs.systemd}/bin/systemctl start --no-block hibernate-trigger-hibernate.service
           else
-            ${pkgs.util-linux}/bin/logger -t hibernate-trigger "resumed at $now, elapsed=''${elapsed}s, early wake, no hibernate"
+            log "resumed at $now, elapsed=''${elapsed}s, early wake, no hibernate"
           fi
           ;;
       esac

@@ -123,32 +123,46 @@ in {
         Type = "oneshot";
         ExecStart = pkgs.writeShellScript "battery-idle-suspend" ''
           state=/run/battery-idle-suspend-since
+          log() {
+            ${pkgs.util-linux}/bin/logger -t battery-idle-suspend "$1"
+          }
 
+          # Reset branches log only when a countdown was actually in progress
+          # (state file exists): the timer fires every minute for hours in
+          # steady state, and unconditional logging would drown the journal.
+          # This way every countdown start, reset (with reason), and forced
+          # suspend is traceable, and quiet runs stay quiet.
           ${onAc} && {
+            [ -f "$state" ] && log "countdown reset: back on AC"
             ${pkgs.coreutils}/bin/rm -f "$state"
             exit 0
           }
 
           session=$(${pkgs.systemd}/bin/loginctl show-seat seat0 -p ActiveSession --value 2>/dev/null)
           [ -n "$session" ] || {
+            [ -f "$state" ] && log "countdown reset: no active session"
             ${pkgs.coreutils}/bin/rm -f "$state"
             exit 0
           }
 
           if [ "$(${pkgs.systemd}/bin/loginctl show-session "$session" -p IdleHint --value 2>/dev/null)" != yes ]; then
+            [ -f "$state" ] && log "countdown reset: session active again"
             ${pkgs.coreutils}/bin/rm -f "$state"
             exit 0
           fi
 
           now=$(${pkgs.coreutils}/bin/date +%s)
-          [ -f "$state" ] || echo "$now" > "$state"
+          [ -f "$state" ] || {
+            echo "$now" > "$state"
+            log "on battery, session idle, countdown started"
+          }
           since=$(${pkgs.coreutils}/bin/cat "$state" 2>/dev/null || echo "$now")
           # The session sets IdleHint=yes at ~240s idle (see the
           # DE-independence contract on the idle-hint unit above); +60s here
           # ~= 300s idle, just past logind's refused ~270s attempt.
           [ $((now - since)) -ge 60 ] || exit 0
 
-          ${pkgs.util-linux}/bin/logger -t battery-idle-suspend "on battery, session idle, forcing suspend -i"
+          log "on battery, session idle $((now - since))s past hint, forcing suspend -i"
           ${pkgs.coreutils}/bin/rm -f "$state"
           ${pkgs.systemd}/bin/systemctl suspend -i
         '';

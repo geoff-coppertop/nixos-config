@@ -73,7 +73,7 @@ A non-empty result confirms TPM2 enrollment is active.
 | 10 min suspended | Hibernate |
 | Critical battery | Immediate hibernate, bypassing suspend |
 
-On battery, sustained idle always wins: logind's `IdleAction` suspends at ~4.5 min when nothing inhibits, and the `battery-idle-suspend` watchdog forces `systemctl suspend -i` at 5 min if an application (e.g. a Firefox tab "Playing video") holds a suspend inhibitor that would otherwise block it indefinitely. The forced suspend relies on a polkit rule granting root the `suspend-ignore-inhibit` action non-interactively (the watchdog is a system service with no auth agent). Each forced suspend is logged under `journalctl -t battery-idle-suspend`.
+On battery, sustained idle always wins: logind's `IdleAction` suspends at ~4.5 min when nothing inhibits, and the `battery-idle-suspend` watchdog forces `systemctl suspend -i` at 5 min if an application (e.g. a Firefox tab "Playing video") holds a suspend inhibitor that would otherwise block it indefinitely. The forced suspend relies on a polkit rule granting root the `suspend-ignore-inhibit` action non-interactively (the watchdog is a system service with no auth agent). The watchdog logs every countdown transition under `journalctl -t battery-idle-suspend`: countdown started, countdown reset (with the reason — back on AC, no active session, session active again), and the forced suspend itself. Steady-state runs where nothing was in progress stay silent.
 
 ### GDM login screen (no user logged in)
 
@@ -146,7 +146,12 @@ journalctl -t hibernate-trigger
 ```
 
 Each cycle logs the wakealarm arming time on suspend, and on resume, the
-elapsed time and whether hibernate was triggered. If hibernate is ever
+elapsed time and whether hibernate was triggered. The pre-suspend side
+clears any leftover alarm, verifies the new arm succeeded, and records the
+outcome in the state file; a failed arm is logged loudly (`FAILED to arm
+wakealarm`) and the resume side then refuses the hibernate decision for
+that cycle — otherwise a much-later user wake would be misread as the
+timer firing and hibernate the machine mid-resume. If hibernate is ever
 skipped unexpectedly, or a spurious wake reappears, this is the first thing
 to check, alongside `journalctl -k -b -1` for the wake cause.
 
