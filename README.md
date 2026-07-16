@@ -39,6 +39,7 @@ This repo is the source of truth for machine setup, user setup, secrets wiring, 
   - [Wi-Fi Pre-configuration](#wi-fi-pre-configuration)
   - [Hibernation And Power](#hibernation-and-power)
   - [USB Debug Probes (udev)](#usb-debug-probes-udev)
+  - [Obsidian Vault Sync (Syncthing)](#obsidian-vault-sync-syncthing)
   - [draw.io And Obsidian](#drawio-and-obsidian)
   - [Connect IQ SDK (Garmin)](#connect-iq-sdk-garmin)
   - [Change GNOME Or Kernel Policy Later](#change-gnome-or-kernel-policy-later)
@@ -1062,6 +1063,106 @@ The udev rules must live here, on the NixOS host, not in the devcontainer.
 With the ordering fixed, a fresh `nixos-rebuild switch` plus a normal
 plug-in of the probe is enough — no manual `udevadm trigger` or replug
 workaround needed.
+
+### Obsidian Vault Sync (Syncthing)
+
+Obsidian vaults sync between devices with Syncthing in a hub-and-spoke
+layout, per the upstream multi-user guidance
+([Multi-user setup advice](https://forum.syncthing.net/t/multi-user-setup-advice/19571)):
+
+- **Hub:** defiant runs an always-on system instance
+  (`custom.syncthingHub.enable`, `modules/syncthing-hub.nix`). Devices never
+  need to be online at the same time; the hub holds a copy of every synced
+  folder under `/var/lib/syncthing/<user>/<folder>`, all owned by the
+  `syncthing` system user. Users never log into the hub.
+- **Clients:** each user on each client machine runs their own instance as a
+  systemd user service (`custom.syncthing.enable`,
+  `users/common/syncthing.nix`) — one instance per user, so vault files stay
+  owned by that user. Currently enabled: `thomasga` on `enterprise-d`.
+  Phones and other non-NixOS devices run the stock Syncthing app and pair
+  with the hub directly.
+
+Nix deliberately only enables the services. The NixOS and home-manager
+modules apply declarative `settings.*` sections by PUT-replacing whole
+config sections on every rebuild, which silently wipes GUI-set state —
+device pairings, folder shares, the GUI password. So pairing and folder
+setup happen once via the GUI, and that state persists across rebuilds in
+the instance state directory (hub: `/var/lib/syncthing/.config/syncthing/`;
+clients: `~/.local/state/syncthing/`).
+
+#### GUI access
+
+- Client: `http://127.0.0.1:8384` (per-user port set with
+  `custom.syncthing.guiPort`; must be unique per user on a machine).
+- Hub: loopback-only, reached over SSH — it is not exposed through Traefik
+  because the GUI is unauthenticated until a password is set:
+
+  ```bash
+  ssh -L 9384:127.0.0.1:8384 defiant
+  # then open http://127.0.0.1:9384
+  ```
+
+  On first visit set a GUI user and password (Actions → Settings → GUI);
+  it persists across rebuilds.
+
+#### One-time pairing (per user, per device)
+
+1. Hub GUI: Actions → Show ID; copy the device ID.
+2. Client GUI: Add Remote Device, paste the hub's ID. Set the address to
+   `tcp://192.168.20.10:22000` instead of `dynamic` — clients sit on a
+   different subnet than defiant, so local discovery broadcasts won't reach
+   it, and a static address avoids depending on global discovery.
+3. Hub GUI: accept the pending device.
+4. Client GUI: Add Folder pointing at the existing vault directory, then
+   share it with defiant under the folder's Sharing tab. Keep the
+   auto-generated folder ID — it is what identifies the folder on every
+   device.
+5. Hub GUI: accept the pending folder at
+   `/var/lib/syncthing/<user>/<folder-label>` and enable Staggered File
+   Versioning on it as a delete/overwrite safety net.
+6. Phones/tablets: install the Syncthing app, pair with defiant the same
+   way, and accept the folder share.
+
+#### Obsidian-specific ignores
+
+Workspace state is device-local and churns constantly; syncing it causes
+spurious conflicts. In each device's copy of the vault, create a
+`.stignore` file in the vault root (Syncthing reads it but never syncs it):
+
+```text
+// Device-local Obsidian UI state
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.trash
+```
+
+#### Adding another user
+
+1. Enable `custom.syncthing` in the new user's home-manager config on each
+   of their machines, with a `guiPort` distinct from every other user on
+   the same machine.
+2. Pair their instances with defiant and accept their folders on the hub
+   under `/var/lib/syncthing/<user>/…` as above. The hub needs no config
+   change — one hub instance hosts all users' folders.
+
+#### NAS backups of hub data
+
+The hub's folder copies can be backed up to the NAS with the standard
+restic machinery for a versioned safety net beyond Syncthing's own file
+versioning. This needs a secret that must be created on a trusted machine,
+so it ships commented out:
+
+1. Add the recipients entry to `secrets/secrets.nix`:
+   `"syncthing/restic-password.age".publicKeys = [defiant offlineAdmin];`
+2. Create the secret:
+
+   ```bash
+   EDITOR=nano nix run .#secret-edit -- secrets/syncthing/restic-password.age
+   ```
+
+3. Uncomment the `custom.backups.users.syncthing` block in
+   `hosts/defiant/configuration.nix` and the matching age.secrets entry in
+   `hosts/defiant/secrets.nix`.
 
 ### draw.io And Obsidian
 

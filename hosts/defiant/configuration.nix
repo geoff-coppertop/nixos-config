@@ -109,6 +109,11 @@ in {
 
     adsb.enable = true;
 
+    # Always-on Syncthing hub for Obsidian vault sync. Pairing and folder
+    # acceptance happen via the GUI over an SSH tunnel — see README
+    # § Obsidian Vault Sync (Syncthing).
+    syncthingHub.enable = true;
+
     backups = {
       enable = true;
 
@@ -142,6 +147,17 @@ in {
           paths = ["/var/lib/adguardhome"];
           excludePatterns = [];
         };
+        # Versioned NAS safety net for the synced vault data. Enable after
+        # creating secrets/syncthing/restic-password.age and uncommenting
+        # the matching age.secrets entry in ./secrets.nix — see README
+        # § Obsidian Vault Sync (Syncthing).
+        # syncthing = {
+        #   enable = true;
+        #   paths = ["/var/lib/syncthing"];
+        #   # Device identity, GUI config, and the churny sync index — the
+        #   # vault data itself is everything outside .config.
+        #   excludePatterns = ["/var/lib/syncthing/.config"];
+        # };
       };
     };
 

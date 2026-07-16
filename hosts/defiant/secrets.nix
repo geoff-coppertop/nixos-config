@@ -19,6 +19,9 @@ _: {
     "zigbee2mqtt/restic-password".file = ../../secrets/zigbee2mqtt/restic-password.age;
     "zwave-js/restic-password".file = ../../secrets/zwave-js/restic-password.age;
     "adguardhome/restic-password".file = ../../secrets/adguardhome/restic-password.age;
+    # Uncomment together with custom.backups.users.syncthing in
+    # ./configuration.nix once the secret exists:
+    #   "syncthing/restic-password".file = ../../secrets/syncthing/restic-password.age;
 
     # Added after Phase 2 of provisioning (extract from first boot):
     #   "defiant/zigbee-network-key" = {
