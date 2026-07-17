@@ -6,6 +6,7 @@
 in {
   imports = [
     ./secrets.nix
+    ./appletv-av.nix
     "${modulesPath}/installer/sd-card/sd-image-aarch64.nix"
 
     ../../roles/common
