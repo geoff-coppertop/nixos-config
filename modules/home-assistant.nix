@@ -33,6 +33,12 @@ in {
         configWritable = true;
         inherit (cfg) extraComponents;
         config = {
+          # sun: confirmed live — sun.sun doesn't exist at all without this.
+          # Unlike ssdp/zeroconf (part of HA's true always-on core bootstrap,
+          # set up regardless of YAML), sun is never attempted unless
+          # explicitly referenced. Needs zero extra packages (no entry in
+          # nixpkgs' component-packages.nix), so no extraComponents change.
+          sun = {};
           http = {
             trusted_proxies = ["127.0.0.1"];
             use_x_forwarded_for = true;
