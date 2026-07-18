@@ -16,6 +16,21 @@ in {
       default = "0";
       description = "RTL-SDR USB device index.";
     };
+
+    locationEnvFile = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      description = ''
+        Path to an agenix-managed EnvironmentFile providing LOCATION_LAT
+        and LOCATION_LON (receiver coordinates, for the map center/range
+        rings and surface-position decoding). Kept out of the Nix
+        store/git history as a secret rather than a plain option value
+        since it resolves to a home address; null skips passing
+        --lat/--lon entirely. Same secret/env-var naming as the shared
+        defiant/location.age file, since a future weather station module
+        is expected to need the same coordinates.
+      '';
+    };
   };
 
   config = mkIf cfg.enable (mkMerge [
@@ -59,27 +74,38 @@ in {
         description = "dump1090 ADS-B receiver";
         wantedBy = ["multi-user.target"];
         after = ["network.target"];
-        serviceConfig = {
-          # pkgs.dump1090-fa's actual binary is named dump1090 (confirmed
-          # live: bin/ contains dump1090, faup1090, view1090 — no
-          # dump1090-fa). The wrong name here made the service fail at
-          # exec() itself (systemd status 203/EXEC) before any of its own
-          # code ever ran.
-          #
-          # This build has no built-in HTTP server (confirmed via --help:
-          # only raw/Beast/SBS TCP ports and --write-json, which its own
-          # help text says is "for serving by a separate webserver"). Write
-          # aircraft.json here so nginx (below) can serve it alongside the
-          # skyaware static assets the package already ships.
-          ExecStart = "${pkgs.dump1090-fa}/bin/dump1090 --device-index ${cfg.device} --net --write-json /var/lib/dump1090 --write-json-every 1";
-          Restart = "on-failure";
-          User = "dump1090";
-          Group = "dump1090";
-          StateDirectory = "dump1090";
-          # 0755 (not the 0750 default) so nginx, a separate unrelated
-          # user, can read aircraft.json.
-          StateDirectoryMode = "0755";
-        };
+        serviceConfig =
+          lib.optionalAttrs (cfg.locationEnvFile != null) {
+            EnvironmentFile = cfg.locationEnvFile;
+          }
+          // {
+            # pkgs.dump1090-fa's actual binary is named dump1090 (confirmed
+            # live: bin/ contains dump1090, faup1090, view1090 — no
+            # dump1090-fa). The wrong name here made the service fail at
+            # exec() itself (systemd status 203/EXEC) before any of its own
+            # code ever ran.
+            #
+            # This build has no built-in HTTP server (confirmed via --help:
+            # only raw/Beast/SBS TCP ports and --write-json, which its own
+            # help text says is "for serving by a separate webserver"). Write
+            # aircraft.json here so nginx (below) can serve it alongside the
+            # skyaware static assets the package already ships.
+            #
+            # Wrapped in bash -c so --lat/--lon can be filled in from
+            # $LOCATION_LAT/$LOCATION_LON (via EnvironmentFile above) rather
+            # than baked into the Nix store as plain option values.
+            # --json-location-accuracy 1 rounds the coordinates exposed in
+            # aircraft.json itself (this is served publicly through Traefik)
+            # while --lat/--lon stay full precision for range-ring math.
+            ExecStart = "${pkgs.bash}/bin/bash -c 'exec ${pkgs.dump1090-fa}/bin/dump1090 --device-index ${cfg.device} --net --write-json /var/lib/dump1090 --write-json-every 1 ${lib.optionalString (cfg.locationEnvFile != null) ''--lat "$LOCATION_LAT" --lon "$LOCATION_LON" --json-location-accuracy 1''}'";
+            Restart = "on-failure";
+            User = "dump1090";
+            Group = "dump1090";
+            StateDirectory = "dump1090";
+            # 0755 (not the 0750 default) so nginx, a separate unrelated
+            # user, can read aircraft.json.
+            StateDirectoryMode = "0755";
+          };
       };
 
       # Static skyaware web UI. Confirmed live via `find` on the actual

@@ -5,6 +5,7 @@
 }: let
   inherit (lib) mkEnableOption mkIf mkOption types;
   cfg = config.custom.zwave;
+  defaultSecretsConfigFile = "/var/lib/zwave-js/secrets.json";
 in {
   options.custom.zwave = {
     enable = mkEnableOption "Z-Wave JS";
@@ -15,17 +16,42 @@ in {
       description = "Serial port for the Z-Wave USB dongle.";
     };
 
+    port = mkOption {
+      type = types.port;
+      default = 3000;
+      description = ''
+        Port for the zwave-js WebSocket server (services.zwave-js.port
+        upstream default). Confirmed live: AdGuardHome's own admin UI
+        already claims 3000 on defiant, so zwave-js deterministically
+        crash-looped on EADDRINUSE every restart, ~15s in (once its
+        driver finished initializing and tried to bind) — override this
+        per-host to whatever's actually free.
+      '';
+    };
+
     secretsConfigFile = mkOption {
       type = types.str;
-      default = "/var/lib/zwave-js/secrets.json";
-      description = "Path where Z-Wave S2/S0 network keys are stored. Upstream services.zwave-js.secretsConfigFile has no default and must always be set — it's not a preset-keys file, it's where zwave-js itself writes the keys it generates on first run. The default here points inside the service's own state directory, so it just works out of the box. Override to an agenix-managed path (after extracting the generated keys post-Phase-1) to persist them across reinstalls.";
+      default = defaultSecretsConfigFile;
+      description = ''
+        Path to a JSON file providing securityKeys (S0_Legacy,
+        S2_Unauthenticated, S2_Authenticated, S2_AccessControl — each a
+        32-hex-char/16-byte string). Upstream services.zwave-js.secretsConfigFile
+        has no default and must always be set. Confirmed live: contrary
+        to this option's original assumption, zwave-js-server does NOT
+        generate these itself on first run — it hard-fails
+        ("securityKeys.S0_Legacy key is missing") and crash-loops forever
+        against an empty/placeholder file. Override to an agenix-managed
+        path providing real generated keys; the default only exists so
+        the service has somewhere non-empty to point at before that's
+        set up.
+      '';
     };
   };
 
   config = mkIf cfg.enable {
     services.zwave-js = {
       enable = true;
-      inherit (cfg) serialPort secretsConfigFile;
+      inherit (cfg) serialPort secretsConfigFile port;
     };
 
     users.users.zwave-js = {
@@ -39,9 +65,17 @@ in {
     # requires the source file to already exist at unit start — it will not
     # create one. Confirmed live: first boot failed with EXIT_CREDENTIALS
     # (243) because nothing had ever created this file. Pre-seed an empty
-    # JSON object so the service's first run has something to load and can
-    # then write its generated keys into it.
-    systemd.tmpfiles.rules = [
+    # placeholder so the service has something to load before the real
+    # agenix-managed secretsConfigFile is wired up.
+    #
+    # Only applies to the module's own default path: once secretsConfigFile
+    # is overridden to an agenix path (/run/agenix/...), agenix's own
+    # activation script owns and populates that entire directory tree —
+    # the "d" tmpfiles type re-enforces ownership/mode on every activation,
+    # even on an already-existing directory, which would fight agenix over
+    # permissions on /run/agenix/defiant (shared by every other secret for
+    # this host) rather than just seeding a harmless placeholder.
+    systemd.tmpfiles.rules = mkIf (cfg.secretsConfigFile == defaultSecretsConfigFile) [
       "d ${dirOf cfg.secretsConfigFile} 0750 zwave-js zwave-js -"
       "f ${cfg.secretsConfigFile} 0600 zwave-js zwave-js - {}"
     ];
