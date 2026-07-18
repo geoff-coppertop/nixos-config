@@ -63,6 +63,11 @@ in {
 
   services.framework-control.enable = true;
 
+  # Lets `nix build` cross-compile aarch64-linux derivations (e.g. defiant) via
+  # qemu-user emulation instead of failing with "platform mismatch". Slow —
+  # full emulation, not native — but there's no remote aarch64 builder set up.
+  boot.binfmt.emulatedSystems = ["aarch64-linux"];
+
   networking.hostName = "enterprise-d";
   networking.hosts.${nas.ip} = [nas.host];
 

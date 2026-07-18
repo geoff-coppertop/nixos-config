@@ -20,15 +20,25 @@ nix develop
 
 ```bash
 nix develop -c pre-commit run --all-files
-nix flake check
+nix flake check --no-build   # evaluates all configs, skips building derivations
 ```
 
 **Validate the build without switching:**
 
 ```bash
+# x86_64 machines — build natively
 nix build .#nixosConfigurations.enterprise-d.config.system.build.toplevel
+nix build .#nixosConfigurations.holodeck-01.config.system.build.toplevel
 sudo nixos-rebuild dry-activate --flake .#enterprise-d
+
+# aarch64 machines — cross-compile (slow; requires binfmt or remote builder)
+nix build .#nixosConfigurations.defiant.config.system.build.toplevel
+nix build .#nixosConfigurations.defiant.config.system.build.sdImage
 ```
+
+Note: `nix flake check` (without `--no-build`) tries to build all `nixosConfigurations`
+including aarch64 ones, which fails with "platform mismatch" on x86_64. Use `--no-build`
+for the eval-only check, then use `nix build` for per-platform build validation.
 
 **Apply changes to the running system:**
 
