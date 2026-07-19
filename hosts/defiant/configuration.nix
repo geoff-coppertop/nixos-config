@@ -6,6 +6,7 @@
 in {
   imports = [
     ./secrets.nix
+    ./home-assistant.nix
     "${modulesPath}/installer/sd-card/sd-image-aarch64.nix"
 
     ../../roles/common
@@ -111,7 +112,19 @@ in {
       # error for its own config entry — it's a distinct TTS platform
       # integration (nixpkgs' component-packages.nix maps it to the gtts
       # package), not covered by adding the core "tts" component above.
+      #
+      # ssdp: confirmed live via the "Invalid config" notification — one of
+      # default_config's own always-loaded discovery integrations (alongside
+      # zeroconf), but its deps (nixpkgs' component-packages.nix: async-upnp-
+      # client, ifaddr) aren't part of the small default_config baseline
+      # either, same gap as the rest of this list.
       extraComponents = [
+        # homekit_controller: lets HA drive HomeKit accessories (the outside
+        # light switches are HomeKit devices, exposed as switch.* entities).
+        # Pairing each accessory's 8-digit code is a one-time UI step;
+        # listing the component here just installs its backend.
+        "homekit_controller"
+        "ssdp"
         "zwave_js"
         "mqtt"
         "conversation"
