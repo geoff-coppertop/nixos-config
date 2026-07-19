@@ -126,11 +126,14 @@ jobs:
       - uses: actions/checkout@v4
 
       # Standard GitHub-hosted runners ship several GB of preinstalled
-      # toolchains (.NET, GHC, Android SDK, etc.) this workflow never uses,
-      # which free up enough room to actually finish the build.
+      # toolchains (.NET, GHC, Android SDK, Swift, Docker images, etc.) this
+      # workflow never uses. /usr/local/lib/android and /usr/share/swift are
+      # confirmed among the largest offenders alongside the ones already
+      # removed here; docker system prune clears preloaded container images.
       - name: free disk space
         run: |
-          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" /opt/hostedtoolcache
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" /opt/hostedtoolcache /usr/local/lib/android /usr/share/swift /usr/local/.ghcup
+          docker system prune --all --force || true
 
       - uses: cachix/install-nix-action@v27
         with:
