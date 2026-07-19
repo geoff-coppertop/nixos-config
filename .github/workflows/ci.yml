@@ -13,7 +13,7 @@ on:
 # 503 before this was added. The default GITHUB_TOKEN is sufficient (read
 # access to public repos only).
 #
-# Both jobs post a PR comment on failure via actions/github-script's
+# Every job posts a PR comment on failure via actions/github-script's
 # issues.createComment (the API PR comments actually go through). The
 # default GITHUB_TOKEN is read-only unless permissions are declared here,
 # so without this the comment step itself 403s and the real failure output
@@ -63,21 +63,10 @@ jobs:
         if: steps.precommit.outcome == 'failure'
         run: exit 1
 
-  build:
+  flake-check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      # enterprise-d's toplevel is a full GNOME desktop closure (Steam,
-      # VS Code, Chrome, Discord, etc.). Confirmed live: building it
-      # alongside holodeck-01 ran the runner out of disk mid-build
-      # ("No space left on device", 53 MB free) — standard GitHub-hosted
-      # runners ship several GB of preinstalled toolchains (.NET, GHC,
-      # Android SDK, etc.) this workflow never uses, which free up enough
-      # room to actually finish the build.
-      - name: free disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" /opt/hostedtoolcache
 
       - uses: cachix/install-nix-action@v27
         with:
@@ -93,40 +82,89 @@ jobs:
           nix flake check --no-build 2>&1 | tee /tmp/flakecheck-output.txt
           exit ${PIPESTATUS[0]}
 
-      - name: build x86_64 machines (native)
-        id: buildx8664
-        if: steps.flakecheck.outcome == 'success'
-        continue-on-error: true
-        run: |
-          set -o pipefail
-          {
-            nix build .#nixosConfigurations.enterprise-d.config.system.build.toplevel --no-link &&
-            nix build .#nixosConfigurations.holodeck-01.config.system.build.toplevel --no-link
-          } 2>&1 | tee /tmp/build-output.txt
-          exit ${PIPESTATUS[0]}
-
-      # defiant (aarch64-linux) is intentionally not built here — cross-compiling
-      # a full toplevel via QEMU emulation is slow on a shared runner, and the
-      # flake check above already catches eval-time errors for it. Building it
-      # for real still requires a native aarch64 machine or a remote builder.
-
       - name: Post failure comment
-        if: (steps.flakecheck.outcome == 'failure' || steps.buildx8664.outcome == 'failure') && github.event_name == 'pull_request'
+        if: steps.flakecheck.outcome == 'failure' && github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs')
-            const read = (path) => fs.existsSync(path) ? fs.readFileSync(path, 'utf8') : '(no output captured)'
-            const output = '${{ steps.flakecheck.outcome }}' === 'failure'
-              ? read('/tmp/flakecheck-output.txt')
-              : read('/tmp/build-output.txt')
+            const output = fs.existsSync('/tmp/flakecheck-output.txt')
+              ? fs.readFileSync('/tmp/flakecheck-output.txt', 'utf8')
+              : '(no output captured)'
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: `## CI: build failures\n\`\`\`\n${output.slice(0, 65000)}\n\`\`\``
+              body: `## CI: flake check failures\n\`\`\`\n${output.slice(0, 65000)}\n\`\`\``
             })
 
-      - name: Fail if flake check or build failed
-        if: steps.flakecheck.outcome == 'failure' || steps.buildx8664.outcome == 'failure'
+      - name: Fail if flake check failed
+        if: steps.flakecheck.outcome == 'failure'
+        run: exit 1
+
+  # x86_64 machines are built natively, one per job so each gets its own
+  # runner disk instead of sharing one across both builds sequentially.
+  # Confirmed live: enterprise-d's toplevel is a full GNOME desktop closure
+  # (Steam, VS Code, Chrome, Discord, etc.) — building it alongside
+  # holodeck-01 in a single job ran the shared runner out of disk mid-build
+  # ("No space left on device") even after freeing known-unused preinstalled
+  # toolchains below; splitting into a matrix is the fix that doesn't need
+  # revisiting as either host's closure keeps growing.
+  #
+  # defiant (aarch64-linux) is intentionally not built here — cross-compiling
+  # a full toplevel via QEMU emulation is slow on a shared runner, and the
+  # flake-check job above already catches eval-time errors for it. Building it
+  # for real still requires a native aarch64 machine or a remote builder.
+  build:
+    needs: flake-check
+    strategy:
+      fail-fast: false
+      matrix:
+        host: [enterprise-d, holodeck-01]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Standard GitHub-hosted runners ship several GB of preinstalled
+      # toolchains (.NET, GHC, Android SDK, Swift, Docker images, etc.) this
+      # workflow never uses. /usr/local/lib/android and /usr/share/swift are
+      # confirmed among the largest offenders alongside the ones already
+      # removed here; docker system prune clears preloaded container images.
+      - name: free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" /opt/hostedtoolcache /usr/local/lib/android /usr/share/swift /usr/local/.ghcup
+          docker system prune --all --force || true
+
+      - uses: cachix/install-nix-action@v27
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+
+      - name: build ${{ matrix.host }} (native)
+        id: buildhost
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          nix build .#nixosConfigurations.${{ matrix.host }}.config.system.build.toplevel --no-link 2>&1 | tee /tmp/build-output.txt
+          exit ${PIPESTATUS[0]}
+
+      - name: Post failure comment
+        if: steps.buildhost.outcome == 'failure' && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs')
+            const output = fs.existsSync('/tmp/build-output.txt')
+              ? fs.readFileSync('/tmp/build-output.txt', 'utf8')
+              : '(no output captured)'
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## CI: build failures (${{ matrix.host }})\n\`\`\`\n${output.slice(0, 65000)}\n\`\`\``
+            })
+
+      - name: Fail if build failed
+        if: steps.buildhost.outcome == 'failure'
         run: exit 1
