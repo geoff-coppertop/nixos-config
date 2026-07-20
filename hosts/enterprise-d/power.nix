@@ -1,4 +1,27 @@
-{pkgs, ...}: {
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}: {
+  # Fail the build, not the 2%-battery moment, if the hibernate target
+  # drifts: the RTC hibernate chain is only sound while resumeDevice points
+  # at a configured swap device. /dev/vg/swap and /dev/mapper/vg-swap are
+  # the same LV under two names; compare normalised.
+  assertions = let
+    normalise = lib.replaceStrings ["/dev/mapper/vg-"] ["/dev/vg/"];
+    resume = config.boot.resumeDevice;
+  in [
+    {
+      assertion = resume != "";
+      message = "hibernate-trigger requires boot.resumeDevice to be set";
+    }
+    {
+      assertion = builtins.any (d: normalise d.device == normalise resume) config.swapDevices;
+      message = "boot.resumeDevice (${resume}) is not among swapDevices — hibernate has nowhere to write its image";
+    }
+  ];
+
   boot = {
     kernelParams = [
       "mem_sleep_default=s2idle"
@@ -48,17 +71,38 @@
   # hibernate` inline, lets systemd's own job scheduler defer it until
   # the suspend job actually finishes and the lock clears — no polling,
   # no fixed delay.
-  systemd.services.hibernate-trigger-hibernate = {
-    description = "Hibernate after an RTC-wakealarm-triggered resume";
-    after = ["systemd-suspend.service"];
-    serviceConfig = {
-      Type = "oneshot";
-      # -i (ignore-inhibitors): the app suspend-inhibitor that the watchdog
-      # forces past with `suspend -i` is still held on the RTC-wake resume, so a
-      # plain `systemctl hibernate` is refused and the machine just stays awake.
-      # Root is authorised non-interactively for hibernate-ignore-inhibit by the
-      # polkit rule in roles/desktop/power.nix — mirrors the suspend path.
-      ExecStart = "${pkgs.systemd}/bin/systemctl hibernate -i";
+  systemd.services = {
+    hibernate-trigger-hibernate = {
+      description = "Hibernate after an RTC-wakealarm-triggered resume";
+      after = ["systemd-suspend.service"];
+      # A failed hibernate (swap pressure, transient kernel error) would
+      # otherwise leave the machine awake and draining at the lock screen —
+      # the exact outcome this machinery exists to prevent — reported only as
+      # a quiet unit failure. The fallback re-suspends instead; that re-runs
+      # the sleep hook and re-arms the RTC alarm, so a failed hibernate
+      # becomes a retry-every-10-min loop (asleep between attempts, every
+      # attempt logged) rather than hours awake.
+      onFailure = ["hibernate-trigger-fallback.service"];
+      serviceConfig = {
+        Type = "oneshot";
+        # -i (ignore-inhibitors): the app suspend-inhibitor that the watchdog
+        # forces past with `suspend -i` is still held on the RTC-wake resume, so a
+        # plain `systemctl hibernate` is refused and the machine just stays awake.
+        # Root is authorised non-interactively for hibernate-ignore-inhibit by the
+        # polkit rule in roles/desktop/power.nix — mirrors the suspend path.
+        ExecStart = "${pkgs.systemd}/bin/systemctl hibernate -i";
+      };
+    };
+
+    hibernate-trigger-fallback = {
+      description = "Re-suspend after a failed RTC-triggered hibernate";
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = pkgs.writeShellScript "hibernate-trigger-fallback" ''
+          ${pkgs.util-linux}/bin/logger -t hibernate-trigger "hibernate FAILED, re-suspending to retry via the RTC cycle"
+          ${pkgs.systemd}/bin/systemctl suspend -i
+        '';
+      };
     };
   };
   # Arms the RTC wakealarm directly on suspend and decides on resume,

@@ -73,7 +73,9 @@ A non-empty result confirms TPM2 enrollment is active.
 | 10 min suspended | Hibernate |
 | Critical battery | Immediate hibernate, bypassing suspend |
 
-On battery, sustained idle always wins: logind's `IdleAction` suspends at ~4.5 min when nothing inhibits, and the `battery-idle-suspend` watchdog forces `systemctl suspend -i` at 5 min if an application (e.g. a Firefox tab "Playing video") holds a suspend inhibitor that would otherwise block it indefinitely. The forced suspend relies on a polkit rule granting root the `suspend-ignore-inhibit` action non-interactively (the watchdog is a system service with no auth agent). The watchdog logs every countdown transition under `journalctl -t battery-idle-suspend`: countdown started, countdown reset (with the reason — back on AC, no active session, session active again), and the forced suspend itself. Steady-state runs where nothing was in progress stay silent.
+On battery, sustained idle always wins: logind's `IdleAction` suspends at ~4.5 min when nothing inhibits, and the `battery-idle-suspend` watchdog forces `systemctl suspend -i` at 5 min if an application (e.g. a Firefox tab "Playing video") holds a suspend inhibitor that would otherwise block it indefinitely. The forced suspend relies on a polkit rule granting root the `suspend-ignore-inhibit` action non-interactively (the watchdog is a system service with no auth agent). The watchdog logs every countdown transition under `journalctl -t battery-idle-suspend`: countdown started, countdown reset (with the reason — back on AC, no active session, session active again, remote session active), and the forced suspend itself. Steady-state runs where nothing was in progress stay silent.
+
+Two refinements to "idle wins": *foreground* media playback holds an idle inhibit on the visible surface, so the session never reads idle and no countdown starts — watching a movie is activity, and critical-battery hibernate backstops the walked-away case. And **active SSH sessions count as activity**: the `remote-session-idle-inhibitor` service blocks logind's `IdleAction` while a remote login exists, and the watchdog independently skips its forced suspend for the same reason (it ignores inhibitors by design, so it needs its own check).
 
 ### GDM login screen (no user logged in)
 
@@ -95,8 +97,8 @@ The greeter's own compositor cannot report idle — the GDM dconf profile sets `
 
 | File | Responsibility |
 | --- | --- |
-| `hosts/enterprise-d/power.nix` | logind lid/key actions, `IdleAction`, RTC wakeup kernel param, `hibernate-trigger` system-sleep hook (arms RTC wakealarm, decides hibernate on resume, logging) |
-| `roles/desktop/power.nix` | UPower critical-battery hibernate; `idle-hint` user service (swayidle sets logind `IdleHint` on `ext-idle-notify-v1` compositors, skipped on GNOME/gdm); `greeter-idle-hint` system timer (marks an active greeter-class session idle so the login screen can suspend); `logind-idle-inhibitor` user service (blocks logind `IdleAction` only while on AC, skipped for gdm) and the `battery-idle-suspend` watchdog (forces `suspend -i` on battery past 5 min idle, overriding application inhibitors, via a root polkit grant); shared Mains-only AC-detection helper |
+| `hosts/enterprise-d/power.nix` | logind lid/key actions, `IdleAction`, RTC wakeup kernel param, `hibernate-trigger` system-sleep hook (arms RTC wakealarm, decides hibernate on resume, logging), `hibernate-trigger-fallback` (re-suspends on a failed hibernate so the RTC cycle retries instead of draining awake), build-time assertions that `resumeDevice` matches a configured swap device |
+| `roles/desktop/power.nix` | UPower critical-battery hibernate; `idle-hint` user service (swayidle sets logind `IdleHint` on `ext-idle-notify-v1` compositors, skipped on GNOME/gdm, start-limited so an unsupported compositor fails visibly); `greeter-idle-hint` system timer (marks an active greeter-class session idle so the login screen can suspend); `logind-idle-inhibitor` user service (blocks logind `IdleAction` only while on AC, skipped for gdm); `remote-session-idle-inhibitor` (SSH counts as activity) and the `battery-idle-suspend` watchdog (forces `suspend -i` on battery past 5 min idle, overriding application inhibitors, via a root polkit grant; skips when a remote session is active); shared Mains-only AC-detection and remote-session helpers |
 | `users/thomasga/gnome.nix` | GNOME-side dconf only: screen blank at 4 min (which is also when Mutter sets logind `IdleHint` — the suspend chain's trigger), lock on blank, gsd-power disabled from sleeping the system |
 
 ### Why a self-owned RTC trigger instead of `suspend-then-hibernate`
@@ -151,9 +153,13 @@ clears any leftover alarm, verifies the new arm succeeded, and records the
 outcome in the state file; a failed arm is logged loudly (`FAILED to arm
 wakealarm`) and the resume side then refuses the hibernate decision for
 that cycle — otherwise a much-later user wake would be misread as the
-timer firing and hibernate the machine mid-resume. If hibernate is ever
-skipped unexpectedly, or a spurious wake reappears, this is the first thing
-to check, alongside `journalctl -k -b -1` for the wake cause.
+timer firing and hibernate the machine mid-resume. If the hibernate itself
+fails, `hibernate-trigger-fallback` logs `hibernate FAILED, re-suspending`
+under the same tag and re-suspends, re-arming the RTC cycle — a failed
+hibernate retries every ~10 min from sleep instead of draining awake. If
+hibernate is ever skipped unexpectedly, or a spurious wake reappears, this
+is the first thing to check, alongside `journalctl -k -b -1` for the wake
+cause.
 
 ### DE independence
 
