@@ -81,10 +81,10 @@ Behaviour is identical on AC and battery — there are no running user processes
 
 | Trigger | Action |
 | --- | --- |
-| 30 s idle | Suspend, hibernate after 10 min |
+| ~60–90 s at the login screen | Suspend, hibernate after 10 min |
 | 10 min suspended | Hibernate |
 
-The 30 s window applies from when the login screen goes idle, which itself follows GNOME's default `idle-delay`. In practice the screen is unattended from first appearance, so this fires approximately 30 s after GDM starts.
+The greeter's own compositor cannot report idle — the GDM dconf profile sets `idle-delay=0` to fix resume blanking, which disables its idle tracking entirely. Instead, the system-level `greeter-idle-hint` timer (30 s tick) marks any *active* greeter-class session idle via logind `SetIdleHint`, and logind's `IdleActionSec=30` suspends ~30 s after that. Net: suspend lands ~60–90 s after the login screen appears, never earlier than logind's 60 s holdoff after boot/resume. The mechanism is display-manager-agnostic (`greeter` is a logind session class, not a GDM concept) and logs under `journalctl -t greeter-idle-hint`. Caveat: the manual hint doesn't clear on greeter keystrokes, so standing at the login screen for over a minute without logging in can suspend mid-entry — accepted, matching the old "screen is unattended in practice" assumption.
 
 ## Resuming
 
@@ -96,7 +96,7 @@ The 30 s window applies from when the login screen goes idle, which itself follo
 | File | Responsibility |
 | --- | --- |
 | `hosts/enterprise-d/power.nix` | logind lid/key actions, `IdleAction`, RTC wakeup kernel param, `hibernate-trigger` system-sleep hook (arms RTC wakealarm, decides hibernate on resume, logging) |
-| `roles/desktop/power.nix` | UPower critical-battery hibernate; `idle-hint` user service (swayidle sets logind `IdleHint` on `ext-idle-notify-v1` compositors, skipped on GNOME); `logind-idle-inhibitor` user service (blocks logind `IdleAction` only while on AC) and the `battery-idle-suspend` watchdog (forces `suspend -i` on battery past 5 min idle, overriding application inhibitors, via a root polkit grant); shared Mains-only AC-detection helper |
+| `roles/desktop/power.nix` | UPower critical-battery hibernate; `idle-hint` user service (swayidle sets logind `IdleHint` on `ext-idle-notify-v1` compositors, skipped on GNOME/gdm); `greeter-idle-hint` system timer (marks an active greeter-class session idle so the login screen can suspend); `logind-idle-inhibitor` user service (blocks logind `IdleAction` only while on AC, skipped for gdm) and the `battery-idle-suspend` watchdog (forces `suspend -i` on battery past 5 min idle, overriding application inhibitors, via a root polkit grant); shared Mains-only AC-detection helper |
 | `users/thomasga/gnome.nix` | GNOME-side dconf only: screen blank at 4 min (which is also when Mutter sets logind `IdleHint` — the suspend chain's trigger), lock on blank, gsd-power disabled from sleeping the system |
 
 ### Why a self-owned RTC trigger instead of `suspend-then-hibernate`
@@ -162,6 +162,7 @@ Suspend/hibernate policy lives entirely at the systemd/logind/UPower layer, so i
 - **logind** owns lid actions, idle suspend (`IdleAction`), and — via the `hibernate-trigger` hook — the suspend→hibernate chain (`hosts/enterprise-d/power.nix`).
 - **UPower** owns critical-battery hibernate (`criticalPowerAction = "Hibernate"` at 2%, `roles/desktop/power.nix`). The upower daemon performs the action itself; no DE involvement.
 - The one thing the active session must provide: set the logind session `IdleHint` at ~240 s of inactivity — that hint is what `IdleAction` and the `battery-idle-suspend` watchdog key off. GNOME/Mutter sets it natively at `idle-delay`. Any compositor implementing `ext-idle-notify-v1` (COSMIC, Hyprland, sway) is covered by the `idle-hint` swayidle user service, which skips itself on GNOME (Mutter doesn't speak that protocol).
+- Greeter sessions get the hint from the system instead: the `greeter-idle-hint` timer marks any active greeter-class session idle after ~30 s, since login-screen compositors either disable idle tracking (GDM here, deliberately) or can't be relied on for it. `greeter` is a logind session class, so this covers any display manager's login screen unchanged.
 
 Requirements for a replacement DE:
 

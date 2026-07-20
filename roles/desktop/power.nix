@@ -63,8 +63,13 @@ in {
         Type = "simple";
         Restart = "on-failure";
         RestartSec = "10s";
-        # ExecCondition exit 1 = skip cleanly, not a failure.
+        # ExecCondition exit 1 = skip cleanly, not a failure. The gdm user's
+        # manager is excluded too — systemd.user.services are installed for
+        # every user manager including the greeter's, GDM's Mutter also lacks
+        # ext-idle-notify-v1, and the greeter gets its IdleHint from the
+        # system-level greeter-idle-hint timer below instead.
         ExecCondition = pkgs.writeShellScript "idle-hint-not-gnome" ''
+          [ "$(${pkgs.coreutils}/bin/id -un)" = gdm ] && exit 1
           case "''${XDG_CURRENT_DESKTOP:-}" in
             *GNOME*) exit 1 ;;
           esac
@@ -89,6 +94,13 @@ in {
         Type = "simple";
         Restart = "always";
         RestartSec = "10s";
+        # The greeter must be allowed to idle-suspend even on AC (login-screen
+        # policy is identical on AC and battery — there are no user processes
+        # to protect), so this AC inhibitor must never run in the gdm user's
+        # manager.
+        ExecCondition = pkgs.writeShellScript "inhibitor-not-gdm" ''
+          [ "$(${pkgs.coreutils}/bin/id -un)" != gdm ]
+        '';
         ExecStart = pkgs.writeShellScript "logind-idle-inhibitor" ''
           ${onAc} || exit 0
           exec ${pkgs.systemd}/bin/systemd-inhibit \
@@ -176,6 +188,48 @@ in {
         OnBootSec = "2min";
         OnUnitActiveSec = "1min";
         AccuracySec = "10s";
+      };
+    };
+
+    # A greeter-class session (GDM's login screen — or any display manager's;
+    # the class is a logind concept, not a GNOME one) never reports idle on
+    # its own here: the GDM dconf profile deliberately sets idle-delay=0 to
+    # fix resume blanking (roles/desktop/gnome.nix), which disables the
+    # greeter compositor's idle tracking entirely, so the session pins
+    # IdleHint=no and blocks logind's IdleAction forever. Nobody "uses" a
+    # login screen: an active greeter session is idle by definition. This
+    # timer marks it so within ~30s of the greeter becoming the active
+    # session; IdleActionSec=30 then suspends ~30s later (never earlier than
+    # HoldoffTimeoutSec=60 after boot/resume). Applies on AC and battery
+    # alike — with no user logged in there is nothing to protect. Repeated
+    # SetIdleHint(yes) calls are no-ops in logind, so the periodic re-run
+    # doesn't reset the idle clock.
+    services.greeter-idle-hint = {
+      description = "Mark an active greeter session idle so IdleAction can fire";
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = pkgs.writeShellScript "greeter-idle-hint" ''
+          sid=$(${pkgs.systemd}/bin/loginctl show-seat seat0 -p ActiveSession --value 2>/dev/null)
+          [ -n "$sid" ] || exit 0
+          [ "$(${pkgs.systemd}/bin/loginctl show-session "$sid" -p Class --value 2>/dev/null)" = greeter ] || exit 0
+          [ "$(${pkgs.systemd}/bin/loginctl show-session "$sid" -p IdleHint --value 2>/dev/null)" = yes ] && exit 0
+          path=$(${pkgs.systemd}/bin/busctl call org.freedesktop.login1 /org/freedesktop/login1 \
+            org.freedesktop.login1.Manager GetSession s "$sid" | ${pkgs.gawk}/bin/awk '{gsub(/"/, ""); print $2}')
+          [ -n "$path" ] || exit 0
+          ${pkgs.systemd}/bin/busctl call org.freedesktop.login1 "$path" \
+            org.freedesktop.login1.Session SetIdleHint b true
+          ${pkgs.util-linux}/bin/logger -t greeter-idle-hint "greeter session $sid active, IdleHint set, IdleAction suspend follows in ~30s"
+        '';
+      };
+    };
+
+    timers.greeter-idle-hint = {
+      description = "Periodic greeter idle-hint check";
+      wantedBy = ["timers.target"];
+      timerConfig = {
+        OnBootSec = "30s";
+        OnUnitActiveSec = "30s";
+        AccuracySec = "5s";
       };
     };
   };
