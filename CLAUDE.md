@@ -131,6 +131,24 @@ Modules expose behavior through `custom.*` options rather than direct NixOS opti
 
 **Overriding app launch flags:** Use `xdg.desktopEntries.<name>` in home-manager to replace a package's `.desktop` file with a modified `exec` line (e.g. adding `--disable-gpu`). Place it alongside the package declaration in `users/common/` or `users/thomasga/`.
 
+### Home Assistant Automations
+
+Home Assistant automations are declared in Nix, **one file per concern**, under `hosts/<host>/home-assistant/`. A `default.nix` in that directory imports each concern file, and the host's `configuration.nix` imports the directory (`./home-assistant`, which resolves to its `default.nix`).
+
+```text
+hosts/defiant/home-assistant/
+├── default.nix        # imports each concern file below
+├── outside-lights.nix # arrival/departure outside lights
+└── door-locks.nix     # nightly door lock
+```
+
+Rules for this layer:
+
+- **One feature-area per file**, named for the concern (`outside-lights.nix`, `door-locks.nix`) — not a single catch-all automations file, and not a flat `hosts/<host>/home-assistant.nix` (that name collides with the `modules/home-assistant.nix` service module). To add an automation, create `hosts/<host>/home-assistant/<concern>.nix` and import it in that directory's `default.nix`.
+- Each file contributes to `services.home-assistant.config."automation manual"` (a list). NixOS merges the lists across files, so the concern files coexist without conflict. Use the `"automation manual"` key, **not** bare `"automation"`, so Nix-declared automations coexist with UI-created ones (`services.home-assistant.configWritable = true` writes the latter to `automations.yaml`).
+- A concern file may also hold that concern's related HA config — helpers, scripts, template sensors — not just automations.
+- This directory is **only** per-concern automation/config content. The Home Assistant *service* itself (package, `extraComponents`, HTTP/proxy) is configured by the reusable module at `modules/home-assistant.nix` (`custom.home-assistant`) plus the host's `extraComponents` in `configuration.nix`.
+
 ### Secrets Architecture
 
 Secrets never exist as plaintext on disk. The flow is:

@@ -6,7 +6,7 @@
 in {
   imports = [
     ./secrets.nix
-    ./home-assistant.nix
+    ./home-assistant
     "${modulesPath}/installer/sd-card/sd-image-aarch64.nix"
 
     ../../roles/common
@@ -124,6 +124,12 @@ in {
         # Pairing each accessory's 8-digit code is a one-time UI step;
         # listing the component here just installs its backend.
         "homekit_controller"
+        # matter: talks to the python-matter-server enabled by custom.matter
+        # below (ws://localhost:5580/ws). Backs the Aqara U100 locks bridged
+        # through the Aqara M2 hub, and the future office FP1e presence sensor.
+        # Adding the integration and commissioning the hub's pairing code are
+        # one-time UI steps; this just installs the component's backend.
+        "matter"
         "ssdp"
         "zwave_js"
         "mqtt"
@@ -141,6 +147,8 @@ in {
     };
 
     mqtt.enable = true;
+
+    matter.enable = true;
 
     zigbee = {
       enable = true;

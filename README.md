@@ -681,7 +681,7 @@ After the system boots:
 
 ## Provisioning defiant (Raspberry Pi 4)
 
-defiant is a headless aarch64 homelab server running Traefik, Home Assistant, AdGuard Home, Zigbee2MQTT, Z-Wave JS, and ADS-B.
+defiant is a headless aarch64 homelab server running Traefik, Home Assistant, the Matter server, AdGuard Home, Zigbee2MQTT, Z-Wave JS, and ADS-B.
 
 ### Phase 0 — Preparation (on enterprise-d, before touching the Pi)
 
