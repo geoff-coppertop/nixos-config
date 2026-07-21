@@ -98,7 +98,9 @@ flake.nix
 | `flake.nix` | Single entry point; defines inputs, dev shell, checks, secret apps, and `nixosConfigurations.enterprise-d` |
 | `hosts/enterprise-d/` | Hardware scan, disko disk layout, power/hibernate policy, machine imports |
 | `roles/common/` | Base OS settings, single user (`thomasga`), NetworkManager Wi-Fi profiles, network discovery (avahi/mDNS), Steam, Flatpak |
-| `roles/desktop/gnome.nix` | GNOME baseline, unwanted app removal, search-light extension |
+| `roles/desktop/default.nix` | Declares `custom.desktop.environment` and imports the DE files below |
+| `roles/desktop/login.nix` | GDM login manager (DE-independent): fingerprint row, greeter dconf profile, printing |
+| `roles/desktop/gnome.nix` | GNOME session (gated on the DE option): baseline, unwanted app removal, search-light extension |
 | `roles/dev/` | Dev tooling: GitHub CLI, podman/podman-compose |
 | `modules/` | Opt-in NixOS features: backups, btrfs, snapper, agenix secrets, secure boot, TPM-LUKS, SSH known-hosts |
 | `users/thomasga/` | Git, SSH, fish shell, GNOME dconf settings, VS Code, wallpaper |
@@ -120,6 +122,7 @@ Modules expose behavior through `custom.*` options rather than direct NixOS opti
 - `custom.btrfs.enable` — btrfs compression on root filesystem
 - `custom.snapper.enable` — snapper btrfs snapshot schedules
 - `custom.tpmLuks.enable` — TPM2-sealed LUKS root unlock
+- `custom.desktop.environment` — selects the desktop environment / Wayland compositor (currently `"gnome"`, default `"gnome"`). GDM is the login manager regardless; the choice only changes which session it launches. Gates both the system role file (`roles/desktop/gnome.nix`) and the home-manager file (`users/thomasga/gnome.nix`, via `osConfig`). Adding an environment means adding its enum value plus gated `roles/desktop/<de>.nix` and `users/<name>/<de>.nix` files
 - `custom.networkDrives` — auto-mount SMB shares at graphical login; configure `nas.host` and per-user `shares.<name>` entries
 - `custom.appearance.darkMode` — system-wide dark mode (home-manager, defined in `users/common/appearance.nix`)
 - `custom.ai.claude.enable` / `custom.ai.copilot.enable` — Claude AI tools / GitHub Copilot integration in VS Code

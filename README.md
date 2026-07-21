@@ -1336,6 +1336,21 @@ Use this decision guide:
 - If software affects a person's workflow, put it in that user's home-manager config.
 - If several users may want it, create a reusable opt-in user module.
 
+### Desktop Environment Selection
+
+The desktop role is DE-agnostic. `custom.desktop.environment` selects the session; everything else (GDM, PipeWire, the power/idle/hibernate chain, dark-mode dconf, NAS mounts) is shared and unchanged by the choice.
+
+```nix
+# hosts/<machine>/configuration.nix
+custom.desktop.environment = "gnome"; # the default
+```
+
+- System side: `roles/desktop/gnome.nix` is wrapped in `lib.mkIf (config.custom.desktop.environment == "gnome")`, so it only installs anything when selected. `roles/desktop/login.nix` (GDM) is always present.
+- Home side: `users/thomasga/gnome.nix` gates the same way on `osConfig.custom.desktop.environment` (home-manager runs as a NixOS module here, so it can read the system option). DE-neutral bits — wallpaper, avatar, Steam-shortcut cleanup, launcher hygiene — live in `users/thomasga/desktop-common.nix` and load regardless.
+- GDM stays the login manager for whichever session is selected; its greeter is a GNOME Shell session, so `gnome-shell` remains in the closure. That is the accepted cost of a reliable fingerprint-at-login row.
+
+Adding another environment (e.g. a Wayland compositor) is: add its value to the `custom.desktop.environment` enum in `roles/desktop/default.nix`, add a gated `roles/desktop/<de>.nix` (system) and `users/<name>/<de>.nix` (home), and import the system file. No shared file needs to change.
+
 ### Remove GNOME Applications You Do Not Want
 
 GNOME package pruning belongs in `roles/desktop/gnome.nix`, not in per-user config.
@@ -1363,7 +1378,7 @@ Shared optional apps for a user can live in `users/common/`. For example, a modu
 
 Current concrete ownership in this repo:
 
-- `roles/desktop/gnome.nix` enables GNOME, GDM, and dconf settings. `roles/desktop/audio.nix` enables pipewire. `roles/desktop/power.nix` runs the logind idle inhibitor.
+- `roles/desktop/login.nix` enables GDM (the login manager for every session). `roles/desktop/gnome.nix` installs the GNOME session, gated on `custom.desktop.environment`. `roles/desktop/audio.nix` enables pipewire. `roles/desktop/power.nix` runs the logind idle inhibitor.
 - `roles/common/flatpak.nix` enables Flatpak and Flatseal as optional platform services.
 - `roles/common/gaming.nix` enables Steam as an optional gaming platform.
 - `roles/common/base.nix` contains core system policy.
@@ -1400,10 +1415,11 @@ If the source wallpaper format is not one GNOME reliably consumes directly, keep
 For `thomasga`, the concrete setup is:
 
 - Source asset: `users/thomasga/files/wallpapers/space-shuttle.jxl`
-- Conversion and GNOME settings: `users/thomasga/gnome.nix`
+- Conversion and linking (DE-neutral): `users/thomasga/desktop-common.nix`
+- GNOME background dconf: `users/thomasga/gnome.nix`
 - Resulting linked wallpaper: `~/Pictures/Wallpapers/space-shuttle.png`
 
-`users/thomasga/gnome.nix` converts the checked-in Fedora `.jxl` source to `.png` with `pkgs.libjxl` and points both `picture-uri` and `picture-uri-dark` at the generated PNG. That avoids relying on runtime JPEG XL wallpaper support.
+`users/thomasga/desktop-common.nix` converts the checked-in Fedora `.jxl` source to `.png` with `pkgs.libjxl` and links it into `~/Pictures/Wallpapers/`. The GNOME session points `picture-uri`/`picture-uri-dark` at it. That avoids relying on runtime JPEG XL wallpaper support.
 
 ### Validation Commands
 
