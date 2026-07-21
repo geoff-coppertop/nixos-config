@@ -16,7 +16,10 @@ nixpkgs.lib.nixosSystem {
     [
       {
         nixpkgs.config.allowUnfree = true;
-        nixpkgs.overlays = [nix-vscode-extensions.overlays.default];
+        nixpkgs.overlays = [
+          nix-vscode-extensions.overlays.default
+          (import ../overlays/paho-mqtt-skip-flaky-tests.nix)
+        ];
         # VS Code rewrites ~/.vscode/argv.json on startup, clobbering the
         # home-manager-managed version. Without a backup extension, the next
         # rebuild fails on activation. Renaming to .backup lets activation

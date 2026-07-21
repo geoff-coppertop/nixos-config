@@ -78,6 +78,12 @@ in {
   # full emulation, not native — but there's no remote aarch64 builder set up.
   boot.binfmt.emulatedSystems = ["aarch64-linux"];
 
+  # bitwarden-desktop is still pinned to electron_39 upstream (EOL, no more
+  # security patches); nixpkgs marks it insecure. Known, currently-open
+  # packaging lag (nixpkgs#529107, nixpkgs#526914) — remove this once
+  # bitwarden-desktop is rebuilt against a supported electron release.
+  nixpkgs.config.permittedInsecurePackages = ["electron-39.8.10"];
+
   networking.hostName = "enterprise-d";
   networking.hosts.${nas.ip} = [nas.host];
 
