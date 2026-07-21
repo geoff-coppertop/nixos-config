@@ -11,6 +11,7 @@
     ./fwupd.nix
     ./gaming.nix
     ./home-assistant.nix
+    ./matter.nix
     ./mqtt.nix
     ./network-drives.nix
     ./secrets.nix

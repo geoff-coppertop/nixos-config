@@ -1,4 +1,4 @@
-# Home Assistant automations for defiant, declared in Nix.
+# Home Assistant automation for defiant: outside lights on arrival/departure.
 #
 # Turns the outside lights on when someone is likely leaving or arriving from
 # work/school, but only while the sun is below the horizon (dark enough to need
