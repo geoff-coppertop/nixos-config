@@ -1,4 +1,27 @@
-{pkgs, ...}: {
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}: {
+  # Fail the build, not the 2%-battery moment, if the hibernate target
+  # drifts: the RTC hibernate chain is only sound while resumeDevice points
+  # at a configured swap device. /dev/vg/swap and /dev/mapper/vg-swap are
+  # the same LV under two names; compare normalised.
+  assertions = let
+    normalise = lib.replaceStrings ["/dev/mapper/vg-"] ["/dev/vg/"];
+    resume = config.boot.resumeDevice;
+  in [
+    {
+      assertion = resume != "";
+      message = "hibernate-trigger requires boot.resumeDevice to be set";
+    }
+    {
+      assertion = builtins.any (d: normalise d.device == normalise resume) config.swapDevices;
+      message = "boot.resumeDevice (${resume}) is not among swapDevices — hibernate has nowhere to write its image";
+    }
+  ];
+
   boot = {
     kernelParams = [
       "mem_sleep_default=s2idle"
@@ -48,17 +71,38 @@
   # hibernate` inline, lets systemd's own job scheduler defer it until
   # the suspend job actually finishes and the lock clears — no polling,
   # no fixed delay.
-  systemd.services.hibernate-trigger-hibernate = {
-    description = "Hibernate after an RTC-wakealarm-triggered resume";
-    after = ["systemd-suspend.service"];
-    serviceConfig = {
-      Type = "oneshot";
-      # -i (ignore-inhibitors): the app suspend-inhibitor that the watchdog
-      # forces past with `suspend -i` is still held on the RTC-wake resume, so a
-      # plain `systemctl hibernate` is refused and the machine just stays awake.
-      # Root is authorised non-interactively for hibernate-ignore-inhibit by the
-      # polkit rule in roles/desktop/power.nix — mirrors the suspend path.
-      ExecStart = "${pkgs.systemd}/bin/systemctl hibernate -i";
+  systemd.services = {
+    hibernate-trigger-hibernate = {
+      description = "Hibernate after an RTC-wakealarm-triggered resume";
+      after = ["systemd-suspend.service"];
+      # A failed hibernate (swap pressure, transient kernel error) would
+      # otherwise leave the machine awake and draining at the lock screen —
+      # the exact outcome this machinery exists to prevent — reported only as
+      # a quiet unit failure. The fallback re-suspends instead; that re-runs
+      # the sleep hook and re-arms the RTC alarm, so a failed hibernate
+      # becomes a retry-every-10-min loop (asleep between attempts, every
+      # attempt logged) rather than hours awake.
+      onFailure = ["hibernate-trigger-fallback.service"];
+      serviceConfig = {
+        Type = "oneshot";
+        # -i (ignore-inhibitors): the app suspend-inhibitor that the watchdog
+        # forces past with `suspend -i` is still held on the RTC-wake resume, so a
+        # plain `systemctl hibernate` is refused and the machine just stays awake.
+        # Root is authorised non-interactively for hibernate-ignore-inhibit by the
+        # polkit rule in roles/desktop/power.nix — mirrors the suspend path.
+        ExecStart = "${pkgs.systemd}/bin/systemctl hibernate -i";
+      };
+    };
+
+    hibernate-trigger-fallback = {
+      description = "Re-suspend after a failed RTC-triggered hibernate";
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = pkgs.writeShellScript "hibernate-trigger-fallback" ''
+          ${pkgs.util-linux}/bin/logger -t hibernate-trigger "hibernate FAILED, re-suspending to retry via the RTC cycle"
+          ${pkgs.systemd}/bin/systemctl suspend -i
+        '';
+      };
     };
   };
   # Arms the RTC wakealarm directly on suspend and decides on resume,
@@ -75,27 +119,48 @@
       delay_sec=600
       state_file=/run/hibernate-trigger-start
       wakealarm=/sys/class/rtc/rtc0/wakealarm
+      log() {
+        ${pkgs.util-linux}/bin/logger -t hibernate-trigger "$1"
+      }
 
       [ "$sleep_action" = suspend ] || exit 0
 
       case "$action" in
         pre)
           now=$(${pkgs.coreutils}/bin/date +%s)
-          echo "$now" > "$state_file"
           wake_at=$((now + delay_sec))
-          echo "$wake_at" > "$wakealarm" 2>/dev/null || true
-          ${pkgs.util-linux}/bin/logger -t hibernate-trigger "suspend starting at $now, wakealarm armed for $wake_at (+''${delay_sec}s)"
+          # Clear any leftover alarm first: the sysfs interface rejects a new
+          # value while one is armed, so a stale alarm (e.g. crash between pre
+          # and post) would otherwise make this arm fail.
+          echo 0 > "$wakealarm" 2>/dev/null || true
+          # Verify the arm and record the outcome in the state file. Without
+          # this, a silently failed arm leaves the machine suspended until a
+          # real user wake hours later — whose huge elapsed time the post
+          # branch would misread as the timer firing, force-hibernating the
+          # machine right as the user resumes it.
+          if echo "$wake_at" > "$wakealarm" 2>/dev/null; then
+            echo "$now armed" > "$state_file"
+            log "suspend starting at $now, wakealarm armed for $wake_at (+''${delay_sec}s)"
+          else
+            echo "$now failed" > "$state_file"
+            log "suspend starting at $now, FAILED to arm wakealarm, timed hibernate disabled for this cycle"
+          fi
           ;;
         post)
           now=$(${pkgs.coreutils}/bin/date +%s)
-          start=$(${pkgs.coreutils}/bin/cat "$state_file" 2>/dev/null || echo "$now")
+          start=""
+          armed=""
+          [ -f "$state_file" ] && read -r start armed < "$state_file"
+          [ -n "$start" ] || start=$now
           elapsed=$((now - start))
           echo 0 > "$wakealarm" 2>/dev/null || true
-          if [ "$elapsed" -ge $((delay_sec - 5)) ]; then
-            ${pkgs.util-linux}/bin/logger -t hibernate-trigger "resumed at $now, elapsed=''${elapsed}s, triggering hibernate"
+          if [ "$armed" != armed ]; then
+            log "resumed at $now, elapsed=''${elapsed}s, wakealarm was never armed, not hibernating"
+          elif [ "$elapsed" -ge $((delay_sec - 5)) ]; then
+            log "resumed at $now, elapsed=''${elapsed}s, triggering hibernate"
             ${pkgs.systemd}/bin/systemctl start --no-block hibernate-trigger-hibernate.service
           else
-            ${pkgs.util-linux}/bin/logger -t hibernate-trigger "resumed at $now, elapsed=''${elapsed}s, early wake, no hibernate"
+            log "resumed at $now, elapsed=''${elapsed}s, early wake, no hibernate"
           fi
           ;;
       esac

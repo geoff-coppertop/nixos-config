@@ -63,6 +63,11 @@ in {
     # tracking in GDM's session so the screen can never blank due to
     # accumulated idle time on resume.
     #
+    # Side effect: the greeter session then never sets logind IdleHint, which
+    # would block IdleAction (login-screen auto-suspend) forever. The
+    # greeter-idle-hint timer in roles/desktop/power.nix compensates by
+    # marking any active greeter-class session idle at the system level.
+    #
     # idle-activation-enabled=false and lock-enabled=false prevent GDM's screen
     # shield from activating when logind sends PrepareForSleep(false) on resume.
     #

@@ -73,7 +73,9 @@ A non-empty result confirms TPM2 enrollment is active.
 | 10 min suspended | Hibernate |
 | Critical battery | Immediate hibernate, bypassing suspend |
 
-On battery, sustained idle always wins: logind's `IdleAction` suspends at ~4.5 min when nothing inhibits, and the `battery-idle-suspend` watchdog forces `systemctl suspend -i` at 5 min if an application (e.g. a Firefox tab "Playing video") holds a suspend inhibitor that would otherwise block it indefinitely. The forced suspend relies on a polkit rule granting root the `suspend-ignore-inhibit` action non-interactively (the watchdog is a system service with no auth agent). Each forced suspend is logged under `journalctl -t battery-idle-suspend`.
+On battery, sustained idle always wins: logind's `IdleAction` suspends at ~4.5 min when nothing inhibits, and the `battery-idle-suspend` watchdog forces `systemctl suspend -i` at 5 min if an application (e.g. a Firefox tab "Playing video") holds a suspend inhibitor that would otherwise block it indefinitely. The forced suspend relies on a polkit rule granting root the `suspend-ignore-inhibit` action non-interactively (the watchdog is a system service with no auth agent). The watchdog logs every countdown transition under `journalctl -t battery-idle-suspend`: countdown started, countdown reset (with the reason — back on AC, no active session, session active again, remote session active), and the forced suspend itself. Steady-state runs where nothing was in progress stay silent.
+
+Two refinements to "idle wins": *foreground* media playback holds an idle inhibit on the visible surface, so the session never reads idle and no countdown starts — watching a movie is activity, and critical-battery hibernate backstops the walked-away case. And **active SSH sessions count as activity**: the `remote-session-idle-inhibitor` service blocks logind's `IdleAction` while a remote login exists, and the watchdog independently skips its forced suspend for the same reason (it ignores inhibitors by design, so it needs its own check).
 
 ### GDM login screen (no user logged in)
 
@@ -81,10 +83,10 @@ Behaviour is identical on AC and battery — there are no running user processes
 
 | Trigger | Action |
 | --- | --- |
-| 30 s idle | Suspend, hibernate after 10 min |
+| ~60–90 s at the login screen | Suspend, hibernate after 10 min |
 | 10 min suspended | Hibernate |
 
-The 30 s window applies from when the login screen goes idle, which itself follows GNOME's default `idle-delay`. In practice the screen is unattended from first appearance, so this fires approximately 30 s after GDM starts.
+The greeter's own compositor cannot report idle — the GDM dconf profile sets `idle-delay=0` to fix resume blanking, which disables its idle tracking entirely. Instead, the system-level `greeter-idle-hint` timer (30 s tick) marks any *active* greeter-class session idle via logind `SetIdleHint`, and logind's `IdleActionSec=30` suspends ~30 s after that. Net: suspend lands ~60–90 s after the login screen appears, never earlier than logind's 60 s holdoff after boot/resume. The mechanism is display-manager-agnostic (`greeter` is a logind session class, not a GDM concept) and logs under `journalctl -t greeter-idle-hint`. Caveat: the manual hint doesn't clear on greeter keystrokes, so standing at the login screen for over a minute without logging in can suspend mid-entry — accepted, matching the old "screen is unattended in practice" assumption.
 
 ## Resuming
 
@@ -95,9 +97,9 @@ The 30 s window applies from when the login screen goes idle, which itself follo
 
 | File | Responsibility |
 | --- | --- |
-| `hosts/enterprise-d/power.nix` | logind lid/key actions, `IdleAction`, RTC wakeup kernel param, `hibernate-trigger` system-sleep hook (arms RTC wakealarm, decides hibernate on resume, logging) |
-| `roles/desktop/power.nix` | `logind-idle-inhibitor` user service (blocks logind `IdleAction` only while on AC) and the `battery-idle-suspend` watchdog (forces `suspend -i` on battery past 5 min idle, overriding application inhibitors, via a root polkit grant); shared Mains-only AC-detection helper |
-| `users/thomasga/gnome.nix` | GNOME idle/sleep dconf settings: screen blank at 4 min, battery sleep at 5 min, lock on blank, critical battery hibernate |
+| `hosts/enterprise-d/power.nix` | logind lid/key actions, `IdleAction`, RTC wakeup kernel param, `hibernate-trigger` system-sleep hook (arms RTC wakealarm, decides hibernate on resume, logging), `hibernate-trigger-fallback` (re-suspends on a failed hibernate so the RTC cycle retries instead of draining awake), build-time assertions that `resumeDevice` matches a configured swap device |
+| `roles/desktop/power.nix` | UPower critical-battery hibernate; `idle-hint` user service (swayidle sets logind `IdleHint` on `ext-idle-notify-v1` compositors, skipped on GNOME/gdm, start-limited so an unsupported compositor fails visibly); `greeter-idle-hint` system timer (marks an active greeter-class session idle so the login screen can suspend); `logind-idle-inhibitor` user service (blocks logind `IdleAction` only while on AC, skipped for gdm); `remote-session-idle-inhibitor` (SSH counts as activity) and the `battery-idle-suspend` watchdog (forces `suspend -i` on battery past 5 min idle, overriding application inhibitors, via a root polkit grant; skips when a remote session is active); shared Mains-only AC-detection and remote-session helpers |
+| `users/thomasga/gnome.nix` | GNOME-side dconf only: screen blank at 4 min (which is also when Mutter sets logind `IdleHint` — the suspend chain's trigger), lock on blank, gsd-power disabled from sleeping the system |
 
 ### Why a self-owned RTC trigger instead of `suspend-then-hibernate`
 
@@ -146,13 +148,37 @@ journalctl -t hibernate-trigger
 ```
 
 Each cycle logs the wakealarm arming time on suspend, and on resume, the
-elapsed time and whether hibernate was triggered. If hibernate is ever
-skipped unexpectedly, or a spurious wake reappears, this is the first thing
-to check, alongside `journalctl -k -b -1` for the wake cause.
+elapsed time and whether hibernate was triggered. The pre-suspend side
+clears any leftover alarm, verifies the new arm succeeded, and records the
+outcome in the state file; a failed arm is logged loudly (`FAILED to arm
+wakealarm`) and the resume side then refuses the hibernate decision for
+that cycle — otherwise a much-later user wake would be misread as the
+timer firing and hibernate the machine mid-resume. If the hibernate itself
+fails, `hibernate-trigger-fallback` logs `hibernate FAILED, re-suspending`
+under the same tag and re-suspends, re-arming the RTC cycle — a failed
+hibernate retries every ~10 min from sleep instead of draining awake. If
+hibernate is ever skipped unexpectedly, or a spurious wake reappears, this
+is the first thing to check, alongside `journalctl -k -b -1` for the wake
+cause.
+
+### DE independence
+
+Suspend/hibernate policy lives entirely at the systemd/logind/UPower layer, so it survives swapping GNOME/GDM for another desktop (COSMIC, Hyprland, …):
+
+- **logind** owns lid actions, idle suspend (`IdleAction`), and — via the `hibernate-trigger` hook — the suspend→hibernate chain (`hosts/enterprise-d/power.nix`).
+- **UPower** owns critical-battery hibernate (`criticalPowerAction = "Hibernate"` at 2%, `roles/desktop/power.nix`). The upower daemon performs the action itself; no DE involvement.
+- The one thing the active session must provide: set the logind session `IdleHint` at ~240 s of inactivity — that hint is what `IdleAction` and the `battery-idle-suspend` watchdog key off. GNOME/Mutter sets it natively at `idle-delay`. Any compositor implementing `ext-idle-notify-v1` (COSMIC, Hyprland, sway) is covered by the `idle-hint` swayidle user service, which skips itself on GNOME (Mutter doesn't speak that protocol).
+- Greeter sessions get the hint from the system instead: the `greeter-idle-hint` timer marks any active greeter-class session idle after ~30 s, since login-screen compositors either disable idle tracking (GDM here, deliberately) or can't be relied on for it. `greeter` is a logind session class, so this covers any display manager's login screen unchanged.
+
+Requirements for a replacement DE:
+
+1. Its session must reach `graphical-session.target` in the systemd user manager (GNOME and COSMIC do; Hyprland needs its uwsm/systemd session variant), so the `idle-hint` and `logind-idle-inhibitor` services start.
+2. Its own power manager must be told not to sleep the system, so it never races logind — the GNOME equivalent is the `sleep-inactive-*` keys in `users/thomasga/gnome.nix`.
+3. Screen blank/lock timing stays a per-DE concern; only the `IdleHint` timing (240 s) needs to be kept consistent.
 
 ### Why the idle inhibitor is needed
 
-logind's `IdleAction = suspend-then-hibernate` fires for any session that goes idle, including logged-in user sessions. The `logind-idle-inhibitor` systemd user service holds a logind `idle` inhibitor while the user is active, preventing the 30 s GDM timer from also firing during desktop use. GNOME's own power plugin handles user-session sleep instead.
+logind's `IdleAction = suspend` fires for any session that goes idle, including logged-in user sessions. The `logind-idle-inhibitor` systemd user service holds a logind `idle` inhibitor while on AC, implementing the "on AC, never sleep" half of the policy; on battery no inhibitor is held and `IdleAction` fires ~30 s after the session sets `IdleHint`.
 
 ### Why `gdm.autoSuspend = false` and GDM screensaver disabled
 
