@@ -126,7 +126,7 @@ Two more opt-in modules add update mechanisms for specific hosts:
 | --- | --- | --- |
 | `enterprise-d` | `sudo nixos-rebuild switch --flake .#enterprise-d` | On `enterprise-d` |
 | `holodeck-01` | `sudo nixos-rebuild switch --flake .#holodeck-01` | Inside the WSL distro |
-| `defiant` | `nixos-rebuild switch --flake .#defiant --target-host thomasga@defiant --use-remote-sudo` | From any machine with SSH + Nix |
+| `defiant` | `nixos-rebuild switch --flake .#defiant --target-host thomasga@192.168.20.10 --sudo` | From any machine with SSH + Nix |
 | `enterprise-d` (remote) | `nixos-rebuild switch --target-host thomasga@enterprise-d --flake .#enterprise-d` | From any machine with SSH + Nix |
 
 ### Monthly flake input update
@@ -795,8 +795,8 @@ as the tool exits, no manual eject needed.
 
 ```bash
 nixos-rebuild switch --flake .#defiant \
-  --target-host thomasga@defiant \
-  --use-remote-sudo
+  --target-host thomasga@192.168.20.10 \
+  --sudo
 ```
 
 Zigbee2MQTT and Z-Wave JS start up using the keys created in Phase 0 — no
@@ -824,7 +824,7 @@ further extraction step needed.
 Clients needing unfiltered DNS (skips AdGuard ad-blocking, retains `coppertop.ca` resolution):
 
 ```bash
-dig @defiant -p 5335 home.coppertop.ca
+dig @192.168.20.10 -p 5335 home.coppertop.ca
 ```
 
 Point a device at `<defiant-ip>:5335` in its DNS settings to bypass AdGuard permanently.
