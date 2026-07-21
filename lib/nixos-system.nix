@@ -6,6 +6,7 @@
   nix-flatpak,
   nix-vscode-extensions,
   dotfiles,
+  cosmic-manager,
 }: {
   system,
   extraModules,
@@ -31,6 +32,10 @@ nixpkgs.lib.nixosSystem {
           extraSpecialArgs = {
             inherit dotfiles;
           };
+          # COSMIC declarative config module. Adds the wayland.desktopManager.cosmic
+          # option tree to every home-manager user; inert unless enabled, which
+          # only happens under custom.desktop.environment = "cosmic".
+          sharedModules = [cosmic-manager.homeManagerModules.default];
         };
       }
       home-manager.nixosModules.home-manager
