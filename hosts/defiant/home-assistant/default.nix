@@ -16,5 +16,6 @@
   imports = [
     ./outside-lights.nix
     ./door-locks.nix
+    ./presence-lighting.nix
   ];
 }
