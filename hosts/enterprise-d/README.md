@@ -15,10 +15,10 @@
 After the system boots:
 
 1. **Enroll TPM2 for LUKS auto-unlock** (see [TPM Auto-Unlock](#tpm-auto-unlock))
-2. **Collect the SSH host public key** and add it to `lib/ssh-hosts.nix` (see the main [README](../../README.md))
-3. **Generate and install your SSH login credentials** (see the main [README](../../README.md))
+2. **Collect the SSH host public key** and add it to `lib/ssh-hosts.nix` (see [docs/ssh.md](../../docs/ssh.md#collect-and-pin-the-host-key-after-deploy))
+3. **Generate and install your SSH login credentials** (see [docs/ssh.md](../../docs/ssh.md#generate-ssh-login-credentials))
 4. **Test hibernation** (see [Verification](#verification))
-5. **Validate the system** (see the main [README](../../README.md))
+5. **Validate the system** (see [docs/operations.md](../../docs/operations.md#validation-commands))
 
 ### TPM Auto-Unlock
 
