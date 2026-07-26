@@ -111,6 +111,21 @@ nix-shell -p python3 git --run \
   'python3 <(curl -fsSL https://raw.githubusercontent.com/geoff-coppertop/nixos-config/master/tools/install.py)'
 ```
 
+To install from a branch other than `master` (e.g. to test an unmerged change),
+point both the curl URL and `NIXOS_CONFIG_REF` at that branch:
+
+```bash
+nix-shell -p python3 git --run \
+  'NIXOS_CONFIG_REF=my-branch python3 <(curl -fsSL https://raw.githubusercontent.com/geoff-coppertop/nixos-config/my-branch/tools/install.py)'
+```
+
+Both matter: `NIXOS_CONFIG_REF` controls which ref the self-bootstrap step
+passes to `git clone -b` for the repo it re-execs from, but the curl URL
+controls which version of `install.py` runs *before* that clone/re-exec
+happens. If the branch changes anything in the bootstrap logic itself, only
+curling that branch picks it up — setting `NIXOS_CONFIG_REF` alone still
+runs `master`'s pre-clone code first.
+
 It prompts for a machine from the menu, then automatically:
 
 1. Clones the repo to `/tmp/nixos-config` and re-runs itself from there
