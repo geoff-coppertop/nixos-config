@@ -41,7 +41,11 @@ in {
         inherit (cfg.acme) email dnsProvider environmentFile;
       };
       certs.${domain} = {
-        domain = "*.${domain}";
+        # Cover the apex (for a landing page at the bare domain) and the
+        # wildcard: a *.domain wildcard does not match the bare apex, so it
+        # needs its own SAN entry.
+        domain = domain;
+        extraDomainNames = ["*.${domain}"];
         group = "traefik";
         # Without this, Traefik never learns a new cert exists — it keeps
         # serving whatever it loaded at its own startup (the self-signed

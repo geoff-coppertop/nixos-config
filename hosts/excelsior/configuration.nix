@@ -121,6 +121,9 @@ in {
       # the matching extraRecords). AdGuard's admin UI (dns2) still goes through
       # defiant's cross-host router, so adminSubdomain is left at the default.
       subdomains = ["jellyfin" "arm" "tmm"];
+      # The coppertop.ca landing page (Homepage) runs on defiant; both
+      # resolvers must return the same apex record.
+      apexRecord = "192.168.20.10";
     };
 
     # Traefik on excelsior fronts its own media services so heavy Jellyfin

@@ -7,6 +7,7 @@ in {
   imports = [
     ./secrets.nix
     ./home-assistant
+    ./homepage.nix
     "${modulesPath}/installer/sd-card/sd-image-aarch64.nix"
 
     ../../profiles/common
@@ -120,6 +121,8 @@ in {
         arm = "192.168.1.10";
         tmm = "192.168.1.10";
       };
+      # Landing page (Homepage) runs on this host; resolve the bare apex here.
+      apexRecord = lanIp;
     };
 
     traefik = {
