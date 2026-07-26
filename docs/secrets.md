@@ -452,54 +452,6 @@ After the machine boots for the first time:
 Verify the fingerprint before committing. `ssh-keyscan` is a collection
 mechanism, not a trust oracle.
 
-## Disk Encryption And TPM
-
-`enterprise-d` encrypts the root filesystem with LUKS and seals it to the
-machine's TPM 2.0 chip.
-
-### The LUKS passphrase
-
-The disko configuration creates an encrypted root partition. `tools/install.py`
-prompts for a LUKS passphrase interactively during provisioning. That passphrase
-unlocks the root filesystem whenever the TPM is unavailable or tampered with.
-
-Save it in Bitwarden or another secure location **outside** the machine. You will
-need it if:
-
-- The TPM is reset or replaced
-- The firmware is updated and TPM state is cleared
-- You boot from a rescue USB and need to unlock the disk manually
-
-### Enrolling and verifying the TPM
-
-The enrollment and verification commands, including the PCR selection and what
-each PCR measures, live in
-[hosts/enterprise-d/README.md](../hosts/enterprise-d/README.md#tpm-auto-unlock).
-That is the canonical copy.
-
-### Change or reset the LUKS passphrase
-
-To change the passphrase while the system is running:
-
-```bash
-sudo cryptsetup luksChangeKey /dev/disk/by-partlabel/root
-```
-
-To wipe the passphrase slot and rely entirely on TPM2 unlock:
-
-```bash
-sudo systemd-cryptenroll /dev/disk/by-partlabel/root --wipe-slot=password
-```
-
-### TPM recovery and troubleshooting
-
-If the system does not auto-unlock at boot:
-
-1. **At the initrd prompt** you will be asked for the LUKS passphrase. Enter the
-   passphrase you created during install.
-2. **If you forgot the passphrase**, boot from a NixOS rescue USB and use
-   standard LUKS recovery tools.
-3. **If the TPM appears broken**, re-enroll the passphrase and optionally
-   re-enroll TPM2 after the system boots.
-4. **If Secure Boot or firmware state changed**, the TPM may not unlock
-   automatically. Either provide the passphrase or re-enroll TPM after boot.
+Disk encryption (LUKS and TPM) is not agenix material and is not this doc's
+concern — see
+[docs/provisioning.md § Disk Encryption And TPM](provisioning.md#disk-encryption-and-tpm).

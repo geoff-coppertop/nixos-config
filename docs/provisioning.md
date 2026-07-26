@@ -135,21 +135,6 @@ nix-shell -p python3 git --run \
   'python3 <(curl -fsSL https://raw.githubusercontent.com/geoff-coppertop/nixos-config/master/tools/install.py)'
 ```
 
-To install from a branch other than `master` (e.g. to test an unmerged change),
-point both the curl URL and `NIXOS_CONFIG_REF` at that branch:
-
-```bash
-nix-shell -p python3 git --run \
-  'NIXOS_CONFIG_REF=my-branch python3 <(curl -fsSL https://raw.githubusercontent.com/geoff-coppertop/nixos-config/my-branch/tools/install.py)'
-```
-
-Both matter: `NIXOS_CONFIG_REF` controls which ref the self-bootstrap step
-passes to `git clone -b` for the repo it re-execs from, but the curl URL
-controls which version of `install.py` runs *before* that clone/re-exec
-happens. If the branch changes anything in the bootstrap logic itself, only
-curling that branch picks it up — setting `NIXOS_CONFIG_REF` alone still
-runs `master`'s pre-clone code first.
-
 It prompts for a machine from the menu, then automatically:
 
 1. Clones the repo to `/tmp/nixos-config` and re-runs itself from there
@@ -191,13 +176,67 @@ For `enterprise-d`, the canonical checklist is
 
 In general, after first boot:
 
-1. Enroll TPM2 for LUKS auto-unlock, if the host uses it
+1. Enroll TPM2 for LUKS auto-unlock, if the host uses it — see
+   [Disk Encryption And TPM](#disk-encryption-and-tpm) below
 2. Collect the SSH host public key and pin it in `lib/ssh-hosts.nix` — see
    [docs/secrets.md](secrets.md#collect-and-pin-the-host-key-after-deploy)
 3. Verify the age identity is wired:
    `nix eval .#nixosConfigurations.<machine>.config.age.identityPaths --json`
 4. Run the checks in
    [docs/operations.md § Validation Commands](operations.md#validation-commands)
+
+## Disk Encryption And TPM
+
+`enterprise-d` encrypts the root filesystem with LUKS and seals it to the
+machine's TPM 2.0 chip.
+
+### The LUKS passphrase
+
+The disko configuration creates an encrypted root partition. `tools/install.py`
+prompts for a LUKS passphrase interactively during provisioning (Step 5). That
+passphrase unlocks the root filesystem whenever the TPM is unavailable or
+tampered with.
+
+Save it in Bitwarden or another secure location **outside** the machine. You will
+need it if:
+
+- The TPM is reset or replaced
+- The firmware is updated and TPM state is cleared
+- You boot from a rescue USB and need to unlock the disk manually
+
+### Enrolling and verifying the TPM
+
+The enrollment and verification commands, including the PCR selection and what
+each PCR measures, live in
+[hosts/enterprise-d/README.md](../hosts/enterprise-d/README.md#tpm-auto-unlock).
+That is the canonical copy.
+
+### Change or reset the LUKS passphrase
+
+To change the passphrase while the system is running:
+
+```bash
+sudo cryptsetup luksChangeKey /dev/disk/by-partlabel/root
+```
+
+To wipe the passphrase slot and rely entirely on TPM2 unlock:
+
+```bash
+sudo systemd-cryptenroll /dev/disk/by-partlabel/root --wipe-slot=password
+```
+
+### TPM recovery and troubleshooting
+
+If the system does not auto-unlock at boot:
+
+1. **At the initrd prompt** you will be asked for the LUKS passphrase. Enter the
+   passphrase you created during install.
+2. **If you forgot the passphrase**, boot from a NixOS rescue USB and use
+   standard LUKS recovery tools.
+3. **If the TPM appears broken**, re-enroll the passphrase and optionally
+   re-enroll TPM2 after the system boots.
+4. **If Secure Boot or firmware state changed**, the TPM may not unlock
+   automatically. Either provide the passphrase or re-enroll TPM after boot.
 
 ## SD-Card Hosts (`defiant`)
 
