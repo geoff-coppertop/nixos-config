@@ -1,26 +1,19 @@
 # Desktop And Workstation
 
-Application ownership, GNOME appearance, and the workstation tooling that needs
-host-level support.
+Application ownership, desktop appearance, and the workstation tooling that
+needs host-level support.
 
-The general rule this all derives from is
+This doc applies the placement rule to the desktop specifically; the rule
+itself, and where each layer's boundary sits, is
 [docs/architecture.md § Placement Rule](architecture.md#placement-rule).
 
 ## Application Policy
 
-Three layers own three different things:
+### Removing unwanted desktop applications
 
-1. **System modules** own hardware support, services, and mandatory tools.
-2. **Desktop roles** own the shared GNOME baseline and removal of unwanted GNOME
-   applications.
-3. **User home-manager modules** own optional desktop applications, dotfiles, and
-   personal workflows.
-
-### Removing GNOME applications
-
-GNOME package pruning belongs in `roles/desktop/gnome.nix`, not in per-user
-config. Typical candidates are Tour, Help, Games, and other default GNOME
-utilities you do not use.
+Desktop-environment package pruning belongs in `roles/desktop/` (today,
+`roles/desktop/gnome.nix`), not in per-user config. Typical candidates are
+default utilities you do not use — a tour app, a help viewer, bundled games.
 
 ### Making GUI apps optional per user
 
@@ -57,18 +50,20 @@ package policy, which is set in `flake.nix`.
 | `users/thomasga/desktop.nix` | Opts `thomasga` into that shared GUI set on desktop machines |
 | `users/thomasga/vscode.nix` | VS Code through home-manager rather than the system profile |
 
-## Theme, Background, And GNOME Preferences
+## Theme, Background, And Desktop Preferences
 
-Per-user GNOME appearance belongs under that user's home-manager config, not in
-the system desktop role.
+Per-user desktop appearance belongs under that user's home-manager config, not
+in the system desktop role.
 
 - Put wallpaper files under `users/<name>/files/`.
 - Link them into the home directory with `home.file` from a user module.
-- Set dark mode, accent color, and wallpaper through `dconf.settings` in a user
-  module such as `users/thomasga/gnome.nix`.
+- Set dark mode, accent color, and wallpaper through the desktop environment's
+  settings mechanism in a user module — today, GNOME's `dconf.settings`, as in
+  `users/thomasga/gnome.nix`.
 
-If the source wallpaper format is not one GNOME reliably consumes directly, keep
-the upstream source in the repo and convert it during the home-manager build.
+If the source wallpaper format is not one the desktop environment reliably
+consumes directly, keep the upstream source in the repo and convert it during
+the home-manager build.
 
 For `thomasga` the concrete setup is:
 

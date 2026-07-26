@@ -11,8 +11,10 @@ You own the homelab service layer and everything specific to `defiant`.
 
 ## Read first
 
-- `docs/homelab.md` — service module map, Traefik and DNS composition, Home
-  Assistant automation rules, adding a new service.
+- `docs/homelab.md` — Traefik and DNS composition, Home Assistant automation
+  rules, adding a new service. The `custom.*` option-to-module table itself is
+  canonical in `docs/architecture.md` § Custom Options — read that too when the
+  question is which option does what.
 - `hosts/defiant/README.md` — machine facts, service URLs, pairing quirks, and
   the known-gotchas list. Read the gotchas before changing any port, path, or
   `extraComponents` entry; each one records a failure that already happened.

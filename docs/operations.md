@@ -127,6 +127,12 @@ sudo nixos-rebuild dry-activate --flake .#enterprise-d
 sudo nixos-rebuild switch --flake .#enterprise-d
 ```
 
+The package and kernel baseline tracks whichever branch the `nixpkgs` input in
+`flake.nix` points at (`nixos-unstable` today). Moving to a more conservative or
+more aggressive baseline is the same mechanism: change the `nixpkgs` input's
+branch or revision, then run the three commands above — `nix flake update`
+picks up the new target, and the lock file records it.
+
 ### User environment updates (self-serve, no sudo)
 
 Each user can update their own home-manager environment without a full system
@@ -174,43 +180,14 @@ Each entry gets its **own restic repository**, and therefore its own
 
 ### Enabling backups on a host
 
-**1. Create the encrypted SMB credentials secret.** Add a recipient entry if the
-file is new:
+**1. Create the two secrets a backup entry needs**: an SMB credentials secret
+and a restic password secret, each exposed at a known path in the host's
+`secrets.nix`. The exact plaintext format for each, and the create/rotate
+command, are in
+[docs/secrets.md § Secret Inventory](secrets.md#secret-inventory) — don't
+improvise the format, it's parsed strictly.
 
-```nix
-"thomasga/nas-smb-credentials.age".publicKeys = [enterprise-d offlineAdmin];
-```
-
-Then create or rotate it:
-
-```bash
-EDITOR=nano nix run .#secret-edit -- secrets/thomasga/nas-smb-credentials.age
-```
-
-Its plaintext contents must be exactly:
-
-```text
-username=<nas-username>
-password=<nas-password>
-```
-
-Expose it at a known path in the host's `secrets.nix`:
-
-```nix
-age.secrets."thomasga/nas-smb-credentials".file =
-  ../../secrets/thomasga/nas-smb-credentials.age;
-```
-
-**2. Create or rotate the restic password secret** for each backup entry:
-
-```bash
-EDITOR=nano nix run .#secret-edit -- secrets/thomasga/restic-password.age
-```
-
-Exactly one line containing the password. See
-[docs/secrets.md § Secret Inventory](secrets.md#secret-inventory).
-
-**3. Set the NAS coordinates and enable the entries** in the host configuration:
+**2. Set the NAS coordinates and enable the entries** in the host configuration:
 
 ```nix
 custom.isLaptop = true; # omit or set false for non-laptops
@@ -233,7 +210,7 @@ Use `nas.protocol = "nfs"` and omit `credentialsFile` to switch to NFS.
 `lib/nas.nix` holds the shared NAS constants (`ip`, `host`, `shares`); prefer
 importing it over hardcoding the address.
 
-**4. Rebuild the host.**
+**3. Rebuild the host.**
 
 ### Checking backup status
 

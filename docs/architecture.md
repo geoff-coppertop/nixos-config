@@ -11,7 +11,7 @@ architectural decision.
 ```text
 flake.nix
   └── hosts/<machine>/        # machine-specific: hardware, disk, power
-        └── roles/            # shared system policy: networking, GNOME, gaming
+        └── roles/            # shared system policy: networking, desktop, gaming
               └── modules/    # reusable NixOS features: backups, secrets, secure boot
                     └── users/<name>/   # personal: dotfiles, shell, apps (home-manager)
                           └── users/common/   # opt-in shared user modules
@@ -109,7 +109,7 @@ The machines currently in this repo are listed in the [root README](../README.md
 | `hosts/defiant/` | Raspberry Pi 4 homelab server: SD image, homelab service config, Home Assistant automations |
 | `hosts/holodeck-01/` | NixOS-WSL instance |
 | `roles/common/` | Base OS settings, users, NetworkManager Wi-Fi profiles, network discovery, backups, gaming, Flatpak |
-| `roles/desktop/` | GNOME baseline, audio (pipewire), power/idle policy |
+| `roles/desktop/` | Desktop environment baseline, audio (pipewire), power/idle policy |
 | `roles/dev/` | Dev tooling: GitHub CLI, container runtime, network tools |
 | `modules/` | Opt-in reusable NixOS features (see the `custom.*` catalogue below) |
 | `modules/udev-rules/` | Verbatim upstream udev rule files loaded via `services.udev.packages` |
@@ -213,41 +213,12 @@ output, built by `mkHomeConfig` in `flake.nix`, so a user can apply their own
 environment without `sudo`. See
 [docs/operations.md](operations.md#user-environment-updates-self-serve-no-sudo).
 
-## Defining a New Machine
+The procedure to bring a new machine into existence — the files to create and
+the `mkNixosSystem` registration — is
+[docs/provisioning.md § Step 1](provisioning.md#step-1--define-the-machine-in-the-repo),
+not here. This doc is reference, not a runbook.
 
-1. Create `hosts/<machine-name>/`.
-2. Add `hosts/<machine-name>/configuration.nix` (imports hardware, power, disk).
-3. Add `hosts/<machine-name>/hardware.nix` (hardware-scan output).
-4. Add `hosts/<machine-name>/power.nix` (power and hibernate policy).
-5. Add `hosts/<machine-name>/disko.nix` (disk layout, if provisioning from this repo).
-6. Add `hosts/<machine-name>/default.nix` attaching home-manager for each user.
-7. Register the machine in `flake.nix` under `nixosConfigurations`:
-
-```nix
-nixosConfigurations."<machine-name>" = mkNixosSystem {
-  system = "x86_64-linux"; # or "aarch64-linux" for ARM machines
-  extraModules = [
-    ./hosts/<machine-name>
-    # add machine-specific modules as needed:
-    # disko.nixosModules.disko            (physical machines with declarative disk layout)
-    # lanzaboote.nixosModules.lanzaboote  (Secure Boot)
-    # nixos-wsl.nixosModules.default      (WSL machines)
-  ];
-};
-```
-
-Then follow [docs/provisioning.md](provisioning.md) to enroll and install it.
-
-## Change GNOME Or Kernel Policy Later
-
-The current baseline comes from
-`nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable"` in `flake.nix`.
-
-To change the baseline:
-
-1. Change the `nixpkgs` input to a different branch or revision.
-2. Update the lock file.
-3. Rebuild and test.
-
-That is the correct place to move between more conservative and more aggressive
-GNOME/kernel update policies.
+The current package/kernel baseline is set by the `nixpkgs` input in
+`flake.nix`. Changing it — including moving to a different branch — uses the
+same mechanism as a routine flake update; see
+[docs/operations.md § Monthly flake input update](operations.md#monthly-flake-input-update).

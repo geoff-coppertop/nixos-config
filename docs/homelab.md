@@ -4,18 +4,10 @@ The reusable service layer under `modules/`. All of it is currently enabled on
 `defiant`; machine-specific facts, URLs, and device quirks live in
 [hosts/defiant/README.md](../hosts/defiant/README.md).
 
-## Service Module Map
-
-| Option | Module | Provides |
-| --- | --- | --- |
-| `custom.dns` | `modules/dns.nix` | unbound recursive resolver on 5335 plus AdGuard Home on 53 |
-| `custom.traefik` | `modules/traefik.nix` | Reverse proxy, HTTP→HTTPS redirect, ACME wildcard certificate |
-| `custom.home-assistant` | `modules/home-assistant.nix` | Home Assistant, `extraComponents`, proxy trust |
-| `custom.mqtt` | `modules/mqtt.nix` | Mosquitto broker on 1883 |
-| `custom.matter` | `modules/matter.nix` | python-matter-server (`ws://localhost:5580/ws`) |
-| `custom.zigbee` | `modules/zigbee.nix` | Zigbee2MQTT, frontend on 8082 |
-| `custom.zwave` | `modules/zwave.nix` | Z-Wave JS WebSocket server |
-| `custom.adsb` | `modules/adsb.nix` | dump1090 ADS-B receiver, map on 8080 |
+The full option-to-module table is
+[docs/architecture.md § Custom Options § Homelab services](architecture.md#homelab-services) —
+that catalogue is canonical for every `custom.*` option in the repo. This doc
+covers how the homelab services compose and the conventions specific to them.
 
 ## Reverse Proxy And DNS
 

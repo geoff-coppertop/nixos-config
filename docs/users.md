@@ -3,7 +3,7 @@
 How a user is attached to a machine, how to add one, and the three patterns for
 managing their files.
 
-Desktop application policy, GNOME appearance, and workstation tooling live in
+Desktop application policy, desktop appearance, and workstation tooling live in
 [docs/desktop.md](desktop.md).
 
 ## The User Model
@@ -130,7 +130,7 @@ home-manager.users.alice.imports = [./home/alice.nix];
 ```
 
 **6. Add an SSH identity secret** and declare it in `hosts/<machine>/secrets.nix`
-— see [docs/ssh.md](ssh.md).
+— see [docs/secrets.md § SSH Keys And Host Trust](secrets.md#ssh-keys-and-host-trust).
 
 **7. Apply:**
 
@@ -144,13 +144,10 @@ and the user can self-serve from here on.
 
 ### Phase 2 — Self-serve updates (no sudo)
 
-```bash
-git pull   # or check out any branch
-home-manager switch --flake .#alice@enterprise-d
-```
-
-The user can iterate on dotfiles, shell config, and packages — anything under
-`users/alice/` — without involving a wheel user or rebuilding the system.
+Once the account exists, the user updates their own environment through the
+`home-manager switch --flake .#<user>@<machine>` mechanism in
+[docs/operations.md § User environment updates](operations.md#user-environment-updates-self-serve-no-sudo)
+— no wheel user or system rebuild involved from here on.
 
 ## Dotfiles And Shell Scripts
 

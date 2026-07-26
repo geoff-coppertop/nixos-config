@@ -26,7 +26,7 @@ them in sequence and reconcile the results.
 | --- | --- | --- |
 | Layer placement, new module or role, `custom.*` options, `flake.nix`/`lib/` wiring | `nix-architect` | `docs/architecture.md` |
 | Installing, enrolling, or reinstalling a machine; USB/SD/WSL media; Secure Boot | `nix-provisioner` | `docs/provisioning.md` |
-| Secrets, agenix, LUKS/TPM, SSH keys, Wi-Fi credentials | `secrets-warden` | `docs/secrets.md`, `docs/ssh.md` |
+| Secrets, agenix, LUKS/TPM, SSH keys, Wi-Fi credentials | `secrets-warden` | `docs/secrets.md` |
 | home-manager, dotfiles, GUI apps, GNOME, adding a user | `home-env` | `docs/users.md`, `docs/desktop.md` |
 | defiant services: Home Assistant, Zigbee, Z-Wave, Matter, MQTT, DNS, Traefik, ADS-B | `homelab-ops` | `docs/homelab.md` |
 | Rebuild, update, backups, lint, CI — **do not delegate** | handle inline | `docs/operations.md` |
@@ -37,72 +37,34 @@ Rules:
 - Any change to files in a domain updates that domain's doc in the same commit.
 - Do not run `/init`. It regenerates this file wholesale and will undo the
   structure above. Update the owning `docs/` file instead.
+- Provisioning a new machine spans three specialists in sequence:
+  `nix-architect` defines the host and registers it in `flake.nix`
+  (`docs/provisioning.md` Step 1 — file creation, so `nix-provisioner` cannot do
+  it), then `secrets-warden` handles identities and secrets (Step 2), then
+  `nix-provisioner` takes the rest (media, install, first boot).
 
 ## Documentation
 
 | Doc | Covers |
 | --- | --- |
-| `docs/architecture.md` | Layers, placement rule, machine naming, directory map, full `custom.*` catalogue, flake inputs, defining a new machine |
+| `docs/architecture.md` | Layers, placement rule, machine naming, directory map, full `custom.*` catalogue (canonical, all namespaces), flake inputs |
 | `docs/operations.md` | Workstation setup, dev shell and `tools/`, update policy, backups, validation commands, lint and CI |
-| `docs/provisioning.md` | Numbered install path for each provision type (`disko`, `sd-card`, `wsl`) |
-| `docs/secrets.md` | agenix model, age identities, create/rotate/rekey, secret inventory, Wi-Fi PSKs, LUKS and TPM |
-| `docs/ssh.md` | Login keys vs host keys, `enroll.py`, `lib/ssh-hosts.nix` schema and pinning |
+| `docs/provisioning.md` | Numbered install path for each provision type (`disko`, `sd-card`, `wsl`), including defining a new machine (Step 1) |
+| `docs/secrets.md` | agenix model, age identities, create/rotate/rekey, secret inventory, Wi-Fi PSKs, LUKS and TPM, SSH login keys vs host keys and `lib/ssh-hosts.nix` pinning |
 | `docs/users.md` | User model, adding a user, dotfiles patterns, home-manager idioms |
-| `docs/desktop.md` | Application ownership, GNOME theme, draw.io/Obsidian, Connect IQ, USB debug probes |
-| `docs/homelab.md` | Service module map, Traefik and DNS composition, Home Assistant automation rules |
+| `docs/desktop.md` | Application ownership, desktop theme, draw.io/Obsidian, Connect IQ, USB debug probes |
+| `docs/homelab.md` | Traefik and DNS composition, Home Assistant automation rules — the `custom.*` option table itself is in `docs/architecture.md` |
 
-## Common Commands
+## Common Commands And Placement Rule
 
-All commands assume Nix with flakes enabled and the shell already at the repo
-root.
+Not restated here — they live in exactly one place each, and a second copy
+drifts. Before any change, read:
 
-```bash
-nix develop                                  # dev shell (required for secret editing and lint tools)
-nix develop -c pre-commit run --all-files    # all linters and format checks
-nix flake check --no-build                   # evaluate every config, skip derivations
-```
-
-```bash
-# Build validation — x86_64 hosts build natively
-nix build .#nixosConfigurations.enterprise-d.config.system.build.toplevel
-nix build .#nixosConfigurations.holodeck-01.config.system.build.toplevel
-
-# aarch64 needs binfmt emulation or a native/remote builder (slow locally).
-# CI sidesteps this by building defiant on an ubuntu-24.04-arm runner.
-nix build .#nixosConfigurations.defiant.config.system.build.toplevel
-nix build .#nixosConfigurations.defiant.config.system.build.sdImage
-```
-
-Use `--no-build` on `nix flake check`, never the bare form: the bare form tries
-to build all `nixosConfigurations` including the aarch64 one, which fails with a
-platform mismatch on x86_64.
-
-```bash
-# Apply, per host
-sudo nixos-rebuild switch --flake .#enterprise-d
-sudo nixos-rebuild switch --flake .#holodeck-01           # inside the WSL distro
-nixos-rebuild switch --flake .#defiant \
-  --target-host thomasga@defiant --use-remote-sudo
-
-# Monthly flake input update
-nix flake update
-sudo nixos-rebuild dry-activate --flake .#enterprise-d
-
-# Secrets
-EDITOR=nano nix run .#secret-edit -- secrets/thomasga/restic-password.age
-nix run .#secret-rekey
-nix eval .#nixosConfigurations.enterprise-d.config.age.identityPaths --json
-```
-
-## Placement Rule
-
-- Machine behavior → `hosts/<machine>/` (machine-specific), `roles/` (shared
-  policy), or `modules/` (reusable feature).
-- Personal workflow → `users/<name>/` (home-manager).
-- Shared optional user feature → `users/common/`, imported by choice per user.
-
-Full version, with the layer diagram and the `custom.*` catalogue, in
-`docs/architecture.md`.
+- `docs/operations.md` for every command: dev shell, lint, `nix flake check
+  --no-build` (never bare — it builds the aarch64 config on x86_64 and fails),
+  per-host builds, rebuild/switch, flake updates, backups, CI.
+- `docs/secrets.md` for secret-editing and rekey commands.
+- `docs/architecture.md` § Placement Rule for where new configuration belongs.
 
 ## Hard Rules
 

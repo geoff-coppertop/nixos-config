@@ -17,30 +17,18 @@ Naming convention and the rest of the layout are in
 
 ## Quick Start
 
-Requires Nix 2.18+ with `experimental-features = nix-command flakes`. Run
-everything from the repo root.
-
-```bash
-nix develop                                  # dev shell: age, agenix, lint tools
-nix develop -c pre-commit run --all-files    # lint and format checks
-nix flake check --no-build                   # evaluate every host config
-```
-
-Apply to the running system:
-
-```bash
-sudo nixos-rebuild switch --flake .#enterprise-d
-```
+Requires Nix 2.18+ with `experimental-features = nix-command flakes`. Enter the
+dev shell (`nix develop`) and see [docs/operations.md](docs/operations.md) for
+everything else — lint, build, rebuild, updates.
 
 ## Documentation
 
 | Doc | Answers |
 | --- | --- |
-| [docs/architecture.md](docs/architecture.md) | Where does this setting belong? What is `custom.*`? How do I define a new machine? |
+| [docs/architecture.md](docs/architecture.md) | Where does this setting belong? What is `custom.*`? |
 | [docs/operations.md](docs/operations.md) | How do I set up a workstation, rebuild, update, run backups, or read CI? |
-| [docs/provisioning.md](docs/provisioning.md) | How do I install a machine from scratch — USB, SD card, or WSL? |
-| [docs/secrets.md](docs/secrets.md) | How do agenix secrets work? How do I create, rotate, or rekey one? What goes in each file? |
-| [docs/ssh.md](docs/ssh.md) | How are SSH login keys and host keys managed and pinned? |
+| [docs/provisioning.md](docs/provisioning.md) | How do I define and install a machine from scratch — USB, SD card, or WSL? |
+| [docs/secrets.md](docs/secrets.md) | How do agenix secrets and SSH keys work? How do I create, rotate, or rekey one? What goes in each file? |
 | [docs/users.md](docs/users.md) | How do I add a user, attach home-manager, or manage dotfiles? |
 | [docs/desktop.md](docs/desktop.md) | Which layer owns an application? How do I change the theme or use a debug probe? |
 | [docs/homelab.md](docs/homelab.md) | How do DNS, Traefik, Home Assistant, Zigbee, and Z-Wave fit together? |

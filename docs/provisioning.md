@@ -23,9 +23,33 @@ on that provision type, so the same entry point covers both media paths.
 
 ## Step 1 — Define the Machine in the Repo
 
-If the machine does not exist in the repo yet, create its `hosts/<name>/` files
-and register it in `flake.nix`. See
-[docs/architecture.md § Defining a New Machine](architecture.md#defining-a-new-machine).
+Skip this step if the machine already exists in the repo.
+
+1. Create `hosts/<machine-name>/`.
+2. Add `hosts/<machine-name>/configuration.nix` (imports hardware, power, disk).
+3. Add `hosts/<machine-name>/hardware.nix` (hardware-scan output).
+4. Add `hosts/<machine-name>/power.nix` (power and hibernate policy).
+5. Add `hosts/<machine-name>/disko.nix` (disk layout, if provisioning from this
+   repo).
+6. Add `hosts/<machine-name>/default.nix` attaching home-manager for each user.
+7. Register the machine in `flake.nix` under `nixosConfigurations`:
+
+```nix
+nixosConfigurations."<machine-name>" = mkNixosSystem {
+  system = "x86_64-linux"; # or "aarch64-linux" for ARM machines
+  extraModules = [
+    ./hosts/<machine-name>
+    # add machine-specific modules as needed:
+    # disko.nixosModules.disko            (physical machines with declarative disk layout)
+    # lanzaboote.nixosModules.lanzaboote  (Secure Boot)
+    # nixos-wsl.nixosModules.default      (WSL machines)
+  ];
+};
+```
+
+`mkNixosSystem` is defined in `lib/nixos-system.nix` — see
+[docs/architecture.md § Where home-manager Attaches](architecture.md#where-home-manager-attaches)
+for what it wires in automatically.
 
 ## Step 2 — Enroll the Machine
 
@@ -36,7 +60,7 @@ both into the repo:
 nix develop -c python3 tools/enroll.py <machine-name>
 ```
 
-See [docs/ssh.md § Generate SSH Login Credentials](ssh.md#generate-ssh-login-credentials)
+See [docs/secrets.md § Generate SSH Login Credentials](secrets.md#generate-ssh-login-credentials)
 for exactly what it does, and
 [docs/secrets.md § Generating Age Identities](secrets.md#generating-age-identities)
 if you need to create identities by hand instead.
@@ -169,7 +193,7 @@ In general, after first boot:
 
 1. Enroll TPM2 for LUKS auto-unlock, if the host uses it
 2. Collect the SSH host public key and pin it in `lib/ssh-hosts.nix` — see
-   [docs/ssh.md](ssh.md#collect-and-pin-the-host-key-after-deploy)
+   [docs/secrets.md](secrets.md#collect-and-pin-the-host-key-after-deploy)
 3. Verify the age identity is wired:
    `nix eval .#nixosConfigurations.<machine>.config.age.identityPaths --json`
 4. Run the checks in

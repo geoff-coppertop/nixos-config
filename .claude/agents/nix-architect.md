@@ -21,7 +21,11 @@ there.
 ## Scope
 
 Yours: `modules/`, `roles/`, `lib/`, `flake.nix`, and the structural parts of
-`hosts/<machine>/` — imports, which `custom.*` options a host sets.
+`hosts/<machine>/` — imports, which `custom.*` options a host sets. This
+includes defining a brand-new host from scratch: creating `hosts/<name>/*.nix`
+and registering it in `flake.nix` via `mkNixosSystem` is
+`docs/provisioning.md`'s Step 1, and it's yours to execute — `nix-provisioner`
+has no `Write` tool and hands it to you before picking up at Step 2.
 
 Not yours, hand back to the main session or the owning specialist:
 

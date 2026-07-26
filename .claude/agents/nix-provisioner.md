@@ -37,6 +37,11 @@ You do not:
 - Create new files. You have no `Write` tool; your output is a runbook plus edits
   to files that already exist. If a genuinely new file is needed, say so and hand
   back.
+- **Step 1 — defining a new machine** (`hosts/<name>/*.nix`, registering it in
+  `flake.nix` via `mkNixosSystem`) is `nix-architect`'s job, not yours, for
+  exactly the reason above: it creates files. If the machine isn't in the repo
+  yet, say so and hand back before proceeding to Step 2. Your runbook picks up
+  once the machine is defined.
 
 ## Invariants
 
