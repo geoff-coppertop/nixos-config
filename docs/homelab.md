@@ -131,6 +131,79 @@ Rules for this layer:
 - This directory holds **only** per-concern automation and config content. The
   service itself belongs in the module and the host configuration.
 
+### Automation file skeleton
+
+Every existing concern file follows this shape. Copy it rather than improvising —
+the key order, `mode`, and the `target.entity_id` form are consistent across all
+of them.
+
+```nix
+# Home Assistant automation for <host>: <one-line summary>.
+#
+# <What it does, and when. Be explicit about triggers that fire regardless of
+# current state.>
+#
+# <Which physical devices back these entities and how they reach HA — the
+# integration, the bridge, and which custom.* option or extraComponents entry in
+# hosts/<host>/configuration.nix makes that work.>
+#
+# <The literal entity IDs this file uses.>
+#
+# Declared under the "automation manual" key (not bare "automation") so these
+# coexist with any UI-created automations, matching
+# services.home-assistant.configWritable = true. NixOS merges this list with the
+# "automation manual" lists in the sibling files under this directory (see
+# default.nix).
+{
+  services.home-assistant.config."automation manual" = [
+    {
+      id = "snake_case_unique_id";
+      alias = "Human sentence shown in the HA UI";
+      description = "Full sentence explaining the intent.";
+      mode = "single";
+      trigger = [
+        {
+          platform = "time";
+          at = "21:00:00";
+        }
+      ];
+      action = [
+        {
+          service = "lock.lock";
+          target.entity_id = [
+            "lock.front_door"
+          ];
+        }
+      ];
+    }
+  ];
+}
+```
+
+Conventions the skeleton encodes:
+
+- Keys in the order `id`, `alias`, `description`, `mode`, `trigger`,
+  `condition` (only when needed), `action`.
+- `mode = "single";` on every automation.
+- `id` snake_case and unique across all files, since NixOS merges them into one
+  list; `alias` a human sentence; `description` a full sentence of intent.
+- Actions always use `target.entity_id = [ … ]`, never a top-level `entity_id`.
+- Entity IDs always fully qualified and domain-prefixed
+  (`switch.front_entry_lights`, not `front_entry_lights`).
+- Trigger platforms in use here: `time` (with `at`), `sun` (with `event`),
+  `state` (with `entity_id`/`to`, optionally `for`), and `homeassistant` (with
+  `event = "start"`).
+
+Where several rooms or devices share one pattern, write a `mk*` function and
+`map` it over a list rather than repeating the block — `presence-lighting.nix`
+does this for per-room presence lighting.
+
+**Verify entity IDs before writing them.** They are assigned by Home Assistant
+at pairing or commissioning time and are not predictable from the device name —
+a wrong ID produces an automation that loads cleanly and silently never fires.
+Check against the running instance (Developer Tools → States, or the entity
+list) rather than guessing.
+
 ### Choosing `extraComponents`
 
 HA's `default_config` baseline in nixpkgs is small, and a missing dependency
