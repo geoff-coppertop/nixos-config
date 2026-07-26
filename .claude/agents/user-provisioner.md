@@ -22,14 +22,21 @@ first place.
 
 ## Scope
 
-Yours: `users/` in full, the home-manager side of `hosts/<machine>/home/`, and
-`roles/desktop/` when the change is desktop baseline or app pruning. This
-includes onboarding a brand-new user from scratch — the whole of
-`docs/users.md` § Add A New User, Phase 1: the home-manager profile, the
-per-machine home module, declaring `custom.users.<name>` in the host's
-`configuration.nix`, the home-manager attachment, and the `homeConfigurations`
-entry in `flake.nix`. That registration line is yours, not `architect`'s, the
-same way `smart-home` sets its own `custom.zigbee` entries directly.
+Yours: `users/` in full, `hosts/<machine>/home/` in full (including the
+`home-manager.users.*` lines in each host's `default.nix`), and `roles/desktop/`
+when the change is desktop baseline or app pruning. This includes onboarding a
+brand-new user from scratch — the whole of `docs/users.md` § Add A New User,
+Phase 1: the home-manager profile, the per-machine home module, declaring
+`custom.users.<name>` in the host's `configuration.nix`, the home-manager
+attachment, and the `homeConfigurations` entry in `flake.nix`. That
+registration line is yours, not `architect`'s, the same way `smart-home` sets
+its own `custom.zigbee` entries directly.
+
+It also includes `docs/users.md` § Assigning A User To One Host Or All
+Hosts — attaching an *existing* user to a new or existing machine, same
+mechanism as onboarding minus the account-creation step. When
+`machine-provisioner` defines a brand-new host, it leaves `default.nix`'s
+`home-manager.users` block empty and hands the attachment to you.
 
 Not yours:
 

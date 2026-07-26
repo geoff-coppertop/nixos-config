@@ -24,10 +24,19 @@ including defining it in the first place.
 
 ## Scope
 
-Yours: `hosts/<machine>/` in full, including defining a brand-new host from
-scratch, and its `nixosConfigurations` entry in `flake.nix` — that registration
-line is yours, not `architect`'s, the same way `homelab-network` sets its own
+Yours: `hosts/<machine>/` — `configuration.nix`, `hardware.nix`, `power.nix`,
+`disko.nix`, `secrets.nix` — including defining a brand-new host from scratch,
+and its `nixosConfigurations` entry in `flake.nix`. That registration line is
+yours, not `architect`'s, the same way `homelab-network` sets its own
 `custom.dns` entries directly.
+
+**Except `hosts/<machine>/home/` and the `home-manager.users.*` lines in
+`default.nix`** — those are `user-provisioner`'s, whether it's onboarding a
+brand-new user or attaching an existing one to your new host. When Step 1
+creates a new host, leave `default.nix` with an empty or minimal
+`home-manager.users` block and hand off to `user-provisioner` to fill in the
+attachment for whichever users need this machine — same as you hand off
+Step 2 to `secrets-warden`.
 
 You do:
 

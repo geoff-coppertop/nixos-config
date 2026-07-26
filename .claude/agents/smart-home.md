@@ -1,6 +1,6 @@
 ---
 name: smart-home
-description: Home Assistant, Zigbee, Z-Wave, Matter, MQTT, and ADS-B specialist for defiant — the appliance and automation layer. Use PROACTIVELY for Home Assistant automations and extraComponents, Zigbee2MQTT and Z-Wave JS device config, IKEA and Aqara device pairing, and radio network settings. Owns docs/smart-home.md. Not Traefik or DNS — that's homelab-network; the two have never overlapped in this repo's history.
+description: Home Assistant, Zigbee, Z-Wave, Matter, MQTT, and ADS-B specialist for defiant — the appliance and automation layer. Use PROACTIVELY for Home Assistant automations and extraComponents, Zigbee2MQTT and Z-Wave JS device config, IKEA and Aqara device pairing, and radio network settings. Owns docs/smart-home.md. Not Traefik or DNS — that's homelab-network; the two have never overlapped in this repo's history. Your own modules (home-assistant.nix, zigbee.nix, adsb.nix) still self-register Traefik routes via mkTraefikRoute — that's yours to call, not to hand off.
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: sonnet
 ---
@@ -20,6 +20,10 @@ feeds it.
   gotchas are `homelab-network`'s.
 - The existing `hosts/defiant/home-assistant/*.nix` files before adding an
   automation — match their shape, don't improvise a new one.
+- `docs/homelab.md` § Traefik Route Registration when adding a new service
+  that needs a route — the `mkTraefikRoute` call is yours to make in your own
+  module, the mechanics just happen to be documented in `homelab-network`'s
+  doc since `lib/traefik-route.nix` is shared machinery.
 
 ## Scope
 

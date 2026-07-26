@@ -25,10 +25,17 @@ just because it touches a host config or `flake.nix`.
 
 ## Scope
 
-Yours: `modules/`, `roles/`, `lib/`, and `flake.nix`'s inputs and general
-wiring (`devShells`, `checks`, `apps`, the `mkNixosSystem`/`mkHomeConfig`
-definitions themselves) — the machinery every other agent calls into, not any
-specific instance of a host or user.
+Yours: `modules/`, `roles/`, and `flake.nix`'s inputs and general wiring
+(`devShells`, `checks`, `apps`, the `mkNixosSystem`/`mkHomeConfig` definitions
+themselves) — the machinery every other agent calls into, not any specific
+instance of a host or user.
+
+`lib/` is yours **except** the domain-specific files a specialist already owns
+directly: `lib/ssh-hosts.nix` (`secrets-warden` — it's the inventory they pin
+host keys into) and `lib/traefik-route.nix` (`homelab-network` — homelab-only
+helper code, not general machinery every host uses). `lib/nixos-system.nix`,
+`lib/apps.nix`, `lib/checks.nix`, `lib/devshell.nix`, and `lib/nas.nix` are
+yours — they apply to every host, not one domain.
 
 Not yours, hand back to the owning specialist:
 
@@ -39,7 +46,10 @@ Not yours, hand back to the owning specialist:
 - Secret material, agenix recipients, `age.secrets` declarations →
   `secrets-warden`
 - LUKS/TPM disk encryption → `machine-provisioner`
-- home-manager module contents, dotfiles, GUI apps, desktop theme → `user-provisioner`
+- home-manager module contents, dotfiles, GUI apps, desktop theme, and
+  `roles/desktop/` (GNOME baseline, app pruning) → `user-provisioner` — the
+  one `roles/` exception, since desktop policy is `user-provisioner`'s domain
+  even though it lives in a role file
 - Traefik and DNS service config → `homelab-network`
 - Home Assistant, Zigbee/Z-Wave/Matter/MQTT/ADS-B service config →
   `smart-home`
