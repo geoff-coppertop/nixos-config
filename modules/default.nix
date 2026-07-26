@@ -17,6 +17,7 @@
     ./secrets.nix
     ./secure-boot.nix
     ./snapper.nix
+    ./ssh-known-hosts.nix
     ./tpm-luks.nix
     ./traefik.nix
     ./vr.nix

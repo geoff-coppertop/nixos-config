@@ -45,4 +45,17 @@
       find . -name '*.md' -print0 | xargs -0 -r markdownlint
       touch $out
     '';
+
+  # Catches a .nix file that no default.nix imports — silently never evaluated,
+  # so nothing else in the toolchain reports it. There is no .git in here (src
+  # is cleanSource'd), which the script handles by walking the filesystem.
+  orphanNix =
+    pkgs.runCommand "orphan-nix-check" {
+      nativeBuildInputs = [pkgs.python3];
+    } ''
+      cp -r ${src} source
+      chmod -R +w source
+      python3 source/tools/check_orphan_nix.py
+      touch $out
+    '';
 }

@@ -59,6 +59,31 @@ When adding a setting, ask whether it fits an existing file's concern or needs a
 new one. Do not default to the nearest catch-all just because it is already
 imported.
 
+## The Aggregator Pattern
+
+Adding a new file is always three steps, in this order, everywhere in the tree:
+
+1. Create the file — `modules/<feature>.nix`, `roles/common/<concern>.nix`,
+   `users/common/<app>.nix`.
+2. Add one import line to the sibling `default.nix`.
+3. Opt in where it applies — `custom.<feature>.enable = true;` in a host
+   configuration, or an import in a user profile such as
+   `users/thomasga/desktop.nix`.
+
+It holds identically for `modules/`, `roles/common/`, `roles/dev/`,
+`roles/desktop/`, and `users/`.
+
+**Step 2 is the one that fails silently.** A `.nix` file no `default.nix`
+imports is never evaluated, so it raises no error — it simply does nothing.
+`nix flake check` never sees it, and `deadnix` reports unused *bindings*, not
+unimported *files*. `modules/ssh-known-hosts.nix` sat unimported from the commit
+that added it, which meant SSH host-key pinning quietly did nothing.
+
+`tools/check_orphan_nix.py` now enforces step 2. It runs as a pre-commit hook
+and as a flake check, walking import edges out from `flake.nix` and failing on
+anything it cannot reach. If a file is deliberately not imported, add it to
+`ALLOWED_ORPHANS` in that script with a comment explaining why.
+
 ## Machine Naming
 
 Machine names are drawn from ships, stations, and notable locations in Star

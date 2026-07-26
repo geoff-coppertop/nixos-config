@@ -43,7 +43,18 @@ Two consumers read it:
   that declares them.
 
 No machine currently has `publicKey` pinned — all three are `null`, pending the
-out-of-band verification below.
+out-of-band verification below. Until one is pinned, `programs.ssh.knownHosts`
+evaluates to an empty set and clients still prompt on first connect. That is
+expected, not a fault.
+
+> **Note:** `modules/ssh-known-hosts.nix` was missing from `modules/default.nix`
+> until it was added alongside `tools/check_orphan_nix.py`. It had never been
+> imported, so the host-key path has not yet run against a real pinned key.
+> Verify the first pin actually takes effect:
+>
+> ```bash
+> nix eval .#nixosConfigurations.enterprise-d.config.programs.ssh.knownHosts --json
+> ```
 
 ## Generate SSH Login Credentials
 
