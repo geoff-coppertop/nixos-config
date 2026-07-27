@@ -3,11 +3,11 @@
 The appliance and device layer on `defiant`: Home Assistant, the radio networks
 that feed it (Zigbee, Z-Wave, Matter), MQTT, and the standalone ADS-B receiver.
 The reverse-proxy/DNS backbone these services register into is
-[docs/homelab.md](homelab.md), not this doc — but `modules/home-assistant.nix`,
+[docs/homelab-network.md](homelab-network.md), not this doc — but `modules/home-assistant.nix`,
 `modules/zigbee.nix`, and `modules/adsb.nix` each call `mkTraefikRoute`
 themselves to register their own route, the same way `modules/dns.nix` does for
 AdGuard. A new smart-home service follows the same pattern; see
-[docs/homelab.md § Traefik Route Registration](homelab.md#traefik-route-registration)
+[docs/homelab-network.md § Traefik Route Registration](homelab-network.md#traefik-route-registration)
 for the mechanics.
 
 The full option-to-module table is

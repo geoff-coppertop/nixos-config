@@ -26,12 +26,13 @@ everything else — lint, build, rebuild, updates.
 | Doc | Answers |
 | --- | --- |
 | [docs/architecture.md](docs/architecture.md) | Where does this setting belong? What is `custom.*`? |
-| [docs/operations.md](docs/operations.md) | How do I set up a workstation, rebuild, update, run backups, or read CI? |
+| [docs/operations.md](docs/operations.md) | How do I set up a workstation, rebuild, update, or read CI? |
+| [docs/backups.md](docs/backups.md) | How do restic-to-NAS backups work, and how do I enable one? |
 | [docs/provisioning.md](docs/provisioning.md) | How do I define and install a machine from scratch — USB, SD card, or WSL? |
 | [docs/secrets.md](docs/secrets.md) | How do agenix secrets and SSH keys work? How do I create, rotate, or rekey one? What goes in each file? |
 | [docs/users.md](docs/users.md) | How do I add a user, attach home-manager, or manage dotfiles? |
 | [docs/desktop.md](docs/desktop.md) | Which layer owns an application? How do I change the theme or use a debug probe? |
-| [docs/homelab.md](docs/homelab.md) | How do Traefik and DNS compose on defiant? |
+| [docs/homelab-network.md](docs/homelab-network.md) | How do Traefik and DNS compose on defiant? |
 | [docs/smart-home.md](docs/smart-home.md) | How do Home Assistant, Zigbee, and Z-Wave fit together? |
 
 ## Repository Layout

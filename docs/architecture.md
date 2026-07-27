@@ -166,7 +166,7 @@ Most are declared under `modules/`, but not all — `custom.backups` is declared
 
 ### Homelab services
 
-All of these are enabled on `defiant`. See [docs/homelab.md](homelab.md).
+All of these are enabled on `defiant`. See [docs/homelab-network.md](homelab-network.md).
 
 | Option | What it does |
 | --- | --- |

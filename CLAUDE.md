@@ -28,9 +28,10 @@ them in sequence and reconcile the results.
 | A machine — new or existing: defining, installing, enrolling, reinstalling; USB/SD/WSL media; Secure Boot; LUKS/TPM | `machine-provisioner` | `docs/provisioning.md` |
 | Secrets, agenix, SSH keys, Wi-Fi credentials | `secrets-warden` | `docs/secrets.md` |
 | A user — new or existing: home-manager, dotfiles, GUI apps, desktop theme, workstation tooling, adding a user | `user-provisioner` | `docs/users.md`, `docs/desktop.md` |
-| defiant reverse proxy and DNS: Traefik, AdGuard, unbound | `homelab-network` | `docs/homelab.md` |
+| defiant reverse proxy and DNS: Traefik, AdGuard, unbound | `homelab-network` | `docs/homelab-network.md` |
 | defiant appliance layer: Home Assistant, Zigbee, Z-Wave, Matter, MQTT, ADS-B | `smart-home` | `docs/smart-home.md` |
-| Rebuild, update, backups, lint, CI — **do not delegate** | handle inline | `docs/operations.md` |
+| Rebuild, update, lint, CI — **do not delegate** | handle inline | `docs/operations.md` |
+| Backups: the `custom.backups` module and its doc | `architect` | `docs/backups.md` |
 
 Rules:
 
@@ -38,29 +39,28 @@ Rules:
 - Any change to files in a domain updates that domain's doc in the same commit.
 - Do not run `/init`. It regenerates this file wholesale and will undo the
   structure above. Update the owning `docs/` file instead.
-- `homelab-network` and `smart-home` are split because they've never overlapped
-  in this repo's history: Traefik/DNS module changes and Home Assistant
-  automation changes have never landed in the same commit. Do not merge them
-  back into one agent.
-- `architect` never touches a specific host's or user's own configuration —
-  `machine-provisioner` owns a machine end to end including defining a brand-new one,
-  `user-provisioner` owns a user end to end including onboarding a brand-new one, the
-  same way `homelab-network` sets its own `custom.dns` entries directly rather
-  than routing through `architect`. `secrets-warden` still owns the one step
-  each of those can't do itself — the age identity/SSH enrollment for a new
-  machine, the SSH identity secret for a new user.
+- `architect` defines what a `custom.*` option *means*; each domain agent sets
+  that option's *value* for its own instances. Nothing routes through
+  `architect` merely because it touches `flake.nix` or a host config.
+- Onboarding a machine or a user is owned end to end by its provisioner, with
+  one hand-off each: `secrets-warden` does the age identity and SSH enrollment
+  for a new machine, and the SSH identity secret for a new user.
+- Do not merge `homelab-network` and `smart-home` back together, or fold either
+  provisioner into `architect`. Those boundaries were set against this repo's
+  commit history; the reasoning is in the PR that introduced them.
 
 ## Documentation
 
 | Doc | Covers |
 | --- | --- |
 | `docs/architecture.md` | Layers, placement rule, machine naming, directory map, full `custom.*` catalogue (canonical, all namespaces), flake inputs |
-| `docs/operations.md` | Workstation setup, dev shell and `tools/`, update policy, backups, validation commands, lint and CI |
+| `docs/operations.md` | Workstation setup, dev shell and `tools/`, applying and updating changes, validation commands, lint and CI |
+| `docs/backups.md` | restic-to-NAS backups: how they run, enabling them on a host, status checks, limitations |
 | `docs/provisioning.md` | Numbered install path for each provision type (`disko`, `sd-card`, `wsl`), including defining a new machine (Step 1) and LUKS/TPM disk encryption |
 | `docs/secrets.md` | agenix model, age identities, create/rotate/rekey, secret inventory, Wi-Fi PSKs, SSH login keys vs host keys and `lib/ssh-hosts.nix` pinning |
 | `docs/users.md` | User model, adding a user, dotfiles patterns, home-manager idioms |
 | `docs/desktop.md` | Application ownership, desktop theme, draw.io/Obsidian, Connect IQ, USB debug probes |
-| `docs/homelab.md` | Traefik and DNS composition on defiant — the `custom.*` option table itself is in `docs/architecture.md` |
+| `docs/homelab-network.md` | Traefik and DNS composition on defiant — the `custom.*` option table itself is in `docs/architecture.md` |
 | `docs/smart-home.md` | Home Assistant automation rules, `extraComponents`, Zigbee/Z-Wave radio network specifics |
 
 ## Common Commands And Placement Rule

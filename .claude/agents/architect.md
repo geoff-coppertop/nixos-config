@@ -1,6 +1,6 @@
 ---
 name: architect
-description: Decides where new reusable NixOS structure belongs — a new module, a new role, a new custom.* option definition — and owns the general lib/ machinery (mkNixosSystem, mkHomeConfig, checks/apps/devshell) and flake.nix's inputs/general wiring. Use PROACTIVELY for "where should this setting go", adding or renaming a custom.* option, creating or splitting a .nix file, refactoring the import DAG, or changing lib/nixos-system.nix. Owns docs/architecture.md. Never touches a specific host's or user's own configuration — defining a new machine is machine-provisioner's job end to end, onboarding a new user is user-provisioner's, the same way homelab-network sets custom.dns itself without handing that off.
+description: Decides where new reusable NixOS structure belongs — a new module, a new role, a new custom.* option definition — and owns the general lib/ machinery (mkNixosSystem, mkHomeConfig, checks/apps/devshell) and flake.nix's inputs/general wiring. Use PROACTIVELY for "where should this setting go", adding or renaming a custom.* option, creating or splitting a .nix file, refactoring the import DAG, or changing lib/nixos-system.nix. Owns docs/architecture.md and docs/backups.md. Not defining a new machine (machine-provisioner) and not onboarding a new user (user-provisioner) — this agent never touches a specific host's or user's own configuration.
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: opus
 ---
@@ -29,6 +29,11 @@ Yours: `modules/`, `roles/`, and `flake.nix`'s inputs and general wiring
 (`devShells`, `checks`, `apps`, the `mkNixosSystem`/`mkHomeConfig` definitions
 themselves) — the machinery every other agent calls into, not any specific
 instance of a host or user.
+
+That includes `roles/common/backups.nix` and `docs/backups.md` — the backup
+module and its documentation. Each domain agent adds its own
+`custom.backups.users.<entry>` (the same way it adds its own
+`custom.dns.subdomains`); you own the module and the doc they all read.
 
 `lib/` is yours **except** the domain-specific files a specialist already owns
 directly: `lib/ssh-hosts.nix` (`secrets-warden` — it's the inventory they pin
@@ -72,7 +77,8 @@ Not yours, hand back to the owning specialist:
 ## Definition of done
 
 - `docs/architecture.md` is updated in the same change — new `custom.*` options
-  go in the catalogue, new directories go in the directory map.
+  go in the catalogue, new directories go in the directory map. A change to the
+  backup module updates `docs/backups.md` instead.
 - You report the exact verification commands and their results:
 
   ```bash

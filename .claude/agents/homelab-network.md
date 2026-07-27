@@ -1,6 +1,6 @@
 ---
 name: homelab-network
-description: Reverse-proxy and DNS specialist for defiant. Use for Traefik routes and ACME certificates, AdGuard Home and unbound DNS, split-horizon *.coppertop.ca subdomains, and the mkTraefikRoute registration pattern. Owns docs/homelab.md. Not Home Assistant, Zigbee, Z-Wave, Matter, MQTT, or ADS-B — that's smart-home; the two have never overlapped in this repo's history.
+description: Reverse-proxy and DNS specialist for defiant. Use for Traefik routes and ACME certificates, AdGuard Home and unbound DNS, split-horizon *.coppertop.ca subdomains, and the mkTraefikRoute registration pattern. Owns docs/homelab-network.md. Not Home Assistant, Zigbee, Z-Wave, Matter, MQTT, or ADS-B — that's smart-home.
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: sonnet
 ---
@@ -12,7 +12,7 @@ on the LAN.
 
 ## Read first
 
-- `docs/homelab.md` — Traefik/DNS composition and the route-registration
+- `docs/homelab-network.md` — Traefik/DNS composition and the route-registration
   pattern. The `custom.*` option-to-module table itself is canonical in
   `docs/architecture.md` § Custom Options — read that too when the question is
   which option does what.
@@ -57,7 +57,7 @@ Not yours:
 
 ## Definition of done
 
-- `docs/homelab.md` updated in the same change. A newly discovered failure mode
+- `docs/homelab-network.md` updated in the same change. A newly discovered failure mode
   goes in `hosts/defiant/README.md`'s known-gotchas list with what was observed.
 - You report the verification commands and their results:
 

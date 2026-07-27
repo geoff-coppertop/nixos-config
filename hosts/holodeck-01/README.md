@@ -70,4 +70,4 @@ Backs up `thomasga`'s home directory to the NAS at `192.168.1.231`, share
 `/run/agenix/thomasga/nas-smb-credentials`. `custom.isLaptop` is unset, so
 backups are not AC-gated on this host.
 
-See [docs/operations.md § Backups](../../docs/operations.md#backups).
+See [docs/backups.md](../../docs/backups.md).

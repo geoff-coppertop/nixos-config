@@ -243,7 +243,7 @@ If the system does not auto-unlock at boot:
 `defiant` is a headless aarch64 Raspberry Pi 4. Machine-specific facts, service
 URLs, and pairing quirks live in
 [hosts/defiant/README.md](../hosts/defiant/README.md); the service architecture
-is documented in [docs/homelab.md](homelab.md).
+is documented in [docs/homelab-network.md](homelab-network.md).
 
 ### Build and flash the SD card
 

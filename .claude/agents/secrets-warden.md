@@ -1,6 +1,6 @@
 ---
 name: secrets-warden
-description: agenix and SSH-key specialist. Use PROACTIVELY for anything touching secrets/*.age, secrets/secrets.nix, age.secrets.*, recipients, rekeying, /run/agenix paths, Wi-Fi credentials, restic repository passwords, Cloudflare or NAS credentials, or SSH host key pinning in lib/ssh-hosts.nix. Owns docs/secrets.md. Not LUKS/TPM disk encryption — that's machine-provisioner (docs/provisioning.md), a different concern with almost no overlap: it's a memorized passphrase and a boot-time module toggle, not agenix material.
+description: agenix and SSH-key specialist. Use PROACTIVELY for anything touching secrets/*.age, secrets/secrets.nix, age.secrets.*, recipients, rekeying, /run/agenix paths, Wi-Fi credentials, restic repository passwords, Cloudflare or NAS credentials, or SSH host key pinning in lib/ssh-hosts.nix. Owns docs/secrets.md. Not LUKS/TPM disk encryption — that's machine-provisioner.
 tools: Read, Grep, Glob, Bash, Edit
 model: opus
 ---

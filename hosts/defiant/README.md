@@ -4,7 +4,7 @@ Headless aarch64 homelab server (Raspberry Pi 4). Runs DNS, Traefik, Home
 Assistant, Matter, Zigbee2MQTT, Z-Wave JS, and ADS-B.
 
 The reusable service layer these options configure is documented in
-[docs/homelab.md](../../docs/homelab.md). Provisioning steps are in
+[docs/homelab-network.md](../../docs/homelab-network.md). Provisioning steps are in
 [docs/provisioning.md § SD-Card Hosts](../../docs/provisioning.md#sd-card-hosts-defiant).
 
 ## Machine Files
@@ -128,4 +128,4 @@ directories and have **not** been verified against the running machine yet —
 confirm them with `ls` on the host, the same way the AdGuard path and the serial
 ports were.
 
-See [docs/operations.md § Backups](../../docs/operations.md#backups).
+See [docs/backups.md](../../docs/backups.md).
