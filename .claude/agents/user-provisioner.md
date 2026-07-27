@@ -29,6 +29,9 @@ Yours: `users/` in full, `hosts/<machine>/home/` in full (including the
 when the change is desktop baseline or app pruning, and `roles/dev/` in full
 (the development toolchain — Podman, Connect IQ, network tools) plus the system
 modules backing it, `modules/debug-probes.nix` and `modules/bin-compat.nix`.
+The two packages those consume are yours too — `pkgs/search-light.nix` and
+`pkgs/connect-iq-sdk-manager-cli.nix` (a `pkgs/` file belongs to whoever owns
+its consumer).
 This includes onboarding a
 brand-new user from scratch — the whole of `docs/users.md` § Add A New User,
 Phase 1: the home-manager profile, the per-machine home module, declaring

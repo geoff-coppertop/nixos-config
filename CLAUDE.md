@@ -31,13 +31,21 @@ them in sequence and reconcile the results.
 | Dev workstation: Podman/devcontainers, Connect IQ SDK, USB debug probes | `user-provisioner` | `docs/dev-workstation.md` |
 | defiant reverse proxy and DNS: Traefik, AdGuard, unbound | `homelab-network` | `docs/homelab-network.md` |
 | defiant appliance layer: Home Assistant, Zigbee, Z-Wave, Matter, MQTT, ADS-B | `smart-home` | `docs/smart-home.md` |
-| Rebuild, update, lint, CI — **do not delegate** | handle inline | `docs/operations.md` |
+| Repo toolchain and quality gates: dev shell, `nix run .#` apps, pre-commit, flake checks, CI | `architect` | `docs/operations.md` |
 | Backups: the `custom.backups` module and its doc | `architect` | `docs/backups.md` |
 
 Rules:
 
 - Read the owning doc before editing files in that domain.
 - Any change to files in a domain updates that domain's doc in the same commit.
+- **Everything has an owner. Owning is not the same as executing.** An agent
+  owns a doc when it is responsible for keeping it true; that is independent of
+  whether the *commands* in it may be run by an agent. Nothing is left unowned
+  on the grounds that "the main session handles it" — that only says who types
+  the command, and leaves the doc with no maintainer.
+- Never delegate *running* `nixos-rebuild switch`, `nix flake update`, a manual
+  backup, or the installer. Every agent reports the command instead. That rule
+  is about execution and changes nobody's ownership.
 - Do not run `/init`. It regenerates this file wholesale and will undo the
   structure above. Update the owning `docs/` file instead.
 - `architect` defines what a `custom.*` option *means*; each domain agent sets
