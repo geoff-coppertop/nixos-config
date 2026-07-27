@@ -1,5 +1,5 @@
 {lib, ...}: let
-  sshHosts = import ../lib/ssh-hosts.nix;
+  sshHosts = import ../../lib/ssh-hosts.nix;
 
   knownHosts = lib.mapAttrs' (
     name: host:

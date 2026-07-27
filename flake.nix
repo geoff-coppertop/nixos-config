@@ -58,9 +58,36 @@
     };
     src = pkgs.lib.cleanSource ./.;
     agenixCli = agenix.packages.${system}.default;
-    checks = import ./lib/checks.nix {
-      inherit pkgs src;
-    };
+    checks =
+      import ./lib/checks.nix {
+        inherit pkgs src;
+      }
+      // {
+        # Evaluated, not built — so `nix flake check --no-build` catches it.
+        modules-inert = import ./lib/module-inertness.nix {
+          inherit pkgs;
+          modulesDir = ./modules;
+          # The probe imports modules/ through the same base module list every
+          # host uses (home-manager, agenix, lanzaboote, nix-flatpak), so the
+          # options our modules reference are declared exactly as they are on a
+          # real host. It deliberately sets no custom.* option.
+          probe = mkNixosSystem {
+            inherit system;
+            extraModules = [
+              ./modules
+              {
+                boot.loader.grub.enable = false;
+                fileSystems."/" = {
+                  device = "none";
+                  fsType = "tmpfs";
+                };
+                networking.hostName = "module-inertness-probe";
+                system.stateVersion = "25.11";
+              }
+            ];
+          };
+        };
+      };
     devShell = import ./lib/devshell.nix {
       inherit pkgs agenixCli;
     };

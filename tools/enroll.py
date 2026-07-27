@@ -406,7 +406,7 @@ def enroll_machine(machine: str, username: str = "thomasga") -> bool:
     print("Next steps:")
     print()
     print("  1. Commit the changes:")
-    print(f"     git add secrets/ lib/ssh-hosts.nix hosts/{machine}/ roles/common/")
+    print(f"     git add secrets/ lib/ssh-hosts.nix hosts/{machine}/")
     print(f"     git commit -m 'feat: enroll {machine}'")
     print()
     if age_choice == "2":

@@ -20,7 +20,7 @@ nix develop
 
 ```bash
 nix develop -c pre-commit run --all-files
-nix flake check --no-build   # evaluates all configs, skips building derivations
+nix flake check --no-build   # evaluates all configs + the modules-inert check, skips building derivations
 ```
 
 **Validate the build without switching:**
@@ -74,20 +74,53 @@ nix eval .#nixosConfigurations.enterprise-d.config.age.identityPaths --json
 
 ## Code Architecture
 
-The configuration is layered as a DAG of imports. Understanding which layer to edit is the main architectural decision:
+The configuration is layered as a DAG of imports. Understanding which layer to
+edit is the main architectural decision. Every arrow below is an *import*, not
+containment — `modules/`, `profiles/`, and `users/` are all top-level
+directories alongside `hosts/`, which is why each node is written as a full
+path from the repo root:
 
 ```text
 flake.nix
-  └── hosts/enterprise-d/          # machine-specific: hardware, disk, power
-        └── roles/              # shared system policy: networking, GNOME, gaming
-              └── modules/      # reusable NixOS features: backups, secrets, secure boot
-                    └── users/thomasga/   # personal: dotfiles, shell, apps (home-manager)
-                          └── users/common/  # opt-in shared user modules
+  └─> hosts/<host>/default.nix
+        ├─> hosts/<host>/configuration.nix
+        │     ├─> hosts/<host>/{hardware,disko,power,secrets}.nix  # machine-specific
+        │     ├─> profiles/common  (+ desktop, dev)                # set config; per host, by name; active on import
+        │     └─> modules/                                         # declare custom.* options; every host imports all; inert until enabled
+        └─> hosts/<host>/home/<user>.nix                           # via home-manager.users.<user>.imports
+              └─> users/<user>/{desktop,headless}.nix              # personal: dotfiles, shell, apps
+                    └─> users/common/                              # opt-in shared user modules
 ```
+
+**Module or profile?** One test: does the file declare `options`?
+
+| | Declares `options` | Imported | Effect |
+| --- | --- | --- | --- |
+| `modules/` | yes | by every host, whole | none until its option is set |
+| `profiles/` | no | per host, by name | immediate |
+
+There is deliberately no `profiles/default.nix` aggregating every profile the
+way `modules/default.nix` aggregates every module. Importing all profiles would
+apply every one of them to whichever host did it, and adding a profile would
+change that host without anyone choosing to. "Profile" is NixOS's own term for a
+preset bundle of settings; see `nixpkgs/nixos/modules/profiles/`.
+
+Importing all modules is safe **only because every module contributes nothing
+to a host that has not set its options.** If a setting genuinely belongs on
+every host, it is not a module — put it in `profiles/common/`, which every host
+imports by name.
+
+That invariant is enforced, not just documented. `lib/module-inertness.nix`
+applies every module to a probe host that sets no `custom.*` option and fails
+any whose `config` does not come out inert — an `mkIf` that stayed false, an
+`mkMerge` of inert parts, or an empty attrset. Conditions are evaluated, not
+pattern-matched, so `optionalAttrs` and multi-option conditions are covered.
+It runs as the `modules-inert` flake check, so `nix flake check --no-build`
+catches an ungated module before it reaches a host.
 
 **Placement rule (from README):**
 
-- Machine behavior → `hosts/<machine>/` (machine-specific) or `roles/` (shared policy) or `modules/` (reusable feature)
+- Machine behavior → `hosts/<machine>/` (machine-specific), `profiles/` (a preset the host imports), or `modules/` (declares a `custom.*` option)
 - Personal workflow → `users/<name>/` (home-manager)
 - Shared optional user feature → `users/common/` (imported by choice per user)
 
@@ -97,13 +130,13 @@ flake.nix
 | --- | --- |
 | `flake.nix` | Single entry point; defines inputs, dev shell, checks, secret apps, and `nixosConfigurations.enterprise-d` |
 | `hosts/enterprise-d/` | Hardware scan, disko disk layout, power/hibernate policy, machine imports |
-| `roles/common/` | Base OS settings, single user (`thomasga`), NetworkManager Wi-Fi profiles, network discovery (avahi/mDNS), Steam, Flatpak |
-| `roles/desktop/gnome.nix` | GNOME baseline, unwanted app removal, search-light extension |
-| `roles/dev/` | Dev tooling: GitHub CLI, podman/podman-compose |
-| `modules/` | Opt-in NixOS features: backups, btrfs, snapper, agenix secrets, secure boot, TPM-LUKS, SSH known-hosts |
+| `profiles/common/` | Baseline every host gets: nix settings/GC, `system.autoUpgrade`, timezone/locale, kernel, fonts; plus network discovery (avahi/mDNS), agenix identity path, SSH known-hosts rendering |
+| `profiles/desktop/gnome.nix` | GNOME baseline, unwanted app removal, search-light extension |
+| `profiles/dev/` | Dev tooling: GitHub CLI, podman/podman-compose |
+| `modules/` | `custom.*` feature modules: users, Wi-Fi, backups, btrfs, snapper, secure boot, TPM-LUKS, Steam, Flatpak, homelab services |
 | `users/thomasga/` | Git, SSH, fish shell, GNOME dconf settings, VS Code, wallpaper |
 | `users/common/` | Shared CLI tools (starship, zoxide, fzf, eza, bat), shared GUI apps (Firefox, Chrome, Bitwarden, Signal) |
-| `lib/` | `checks.nix` (alejandra/statix/deadnix/markdownlint), `devshell.nix`, `ssh-hosts.nix`, `secret-apps.nix` |
+| `lib/` | `checks.nix` (alejandra/statix/deadnix/markdownlint), `module-inertness.nix` (the `modules-inert` check), `devshell.nix`, `ssh-hosts.nix`, `secret-apps.nix` |
 | `secrets/` | Agenix `.age` encrypted files (safe to commit) + `secrets/secrets.nix` (recipient declarations) |
 | `pkgs/` | Custom package build (`framework-control` GUI) |
 | `tools/` | Install scripts (non-Nix bash helpers for provisioning) |
@@ -113,7 +146,7 @@ flake.nix
 Modules expose behavior through `custom.*` options rather than direct NixOS options. Known options:
 
 - `custom.backups` — enable per-user restic backups to NAS (SMB or NFS), AC-only gating for laptops
-- `custom.isLaptop` — defined in `roles/common/base.nix`; gates AC-power-sensitive maintenance jobs (NAS backups, NixOS auto-upgrade, Flatpak auto-update) when `true`
+- `custom.isLaptop` — declared in `modules/is-laptop.nix`; gates AC-power-sensitive maintenance jobs (NAS backups, NixOS auto-upgrade, Flatpak auto-update) when `true`
 - `custom.cli.shell` — controls which shell user modules activate
 - `custom.framework.enable` — Framework-specific driver/kernel config (fingerprint reader, keyboard brightness, charge limit) plus the `framework-control` GUI service from `pkgs/`
 - `custom.secureBoot.enable` — lanzaboote Secure Boot
@@ -155,20 +188,20 @@ Secrets never exist as plaintext on disk. The flow is:
 
 1. Encrypted `.age` files committed to `secrets/` — safe to commit
 2. `secrets/secrets.nix` declares which age public keys (hosts + offline admin) can decrypt each file
-3. `age.secrets.*` entries declared in host/role files are decrypted at activation time into `/run/agenix/` (tmpfs)
+3. `age.secrets.*` entries declared in host, module, or profile files are decrypted at activation time into `/run/agenix/` (tmpfs)
 4. NixOS modules and home-manager reference `/run/agenix/<name>` paths
 
 The host age private key lives at `/var/lib/agenix/identity` on the deployed machine. The offline admin key is kept only in Bitwarden, never on machines.
 
-`modules/secrets.nix` sets the identity path only. Machine-specific `age.secrets.*` entries live in `hosts/enterprise-d/secrets.nix` (NAS credentials, SSH key, GitHub token). Wi-Fi secret declarations live alongside the NetworkManager profiles in `roles/common/wifi.nix`.
+`profiles/common/secrets.nix` sets the identity path only. Machine-specific `age.secrets.*` entries live in `hosts/enterprise-d/secrets.nix` (NAS credentials, SSH key, GitHub token). Wi-Fi secret declarations live alongside the NetworkManager profiles in `modules/wifi.nix`.
 
-Wi-Fi credentials use environment variable substitution: `psk = "$WIFI_AGT_HOME_PASSWORD"` in `roles/common/wifi.nix`, with the variable sourced from the agenix secret at activation time.
+Wi-Fi credentials use environment variable substitution: `psk = "$WIFI_AGT_HOME_PASSWORD"` in `modules/wifi.nix`, with the variable sourced from the agenix secret at activation time.
 
 ### Adding a New Wi-Fi Network
 
-Changes needed in three places: `secrets/secrets.nix` (add recipient keys), `roles/common/wifi.nix` (add both the `age.secrets."wifi/<name>".file` declaration and the NetworkManager profile), and create `secrets/wifi/<name>.age`. See README § Wi-Fi Pre-configuration for exact syntax.
+Changes needed in three places: `secrets/secrets.nix` (add recipient keys), `modules/wifi.nix` (add both the `age.secrets."wifi/<name>".file` declaration and the NetworkManager profile), and create `secrets/wifi/<name>.age`. See README § Wi-Fi Pre-configuration for exact syntax.
 
-Note: `roles/common/networking.nix` is a separate file for general network-discovery config (e.g. avahi/mDNS), kept apart from `wifi.nix` for clear separation of concerns.
+Note: `profiles/common/networking.nix` is a separate file for general network-discovery config (e.g. avahi/mDNS), kept apart from `wifi.nix` for clear separation of concerns.
 
 ### Flake Inputs
 
@@ -222,7 +255,7 @@ The current user is `thomasga` (Geoffrey Thomas). The home-manager attachment is
 - **Never use `cd` in commands — not in copy-paste command blocks, not in tool-run shell commands.** Suggested commands assume the shell is already at the repo root (the prompt shows it); for anything that needs a path, use `git -C`, absolute paths, or the tool's own path flag instead of changing directory.
 - **Standing preferences captured mid-task (like the ones in this list) go in their own dedicated commit/PR against `master`, never bundled into whatever feature branch happens to be checked out at the time.** They're a process concern orthogonal to the feature being worked on; landing them separately keeps feature PR history and process-preference history each legible on their own.
 - **Don't guess about repo/PR state when a real check is one call away.** If asked whether two PRs conflict, whether content is identical, or anything else answerable by actually reading the diff/file/commit, fetch it first — don't answer from memory of having written or seen it earlier in the conversation.
-- **Favor one file per concern over lumping unrelated settings into an existing catch-all file, anywhere in the tree** (`roles/`, `modules/`, `users/`, etc.) — not just `roles/common/`. e.g. network-discovery config (avahi/mDNS) belongs in its own `roles/common/networking.nix`, separate from `wifi.nix` (NetworkManager/Wi-Fi) and `base.nix` (unconditional OS settings). When adding a setting, ask whether it fits an existing file's concern or needs a new one — don't default to the nearest catch-all just because it's already imported.
+- **Favor one file per concern over lumping unrelated settings into an existing catch-all file, anywhere in the tree** (`profiles/`, `modules/`, `users/`, etc.) — not just `profiles/common/`. e.g. network-discovery config (avahi/mDNS) belongs in its own `profiles/common/networking.nix`, separate from `modules/wifi.nix` (NetworkManager/Wi-Fi) and `profiles/common/base.nix` (the baseline every host gets). When adding a setting, ask whether it fits an existing file's concern or needs a new one — don't default to the nearest catch-all just because it's already imported.
 - **Don't assert a fact you haven't actually checked, even a small incidental one (what an icon is, whether an image is a live screenshot vs. a pasted reference, etc.).** State it as a guess, or check it, before presenting it as settled. "That's the generic GNOME icon" / "that's the real logo" said with confidence and then reversed twice in one session is worse than saying "I'm not sure, let me verify" once.
 - **Don't ask permission for routine follow-through that a standing instruction already covers** (e.g. updating a PR's title/description after pushing commits that change its scope — "PRs: keep them updated" already says to do this). Asking turns a zero-judgment action into a round trip the user has to spend just to get you to do what was already asked. Reserve confirmation for things that are actually ambiguous, risky, or irreversible — not for closing the loop on your own prior work.
 - **Always subscribe to PR activity without asking.** As soon as a PR exists for the session's work (opened by Claude or by the user from the session), subscribe to its events (`subscribe_pr_activity` where available) and follow through — respond to review comments, investigate CI failures — until the PR is merged or closed. Don't offer it as an option; just do it.

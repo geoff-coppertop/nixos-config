@@ -249,7 +249,7 @@ in {
       # A greeter-class session (GDM's login screen — or any display manager's;
       # the class is a logind concept, not a GNOME one) never reports idle on
       # its own here: the GDM dconf profile deliberately sets idle-delay=0 to
-      # fix resume blanking (roles/desktop/gnome.nix), which disables the
+      # fix resume blanking (profiles/desktop/gnome.nix), which disables the
       # greeter compositor's idle tracking entirely, so the session pins
       # IdleHint=no and blocks logind's IdleAction forever. Nobody "uses" a
       # login screen: an active greeter session is idle by definition. This
