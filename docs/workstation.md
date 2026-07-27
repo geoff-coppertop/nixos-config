@@ -1,40 +1,40 @@
 # Workstation Capability
 
 What a workstation-class machine provides: a graphical environment
-(`roles/desktop/`) and a development toolchain (`roles/dev/`), plus the system
+(`profiles/desktop/`) and a development toolchain (`profiles/dev/`), plus the system
 modules backing them.
 
 This is machine capability, not personal preference — it is what the host *can
 do*, decided when the machine is defined. `hosts/defiant/configuration.nix` not
-importing `roles/desktop` is that decision in action. A person's own settings on
+importing `profiles/desktop` is that decision in action. A person's own settings on
 top — theme, wallpaper, which optional apps they install — are
 [docs/desktop.md](desktop.md). The layering rule is
 [docs/architecture.md § Placement Rule](architecture.md#placement-rule).
 
-## What `roles/desktop/` Provides
+## What `profiles/desktop/` Provides
 
 | File | Provides |
 | --- | --- |
-| `roles/desktop/gnome.nix` | The desktop environment, GDM, system-wide dconf, and pruning of unwanted default applications |
-| `roles/desktop/audio.nix` | pipewire with ALSA/Pulse compatibility and rtkit |
-| `roles/desktop/power.nix` | logind idle/suspend policy, UPower critical-battery hibernate, AC and remote-session detection |
+| `profiles/desktop/gnome.nix` | The desktop environment, GDM, system-wide dconf, and pruning of unwanted default applications |
+| `profiles/desktop/audio.nix` | pipewire with ALSA/Pulse compatibility and rtkit |
+| `profiles/desktop/power.nix` | logind idle/suspend policy, UPower critical-battery hibernate, AC and remote-session detection |
 
 Pruning default desktop applications belongs here, not in per-user config —
 typical candidates are a tour app, a help viewer, bundled games.
 
-`roles/desktop/power.nix` is one half of this machine's suspend/hibernate
+`profiles/desktop/power.nix` is one half of this machine's suspend/hibernate
 design; the other half is `hosts/<machine>/power.nix`. They are documented
 together as a single table in
 [hosts/enterprise-d/README.md](../hosts/enterprise-d/README.md) — read both
 before changing either.
 
-## What `roles/dev/` Provides
+## What `profiles/dev/` Provides
 
 | File | Provides |
 | --- | --- |
-| `roles/dev/containers.nix` | Podman with a `docker` shim, tuned for devcontainers |
-| `roles/dev/tools.nix` | Connect IQ SDK manager and a JDK; enables `custom.binCompat` |
-| `roles/dev/network-tools.nix` | `dnsutils` — `dig`/`nslookup`/`host` |
+| `profiles/dev/containers.nix` | Podman with a `docker` shim, tuned for devcontainers |
+| `profiles/dev/tools.nix` | Connect IQ SDK manager and a JDK; enables `custom.binCompat` |
+| `profiles/dev/network-tools.nix` | `dnsutils` — `dig`/`nslookup`/`host` |
 
 `network-tools.nix` exists because `dig` can query a specific resolver and port
 directly (`dig @127.0.0.1 -p 5335` against unbound on `defiant`), which `curl`
@@ -42,7 +42,7 @@ and `getent` cannot do.
 
 ## Containers
 
-`roles/dev/containers.nix` runs Podman with `dockerCompat`, so tooling that
+`profiles/dev/containers.nix` runs Podman with `dockerCompat`, so tooling that
 shells out to `docker` — notably the VS Code devcontainer CLI — works
 unmodified. Four settings there are load-bearing and were each set against a
 real failure:
@@ -68,7 +68,7 @@ real failure:
 
 ## Connect IQ SDK (Garmin)
 
-`roles/dev/tools.nix` installs `connect-iq-sdk-manager` (a non-interactive Go CLI
+`profiles/dev/tools.nix` installs `connect-iq-sdk-manager` (a non-interactive Go CLI
 replacement for Garmin's broken Electron/webkit2gtk SDK Manager GUI —
 [lindell/connect-iq-sdk-manager-cli](https://github.com/lindell/connect-iq-sdk-manager-cli))
 and a JDK, since the SDK's `monkeyc` compiler is a Java app.

@@ -9,11 +9,11 @@ in {
     ./home-assistant
     "${modulesPath}/installer/sd-card/sd-image-aarch64.nix"
 
-    ../../roles/common
-    ../../roles/dev
+    ../../profiles/common
+    ../../profiles/dev
 
     ../../modules
-    # NOT: roles/desktop — no display server
+    # NOT: profiles/desktop — no display server
   ];
 
   # ── Boot ──────────────────────────────────────────────────────────────────
@@ -28,7 +28,7 @@ in {
   hardware.enableRedistributableFirmware = true;
 
   # Headless — the only way in is SSH with an authorized key
-  # (roles/common/users.nix's authorizedKeysFor), never a physical console.
+  # (modules/users.nix's authorizedKeysFor), never a physical console.
   # That key check is the actual gate; a sudo password on top of it just
   # blocks unattended remote deploys (nixos-rebuild --target-host) without
   # adding real security.

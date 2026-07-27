@@ -69,7 +69,7 @@ Rules:
 | `docs/secrets.md` | agenix model, age identities, create/rotate/rekey, secret inventory, Wi-Fi PSKs, SSH login keys vs host keys and `lib/ssh-hosts.nix` pinning |
 | `docs/users.md` | User model, adding a user, dotfiles patterns, home-manager idioms |
 | `docs/desktop.md` | A person's desktop: per-user GUI app opt-in, theme and wallpaper, draw.io/Obsidian |
-| `docs/workstation.md` | Machine capability: `roles/desktop/` (DE, audio, idle/suspend) and `roles/dev/` (Podman, Connect IQ, debug probes) |
+| `docs/workstation.md` | Machine capability: `profiles/desktop/` (DE, audio, idle/suspend) and `profiles/dev/` (Podman, Connect IQ, debug probes) |
 | `docs/homelab-network.md` | Traefik and DNS composition on defiant — the `custom.*` option table itself is in `docs/architecture.md` |
 | `docs/smart-home.md` | Home Assistant automation rules, `extraComponents`, Zigbee/Z-Wave radio network specifics |
 
@@ -172,8 +172,8 @@ These must hold without reading any doc first.
 ### Repo conventions
 
 - **Favor one file per concern over lumping unrelated settings into an existing
-  catch-all**, anywhere in the tree — `roles/`, `modules/`, `users/`, `hosts/`.
-  Network discovery (avahi/mDNS) belongs in `roles/common/networking.nix`,
+  catch-all**, anywhere in the tree — `profiles/`, `modules/`, `users/`, `hosts/`.
+  Network discovery (avahi/mDNS) belongs in `profiles/common/networking.nix`,
   separate from `wifi.nix` (NetworkManager) and `base.nix` (unconditional OS
   settings). When adding a setting, ask whether it fits an existing file's
   concern or needs a new one.

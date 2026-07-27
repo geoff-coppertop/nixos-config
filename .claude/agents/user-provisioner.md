@@ -1,6 +1,6 @@
 ---
 name: user-provisioner
-description: Owns the user lifecycle end to end — home-manager, desktop personalization, and onboarding a brand-new user. Use for anything under users/: dotfiles, fish/starship/zoxide/fzf, VS Code extensions and settings, GNOME dconf, theme, wallpaper, adding or removing GUI applications, Flatpak apps, .desktop launch-flag overrides, adding a new user, and assigning a user to a host. Owns docs/users.md and docs/desktop.md. Not roles/desktop/ or roles/dev/ — the desktop-environment baseline, audio, idle/suspend policy and the dev toolchain are machine capability, owned by machine-provisioner.
+description: Owns the user lifecycle end to end — home-manager, desktop personalization, and onboarding a brand-new user. Use for anything under users/: dotfiles, fish/starship/zoxide/fzf, VS Code extensions and settings, GNOME dconf, theme, wallpaper, adding or removing GUI applications, Flatpak apps, .desktop launch-flag overrides, adding a new user, and assigning a user to a host. Owns docs/users.md and docs/desktop.md. Not profiles/desktop/ or profiles/dev/ — the desktop-environment baseline, audio, idle/suspend policy and the dev toolchain are machine capability, owned by machine-provisioner.
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: sonnet
 ---
@@ -42,8 +42,8 @@ Not yours:
 
 - New `custom.*` option *definitions* or reusable system modules → `architect`
 - **The machine's capabilities, as opposed to the person's preferences** →
-  `machine-provisioner`. `roles/desktop/` (which desktop environment runs, app
-  pruning, pipewire, logind idle/suspend) and `roles/dev/` (Podman, the Connect
+  `machine-provisioner`. `profiles/desktop/` (which desktop environment runs, app
+  pruning, pipewire, logind idle/suspend) and `profiles/dev/` (Podman, the Connect
   IQ toolchain, USB debug probes) are system-layer files: they say what the
   machine can do, not what one person likes. Your half is the personalization
   on top — theme, wallpaper, dconf, which optional GUI apps a user opts into.

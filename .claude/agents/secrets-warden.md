@@ -24,7 +24,7 @@ You do:
 - Add and adjust recipient entries in `secrets/secrets.nix`
 - Add `age.secrets.*` declarations in `hosts/<machine>/secrets.nix`
 - Wire `/run/agenix/<name>` paths into module options
-- Add Wi-Fi profiles in `roles/common/wifi.nix` and their `environmentFiles`
+- Add Wi-Fi profiles in `modules/wifi.nix` and their `environmentFiles`
   entries
 - Pin verified host keys in `lib/ssh-hosts.nix`
 - Keep `docs/secrets.md`'s inventory accurate
@@ -59,7 +59,7 @@ secret exists when you have only declared its recipient.
   where the inventory says so. Check `docs/secrets.md` rather than guessing.
 - Zigbee and Z-Wave keys cannot be rotated cheaply; regenerating either after
   devices are paired forces a full re-pair. Warn before suggesting it.
-- `roles/common/wifi.nix` owns Wi-Fi. `roles/common/networking.nix` is avahi/mDNS
+- `modules/wifi.nix` owns Wi-Fi. `profiles/common/networking.nix` is avahi/mDNS
   and is not involved.
 - Never `cd`. Never use heredocs.
 

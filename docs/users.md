@@ -19,7 +19,7 @@ has.
 ### Current example: `thomasga`
 
 The system account is declared through `custom.users` in the host configuration.
-`roles/common/users.nix` defines that option and turns each entry into a
+`modules/users.nix` defines that option and turns each entry into a
 `users.users.*` entry with `isNormalUser = true`:
 
 ```nix

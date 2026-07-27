@@ -3,11 +3,11 @@ _: let
 in {
   imports = [
     ./secrets.nix
-    ../../roles/common
-    ../../roles/dev
+    ../../profiles/common
+    ../../profiles/dev
 
     ../../modules
-    # NOT: roles/desktop — no display server
+    # NOT: profiles/desktop — no display server
   ];
 
   wsl = {

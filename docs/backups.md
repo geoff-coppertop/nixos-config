@@ -1,9 +1,9 @@
 # Backups
 
 Client-pushed restic backups to a NAS share, provided by
-`roles/common/backups.nix` and configured per host through `custom.backups`.
+`modules/backups.nix` and configured per host through `custom.backups`.
 
-The module is imported by `roles/common/default.nix`, so every host already has
+The module is imported by `profiles/common/default.nix`, so every host already has
 it — a host only needs to set `custom.backups`.
 
 Each domain agent adds the entries for its own services (the same way each adds

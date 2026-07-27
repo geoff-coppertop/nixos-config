@@ -11,21 +11,41 @@ architectural decision.
 ```text
 flake.nix
   └── hosts/<machine>/        # machine-specific: hardware, disk, power
-        └── roles/            # shared system policy: networking, desktop, gaming
-              └── modules/    # reusable NixOS features: backups, secrets, secure boot
-                    └── users/<name>/   # personal: dotfiles, shell, apps (home-manager)
-                          └── users/common/   # opt-in shared user modules
+        ├── modules/          # declare custom.* options — imported everywhere, inert until enabled
+        ├── profiles/         # set config — imported per host, active immediately
+        └── users/<name>/     # personal: dotfiles, shell, apps (home-manager)
+              └── users/common/   # opt-in shared user modules
 ```
 
 The repo is split by responsibility:
 
 - `hosts/<machine>/` owns machine-specific hardware, power, and disk layout.
-- `roles/` owns shared system policy such as base settings, networking, and the
-  desktop baseline.
-- `modules/` owns reusable system features such as btrfs, secrets, and secure boot.
+- `modules/` declare `custom.*` options. Every host imports `modules/` whole;
+  nothing in it takes effect until a host sets the matching option.
+- `profiles/` set configuration directly. A host imports only the profiles it
+  wants, and each one is active the moment it is imported.
 - `users/<name>/` owns personal applications, dotfiles, shell behavior, and
   workflow tooling through home-manager.
 - `secrets/` owns agenix-encrypted material that is safe to commit.
+
+### Module or profile?
+
+One test, no judgment call: **does the file declare `options`?**
+
+| | Declares `options` | Imported | Effect |
+| --- | --- | --- | --- |
+| `modules/` | yes | by every host, whole | none until its option is set |
+| `profiles/` | no | per host, by name | immediate |
+
+That is why there is no `profiles/default.nix` aggregating every profile the
+way `modules/default.nix` aggregates every module. Importing all modules is
+safe — they are inert. Importing all profiles would silently apply every one of
+them to whichever host did it, and adding a new profile would change that host
+without anyone choosing to.
+
+"Profile" is NixOS's own term for a preset bundle of settings — see
+`nixpkgs/nixos/modules/profiles/`. These are the same thing, scoped to this
+repo.
 
 ## Placement Rule
 
@@ -33,7 +53,7 @@ This is the canonical statement. Every other doc links here rather than
 restating it.
 
 - If it affects machine operation, put it in the system layer:
-  `hosts/<machine>/` for machine-specific behavior, `roles/` for shared system
+  `hosts/<machine>/` for machine-specific behavior, `profiles/` for shared system
   policy, or `modules/` for a reusable NixOS feature.
 - If it affects a person's workflow, put it in that user's home-manager config
   under `users/<name>/`, in a profile such as `users/<name>/desktop.nix`
@@ -45,15 +65,15 @@ restating it.
 ## One File Per Concern
 
 Favor a new file over adding an unrelated setting to an existing catch-all file,
-anywhere in the tree — `roles/`, `modules/`, `users/`, `hosts/`.
+anywhere in the tree — `profiles/`, `modules/`, `users/`, `hosts/`.
 
 The worked example is networking. Three separate files, three separate concerns:
 
 | File | Concern |
 | --- | --- |
-| `roles/common/base.nix` | Unconditional OS settings |
-| `roles/common/wifi.nix` | NetworkManager profiles and Wi-Fi credentials |
-| `roles/common/networking.nix` | Network discovery (avahi/mDNS) |
+| `modules/base.nix` | Unconditional OS settings |
+| `modules/wifi.nix` | NetworkManager profiles and Wi-Fi credentials |
+| `profiles/common/networking.nix` | Network discovery (avahi/mDNS) |
 
 When adding a setting, ask whether it fits an existing file's concern or needs a
 new one. Do not default to the nearest catch-all just because it is already
@@ -63,20 +83,20 @@ imported.
 
 Adding a new file is always three steps, in this order, everywhere in the tree:
 
-1. Create the file — `modules/<feature>.nix`, `roles/common/<concern>.nix`,
+1. Create the file — `modules/<feature>.nix`, `profiles/common/<concern>.nix`,
    `users/common/<app>.nix`.
 2. Add one import line to the sibling `default.nix`.
 3. Opt in where it applies — `custom.<feature>.enable = true;` in a host
    configuration, or an import in a user profile such as
    `users/thomasga/desktop.nix`.
 
-It holds identically for `modules/`, `roles/common/`, `roles/dev/`,
-`roles/desktop/`, and `users/`.
+It holds identically for `modules/`, `profiles/common/`, `profiles/dev/`,
+`profiles/desktop/`, and `users/`.
 
 **Step 2 is the one that fails silently.** A `.nix` file no `default.nix`
 imports is never evaluated, so it raises no error — it simply does nothing.
 `nix flake check` never sees it, and `deadnix` reports unused *bindings*, not
-unimported *files*. `modules/ssh-known-hosts.nix` sat unimported from the commit
+unimported *files*. `profiles/common/ssh-known-hosts.nix` sat unimported from the commit
 that added it, which meant SSH host-key pinning quietly did nothing.
 
 `tools/check_orphan_nix.py` now enforces step 2. It runs as a pre-commit hook
@@ -108,9 +128,9 @@ The machines currently in this repo are listed in the [root README](../README.md
 | `hosts/enterprise-d/` | Framework laptop: hardware scan, disko disk layout, power/hibernate policy |
 | `hosts/defiant/` | Raspberry Pi 4 homelab server: SD image, homelab service config, Home Assistant automations |
 | `hosts/holodeck-01/` | NixOS-WSL instance |
-| `roles/common/` | Base OS settings, users, NetworkManager Wi-Fi profiles, network discovery, backups, gaming, Flatpak |
-| `roles/desktop/` | Desktop environment baseline, audio (pipewire), power/idle policy |
-| `roles/dev/` | Dev tooling: GitHub CLI, container runtime, network tools |
+| `profiles/common/` | Base OS settings, users, NetworkManager Wi-Fi profiles, network discovery, backups, gaming, Flatpak |
+| `profiles/desktop/` | Desktop environment baseline, audio (pipewire), power/idle policy |
+| `profiles/dev/` | Dev tooling: GitHub CLI, container runtime, network tools |
 | `modules/` | Opt-in reusable NixOS features (see the `custom.*` catalogue below) |
 | `modules/udev-rules/` | Verbatim upstream udev rule files loaded via `services.udev.packages` |
 | `users/thomasga/` | Git, SSH, fish shell, GNOME dconf, VS Code, wallpaper, per-machine profiles |
@@ -126,17 +146,17 @@ The machines currently in this repo are listed in the [root README](../README.md
 Modules expose behavior through `custom.*` options rather than direct NixOS
 options, so a host configuration reads as a list of intents.
 
-Most are declared under `modules/`, but not all — `custom.backups` is declared in
-`roles/common/backups.nix` and `custom.users` in `roles/common/users.nix`.
+Every one is declared under `modules/` — that is what makes a file a module
+rather than a profile. See [Module or profile?](#module-or-profile).
 
 ### System policy
 
 | Option | Declared in | What it does |
 | --- | --- | --- |
-| `custom.isLaptop` | `roles/common/base.nix` | Gates AC-power-sensitive maintenance jobs (NAS backups, auto-upgrade, Flatpak auto-update) |
-| `custom.users` | `roles/common/users.nix` | Declares user accounts, groups, and SSH authorized keys |
-| `custom.backups` | `roles/common/backups.nix` | Per-entry restic backups to the NAS over SMB or NFS |
-| `custom.wifi.enable` | `roles/common/wifi.nix` | NetworkManager `ensureProfiles` Wi-Fi profiles |
+| `custom.isLaptop` | `modules/base.nix` | Gates AC-power-sensitive maintenance jobs (NAS backups, auto-upgrade, Flatpak auto-update) |
+| `custom.users` | `modules/users.nix` | Declares user accounts, groups, and SSH authorized keys |
+| `custom.backups` | `modules/backups.nix` | Per-entry restic backups to the NAS over SMB or NFS |
+| `custom.wifi.enable` | `modules/wifi.nix` | NetworkManager `ensureProfiles` Wi-Fi profiles |
 | `custom.networkDrives` | `modules/network-drives.nix` | Auto-mount SMB shares at graphical login |
 | `custom.ssh.identitySecret` | `users/common/` | Names the agenix secret holding a user's SSH login key |
 

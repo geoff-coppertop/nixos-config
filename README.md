@@ -41,8 +41,8 @@ everything else — lint, build, rebuild, updates.
 ```text
 flake.nix     entry point: inputs, dev shell, checks, apps, host and home configs
 hosts/        machine-specific hardware, disk, power, and service selection
-roles/        shared system policy: common, desktop, dev
-modules/      reusable opt-in NixOS features exposed as custom.* options
+profiles/     preset bundles a host imports: common, desktop, dev
+modules/      declare custom.* options; imported everywhere, inert until enabled
 users/        home-manager: per-user profiles plus shared opt-in modules
 lib/          flake helpers: mkNixosSystem, checks, dev shell, apps, inventories
 pkgs/         custom package builds

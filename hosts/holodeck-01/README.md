@@ -1,7 +1,7 @@
 # holodeck-01
 
 NixOS running as a WSL2 distribution on Windows (`x86_64-linux`). Headless
-development environment — `roles/desktop` is deliberately not imported, since
+development environment — `profiles/desktop` is deliberately not imported, since
 there is no display server.
 
 ## Machine Files

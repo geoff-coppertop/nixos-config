@@ -89,7 +89,7 @@
         # forces past with `suspend -i` is still held on the RTC-wake resume, so a
         # plain `systemctl hibernate` is refused and the machine just stays awake.
         # Root is authorised non-interactively for hibernate-ignore-inhibit by the
-        # polkit rule in roles/desktop/power.nix — mirrors the suspend path.
+        # polkit rule in profiles/desktop/power.nix — mirrors the suspend path.
         ExecStart = "${pkgs.systemd}/bin/systemctl hibernate -i";
       };
     };

@@ -14,7 +14,7 @@
     optionals
     types
     ;
-  sshHosts = import ../../lib/ssh-hosts.nix;
+  sshHosts = import ../lib/ssh-hosts.nix;
   cfg = config.custom.users;
 
   authorizedKeysFor = userName:

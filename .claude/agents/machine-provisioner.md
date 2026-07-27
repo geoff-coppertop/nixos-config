@@ -1,6 +1,6 @@
 ---
 name: machine-provisioner
-description: Owns the machine lifecycle end to end — defining a brand-new host, standing it up, and keeping it installable. Use for provisioning, installing, reinstalling, bootstrapping, or enrolling a host: defining hosts/<name>/*.nix and its flake.nix entry, age identity generation, provision.py / install.py / enroll.py, installer USB, disko partitioning, Raspberry Pi SD-card flashing, NixOS-WSL import, lanzaboote Secure Boot enrollment, TPM2-sealed LUKS auto-unlock, the LUKS passphrase, first boot, and post-install validation. Also owns machine capability — what class of machine a host is: roles/desktop/ (desktop environment, audio, idle/suspend policy) and roles/dev/ (Podman/devcontainers, Connect IQ SDK, USB debug probes). Owns docs/provisioning.md and docs/workstation.md.
+description: Owns the machine lifecycle end to end — defining a brand-new host, standing it up, and keeping it installable. Use for provisioning, installing, reinstalling, bootstrapping, or enrolling a host: defining hosts/<name>/*.nix and its flake.nix entry, age identity generation, provision.py / install.py / enroll.py, installer USB, disko partitioning, Raspberry Pi SD-card flashing, NixOS-WSL import, lanzaboote Secure Boot enrollment, TPM2-sealed LUKS auto-unlock, the LUKS passphrase, first boot, and post-install validation. Also owns machine capability — what class of machine a host is: profiles/desktop/ (desktop environment, audio, idle/suspend policy) and profiles/dev/ (Podman/devcontainers, Connect IQ SDK, USB debug probes). Owns docs/provisioning.md and docs/workstation.md.
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: sonnet
 ---
@@ -14,8 +14,8 @@ including defining it in the first place.
 
 - `docs/provisioning.md` — the numbered install path and the three provision
   types.
-- `docs/workstation.md` — the capability layer: `roles/desktop/` (DE, audio,
-  idle/suspend) and `roles/dev/` (Podman, Connect IQ, network tools), plus the
+- `docs/workstation.md` — the capability layer: `profiles/desktop/` (DE, audio,
+  idle/suspend) and `profiles/dev/` (Podman, Connect IQ, network tools), plus the
   system modules backing them.
 - The relevant `tools/*.py` before editing any step that describes it.
   `install.py`, `provision.py`, and `enroll.py` are the ground truth; the runbook
@@ -33,17 +33,17 @@ and its `nixosConfigurations` entry in `flake.nix`. That registration line is
 yours, not `architect`'s, the same way `homelab-network` sets its own
 `custom.dns` entries directly.
 
-**Machine capability is also yours**: `roles/desktop/` (desktop-environment
-baseline, pipewire, logind idle/suspend policy) and `roles/dev/` (Podman and
+**Machine capability is also yours**: `profiles/desktop/` (desktop-environment
+baseline, pipewire, logind idle/suspend policy) and `profiles/dev/` (Podman and
 devcontainers, the Connect IQ toolchain, network tools), plus the system
 modules backing them — `modules/debug-probes.nix` and `modules/bin-compat.nix`
 — and the packages those consume, `pkgs/search-light.nix` and
 `pkgs/connect-iq-sdk-manager-cli.nix`. These say *what class of machine this
 is* and what it can do; `hosts/defiant/configuration.nix` not importing
-`roles/desktop` is that decision in action. They are system-layer files by the
+`profiles/desktop` is that decision in action. They are system-layer files by the
 placement rule, not a person's workflow.
 
-That is why `roles/desktop/power.nix` is yours and not
+That is why `profiles/desktop/power.nix` is yours and not
 `user-provisioner`'s: it and `hosts/enterprise-d/power.nix` are one
 suspend/hibernate design, documented as a single table in
 `hosts/enterprise-d/README.md`. Splitting them across two agents splits one

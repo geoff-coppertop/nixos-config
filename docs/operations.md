@@ -105,7 +105,7 @@ sudo nixos-rebuild switch --flake .#enterprise-d
 
 ### Automatic updates
 
-`roles/common/base.nix` enables `system.autoUpgrade` for every host: it fetches
+`modules/base.nix` enables `system.autoUpgrade` for every host: it fetches
 `github:geoff-coppertop/nixos-config#<hostname>` weekly and stages the result as
 the next boot entry (`operation = boot`, `allowReboot = false`). Nothing reboots
 automatically; apply the staged generation at your convenience. Because it tracks

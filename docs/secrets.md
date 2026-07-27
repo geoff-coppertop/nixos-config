@@ -21,7 +21,7 @@ Secrets never exist as plaintext on disk. The flow is:
 4. NixOS modules and home-manager reference `/run/agenix/<name>` paths.
 
 Runtime decryption uses the dedicated age private key at
-`/var/lib/agenix/identity`, configured by `modules/secrets.nix` — that module
+`/var/lib/agenix/identity`, configured by `profiles/common/secrets.nix` — that module
 sets the identity path and nothing else. Every host has its own
 `hosts/<machine>/secrets.nix` declaring the `age.secrets` for that machine.
 
@@ -241,7 +241,7 @@ The repo is set up to make mistakes harder:
 
 ## Wi-Fi Credentials
 
-Wi-Fi profiles are declared in `roles/common/wifi.nix` using
+Wi-Fi profiles are declared in `modules/wifi.nix` using
 `networking.networkmanager.ensureProfiles`. The SSID is stored in plaintext in
 the config; the passphrase is kept in an agenix secret and substituted at
 activation time. NetworkManager writes the final profile to
@@ -250,7 +250,7 @@ and permissions as any manually configured connection. LUKS encryption protects
 those files at rest, and the agenix secret itself lives on tmpfs (`/run/agenix/`)
 and is never written to disk.
 
-`roles/common/networking.nix` is a separate file for network *discovery*
+`profiles/common/networking.nix` is a separate file for network *discovery*
 (avahi/mDNS) and is not involved in Wi-Fi.
 
 Currently configured networks: `agt-home`, `agt-iot`, `agt-work`.
@@ -278,14 +278,14 @@ Three files change, and one new secret is created:
    "wifi/newnet.age".publicKeys = [enterprise-d offlineAdmin];
    ```
 
-2. `roles/common/wifi.nix` — expose the secret at runtime, alongside the existing
+2. `modules/wifi.nix` — expose the secret at runtime, alongside the existing
    Wi-Fi entries:
 
    ```nix
    "wifi/newnet".file = ../../secrets/wifi/newnet.age;
    ```
 
-3. `roles/common/wifi.nix` — add the secret path to `environmentFiles` and add a
+3. `modules/wifi.nix` — add the secret path to `environmentFiles` and add a
    profile block:
 
    ```nix
@@ -329,7 +329,7 @@ but by the same tooling.
 
 - SSH login keys are per-host keypairs, stored as agenix secrets.
 - SSH host trust is pinned in `lib/ssh-hosts.nix` and rendered to
-  `programs.ssh.knownHosts` by `modules/ssh-known-hosts.nix`.
+  `programs.ssh.knownHosts` by `profiles/common/ssh-known-hosts.nix`.
 - `known_hosts` records **server identity**. `authorized_keys` grants **login
   access**. They are different data flows and are wired separately.
 
@@ -360,9 +360,9 @@ enterprise-d = {
 
 Two consumers read it:
 
-- `modules/ssh-known-hosts.nix` turns non-null `publicKey` values into
+- `profiles/common/ssh-known-hosts.nix` turns non-null `publicKey` values into
   `programs.ssh.knownHosts`, so clients do not prompt on first connect.
-- `roles/common/users.nix` collects, for each user, every `userPublicKeys.<user>`
+- `modules/users.nix` collects, for each user, every `userPublicKeys.<user>`
   entry across all machines into that user's `openssh.authorizedKeys.keys`. Once
   a user is enrolled on a machine, they can log in from it to every other machine
   that declares them.
@@ -372,7 +372,7 @@ out-of-band verification below. Until one is pinned, `programs.ssh.knownHosts`
 evaluates to an empty set and clients still prompt on first connect. That is
 expected, not a fault.
 
-> **Note:** `modules/ssh-known-hosts.nix` was missing from `modules/default.nix`
+> **Note:** `profiles/common/ssh-known-hosts.nix` was missing from `modules/default.nix`
 > until it was added alongside `tools/check_orphan_nix.py`. It had never been
 > imported, so the host-key path has not yet run against a real pinned key.
 > Verify the first pin actually takes effect:

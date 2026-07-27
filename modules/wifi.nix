@@ -9,9 +9,9 @@ in {
 
   config = mkIf config.custom.wifi.enable {
     age.secrets = {
-      "wifi/agt-home".file = ../../secrets/wifi/agt-home.age;
-      "wifi/agt-iot".file = ../../secrets/wifi/agt-iot.age;
-      "wifi/agt-work".file = ../../secrets/wifi/agt-work.age;
+      "wifi/agt-home".file = ../secrets/wifi/agt-home.age;
+      "wifi/agt-iot".file = ../secrets/wifi/agt-iot.age;
+      "wifi/agt-work".file = ../secrets/wifi/agt-work.age;
     };
 
     networking.networkmanager = {

@@ -25,12 +25,12 @@ just because it touches a host config or `flake.nix`.
 
 ## Scope
 
-Yours: `modules/`, `roles/`, and `flake.nix`'s inputs and general wiring
+Yours: `modules/`, `profiles/`, and `flake.nix`'s inputs and general wiring
 (`devShells`, `checks`, `apps`, the `mkNixosSystem`/`mkHomeConfig` definitions
 themselves) — the machinery every other agent calls into, not any specific
 instance of a host or user.
 
-That includes `roles/common/backups.nix` and `docs/backups.md` — the backup
+That includes `modules/backups.nix` and `docs/backups.md` — the backup
 module and its documentation. Each domain agent adds its own
 `custom.backups.users.<entry>` (the same way it adds its own
 `custom.dns.subdomains`); you own the module and the doc they all read.
@@ -50,7 +50,7 @@ and a manual backup run stay the user's to execute (see Invariants).
 already governs `modules/`. `pkgs/framework-control.nix` is yours (consumed by
 `modules/framework-control.nix`); `pkgs/search-light.nix` and
 `pkgs/connect-iq-sdk-manager-cli.nix` are `machine-provisioner`'s (consumed by
-`roles/desktop/` and `roles/dev/`).
+`profiles/desktop/` and `profiles/dev/`).
 
 `lib/` is yours **except** the domain-specific files a specialist already owns
 directly: `lib/ssh-hosts.nix` (`secrets-warden` — it's the inventory they pin
@@ -71,7 +71,7 @@ Not yours, hand back to the owning specialist:
 - home-manager module contents, dotfiles, GUI apps, desktop theme →
   `user-provisioner`
 - The capability roles that say what class of machine a host is —
-  `roles/desktop/` and `roles/dev/`, plus `modules/debug-probes.nix` and
+  `profiles/desktop/` and `profiles/dev/`, plus `modules/debug-probes.nix` and
   `modules/bin-compat.nix` → `machine-provisioner`
 - Traefik and DNS service config → `homelab-network`
 - Home Assistant, Zigbee/Z-Wave/Matter/MQTT/ADS-B service config →

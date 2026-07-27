@@ -34,12 +34,12 @@ package policy, which is set in `flake.nix`.
 
 | File | Owns |
 | --- | --- |
-| `roles/desktop/gnome.nix` | GNOME, GDM, system dconf settings |
-| `roles/desktop/audio.nix` | pipewire |
-| `roles/desktop/power.nix` | logind idle inhibitor |
+| `profiles/desktop/gnome.nix` | GNOME, GDM, system dconf settings |
+| `profiles/desktop/audio.nix` | pipewire |
+| `profiles/desktop/power.nix` | logind idle inhibitor |
 | `modules/flatpak.nix` | Flatpak and Flatseal, as optional platform services |
 | `modules/gaming.nix` | Steam |
-| `roles/common/base.nix` | Core system policy |
+| `modules/base.nix` | Core system policy |
 | `flake.nix` | Unfree package policy needed by Chrome and Steam |
 | `users/common/gui-apps.nix` | Firefox, Fedora Media Writer, Bitwarden, Chrome, Signal Desktop, for any user importing it |
 | `users/thomasga/desktop.nix` | Opts `thomasga` into that shared GUI set on desktop machines |

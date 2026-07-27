@@ -27,7 +27,7 @@ The reusable service layer these options configure is documented in
 - Zigbee coordinator on `/dev/ttyUSB0`, Z-Wave controller on `/dev/ttyACM0`.
   Both are passed through by a `udev.extraRules` entry matching vendor IDs `0658`
   and `10c4` into the `dialout` group; `thomasga` is in that group here.
-- Headless. `roles/desktop` is deliberately **not** imported — there is no
+- Headless. `profiles/desktop` is deliberately **not** imported — there is no
   display server.
 - SSH key only: `PasswordAuthentication`, `KbdInteractiveAuthentication`, and
   `PermitRootLogin` are all off.

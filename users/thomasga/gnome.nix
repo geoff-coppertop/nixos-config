@@ -251,7 +251,7 @@ in {
     "org/gnome/desktop/session" = {
       # Blank at 4 min. Also the moment Mutter sets the logind session
       # IdleHint=yes — the trigger the DE-independent suspend chain keys on
-      # (see the idle-hint contract in roles/desktop/power.nix). Keep in sync
+      # (see the idle-hint contract in profiles/desktop/power.nix). Keep in sync
       # with the 240s swayidle timeout there.
       idle-delay = lib.gvariant.mkUint32 240;
     };
@@ -263,7 +263,7 @@ in {
 
     # Power policy is DE-independent: logind owns idle suspend and lid
     # (hosts/enterprise-d/power.nix), UPower owns critical battery
-    # (roles/desktop/power.nix). These keys are the GNOME-side off switch so
+    # (profiles/desktop/power.nix). These keys are the GNOME-side off switch so
     # gsd-power never competes with that — it also respects application
     # suspend inhibitors (e.g. Firefox "Playing video"), so it could not be
     # trusted to sleep on battery anyway; the battery-idle-suspend watchdog
