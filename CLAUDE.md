@@ -58,6 +58,26 @@ Rules:
   provisioner into `architect`. Those boundaries were set against this repo's
   commit history; the reasoning is in the PR that introduced them.
 
+### Who owns a file
+
+**A file belongs to the domain agent that owns its subject, wherever it lives.**
+Where no domain claims it, the directory's default owner has it.
+
+| Directory | Default owner | Domain files that override |
+| --- | --- | --- |
+| `modules/` | `architect` — the `custom.*` vocabulary | dns, traefik → `homelab-network`; home-assistant, zigbee, zwave, matter, mqtt, adsb → `smart-home`; debug-probes, bin-compat → `machine-provisioner` |
+| `profiles/` | `machine-provisioner` — machine capability | `common/secrets.nix`, `common/ssh-known-hosts.nix` → `secrets-warden` |
+| `hosts/<machine>/` | `machine-provisioner` | `secrets.nix` → `secrets-warden`; `home/` → `user-provisioner`; `home-assistant/` → `smart-home` |
+| `users/` | `user-provisioner` | — |
+| `lib/` | `architect` | `ssh-hosts.nix` → `secrets-warden`; `traefik-route.nix` → `homelab-network` |
+| `secrets/` | `secrets-warden` | — |
+| `pkgs/` | whoever owns the consumer | — |
+| `tools/` | `machine-provisioner` — provisioning scripts | `secret_*.py`, `bootstrap_ssh_key.py` → `secrets-warden`; `check_*.py` → `architect` |
+| `flake.nix` | `architect` for inputs and general wiring | `nixosConfigurations` entry → `machine-provisioner`; `homeConfigurations` entry → `user-provisioner` |
+
+`architect` owns the vocabulary, not its uses: it defines what a `custom.*`
+option *means*, and the domain agent sets its value.
+
 ## Documentation
 
 | Doc | Covers |
