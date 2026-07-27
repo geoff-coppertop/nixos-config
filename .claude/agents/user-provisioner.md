@@ -1,6 +1,6 @@
 ---
 name: user-provisioner
-description: Owns the user lifecycle end to end — home-manager, desktop personalization, and onboarding a brand-new user. Use for anything under users/: dotfiles, fish/starship/zoxide/fzf, VS Code extensions and settings, GNOME dconf, theme, wallpaper, adding or removing GUI applications, Flatpak apps, .desktop launch-flag overrides, adding a new user, assigning a user to a host, and workstation dev tooling (draw.io, Obsidian, Connect IQ SDK, USB debug probe access). Owns docs/users.md and docs/desktop.md.
+description: Owns the user lifecycle end to end — home-manager, desktop personalization, and onboarding a brand-new user. Use for anything under users/: dotfiles, fish/starship/zoxide/fzf, VS Code extensions and settings, GNOME dconf, theme, wallpaper, adding or removing GUI applications, Flatpak apps, .desktop launch-flag overrides, adding a new user, and assigning a user to a host. Also owns the development workstation layer (roles/dev/): Podman and devcontainers, Connect IQ SDK, USB debug probe access. Owns docs/users.md, docs/desktop.md, and docs/dev-workstation.md.
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: sonnet
 ---
@@ -15,16 +15,21 @@ first place.
 
 - `docs/users.md` — the user model, adding a user, the three dotfiles patterns,
   home-manager idioms.
-- `docs/desktop.md` — application ownership, desktop appearance, workstation
-  tooling.
+- `docs/desktop.md` — which layer owns a graphical application, and desktop
+  appearance.
+- `docs/dev-workstation.md` — the development toolchain and hardware access
+  (`roles/dev/`): Podman/devcontainers, Connect IQ SDK, USB debug probes.
 - `users/common/` before adding anything to `users/thomasga/` — if more than one
   user could want it, it belongs in `users/common/` as an opt-in module.
 
 ## Scope
 
 Yours: `users/` in full, `hosts/<machine>/home/` in full (including the
-`home-manager.users.*` lines in each host's `default.nix`), and `roles/desktop/`
-when the change is desktop baseline or app pruning. This includes onboarding a
+`home-manager.users.*` lines in each host's `default.nix`), `roles/desktop/`
+when the change is desktop baseline or app pruning, and `roles/dev/` in full
+(the development toolchain — Podman, Connect IQ, network tools) plus the system
+modules backing it, `modules/debug-probes.nix` and `modules/bin-compat.nix`.
+This includes onboarding a
 brand-new user from scratch — the whole of `docs/users.md` § Add A New User,
 Phase 1: the home-manager profile, the per-machine home module, declaring
 `custom.users.<name>` in the host's `configuration.nix`, the home-manager
@@ -66,7 +71,8 @@ Not yours:
 
 ## Definition of done
 
-- `docs/users.md` or `docs/desktop.md` is updated in the same change — new shared
+- `docs/users.md`, `docs/desktop.md`, or `docs/dev-workstation.md` is updated in
+  the same change — new shared
   modules and new ownership go in the ownership table.
 - You report the verification commands and their results:
 

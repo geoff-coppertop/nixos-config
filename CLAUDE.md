@@ -27,7 +27,8 @@ them in sequence and reconcile the results.
 | Layer placement, new module or role, `custom.*` options, `flake.nix`/`lib/` wiring | `architect` | `docs/architecture.md` |
 | A machine — new or existing: defining, installing, enrolling, reinstalling; USB/SD/WSL media; Secure Boot; LUKS/TPM | `machine-provisioner` | `docs/provisioning.md` |
 | Secrets, agenix, SSH keys, Wi-Fi credentials | `secrets-warden` | `docs/secrets.md` |
-| A user — new or existing: home-manager, dotfiles, GUI apps, desktop theme, workstation tooling, adding a user | `user-provisioner` | `docs/users.md`, `docs/desktop.md` |
+| A user — new or existing: home-manager, dotfiles, GUI apps, desktop theme, adding a user | `user-provisioner` | `docs/users.md`, `docs/desktop.md` |
+| Dev workstation: Podman/devcontainers, Connect IQ SDK, USB debug probes | `user-provisioner` | `docs/dev-workstation.md` |
 | defiant reverse proxy and DNS: Traefik, AdGuard, unbound | `homelab-network` | `docs/homelab-network.md` |
 | defiant appliance layer: Home Assistant, Zigbee, Z-Wave, Matter, MQTT, ADS-B | `smart-home` | `docs/smart-home.md` |
 | Rebuild, update, lint, CI — **do not delegate** | handle inline | `docs/operations.md` |
@@ -59,7 +60,8 @@ Rules:
 | `docs/provisioning.md` | Numbered install path for each provision type (`disko`, `sd-card`, `wsl`), including defining a new machine (Step 1) and LUKS/TPM disk encryption |
 | `docs/secrets.md` | agenix model, age identities, create/rotate/rekey, secret inventory, Wi-Fi PSKs, SSH login keys vs host keys and `lib/ssh-hosts.nix` pinning |
 | `docs/users.md` | User model, adding a user, dotfiles patterns, home-manager idioms |
-| `docs/desktop.md` | Application ownership, desktop theme, draw.io/Obsidian, Connect IQ, USB debug probes |
+| `docs/desktop.md` | Which layer owns a graphical application, desktop theme, draw.io/Obsidian |
+| `docs/dev-workstation.md` | `roles/dev/`: Podman and devcontainers, Connect IQ SDK, USB debug probe udev rules |
 | `docs/homelab-network.md` | Traefik and DNS composition on defiant — the `custom.*` option table itself is in `docs/architecture.md` |
 | `docs/smart-home.md` | Home Assistant automation rules, `extraComponents`, Zigbee/Z-Wave radio network specifics |
 
@@ -70,7 +72,7 @@ drifts. Before any change, read:
 
 - `docs/operations.md` for every command: dev shell, lint, `nix flake check
   --no-build` (never bare — it builds the aarch64 config on x86_64 and fails),
-  per-host builds, rebuild/switch, flake updates, backups, CI.
+  per-host builds, rebuild/switch, flake updates, CI.
 - `docs/secrets.md` for secret-editing and rekey commands.
 - `docs/architecture.md` § Placement Rule for where new configuration belongs.
 

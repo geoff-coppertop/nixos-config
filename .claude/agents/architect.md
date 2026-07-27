@@ -51,10 +51,11 @@ Not yours, hand back to the owning specialist:
 - Secret material, agenix recipients, `age.secrets` declarations →
   `secrets-warden`
 - LUKS/TPM disk encryption → `machine-provisioner`
-- home-manager module contents, dotfiles, GUI apps, desktop theme, and
-  `roles/desktop/` (GNOME baseline, app pruning) → `user-provisioner` — the
-  one `roles/` exception, since desktop policy is `user-provisioner`'s domain
-  even though it lives in a role file
+- home-manager module contents, dotfiles, GUI apps, desktop theme, and the two
+  `roles/` subtrees that are a person's workstation rather than shared system
+  policy — `roles/desktop/` (desktop baseline, app pruning) and `roles/dev/`
+  (Podman, Connect IQ, network tools, plus `modules/debug-probes.nix` and
+  `modules/bin-compat.nix`) → `user-provisioner`
 - Traefik and DNS service config → `homelab-network`
 - Home Assistant, Zigbee/Z-Wave/Matter/MQTT/ADS-B service config →
   `smart-home`
