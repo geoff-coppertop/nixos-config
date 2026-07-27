@@ -31,8 +31,8 @@ everything else — lint, build, rebuild, updates.
 | [docs/provisioning.md](docs/provisioning.md) | How do I define and install a machine from scratch — USB, SD card, or WSL? |
 | [docs/secrets.md](docs/secrets.md) | How do agenix secrets and SSH keys work? How do I create, rotate, or rekey one? What goes in each file? |
 | [docs/users.md](docs/users.md) | How do I add a user, attach home-manager, or manage dotfiles? |
-| [docs/desktop.md](docs/desktop.md) | Which layer owns a graphical application? How do I change the theme? |
-| [docs/dev-workstation.md](docs/dev-workstation.md) | How do containers, the Connect IQ SDK, or a USB debug probe get set up? |
+| [docs/desktop.md](docs/desktop.md) | How do I install an app for just me, or change my theme and wallpaper? |
+| [docs/workstation.md](docs/workstation.md) | What does this machine provide — desktop environment, audio, containers, debug probes? |
 | [docs/homelab-network.md](docs/homelab-network.md) | How do Traefik and DNS compose on defiant? |
 | [docs/smart-home.md](docs/smart-home.md) | How do Home Assistant, Zigbee, and Z-Wave fit together? |
 

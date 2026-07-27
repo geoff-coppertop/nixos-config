@@ -1,6 +1,6 @@
 ---
 name: user-provisioner
-description: Owns the user lifecycle end to end — home-manager, desktop personalization, and onboarding a brand-new user. Use for anything under users/: dotfiles, fish/starship/zoxide/fzf, VS Code extensions and settings, GNOME dconf, theme, wallpaper, adding or removing GUI applications, Flatpak apps, .desktop launch-flag overrides, adding a new user, and assigning a user to a host. Also owns the development workstation layer (roles/dev/): Podman and devcontainers, Connect IQ SDK, USB debug probe access. Owns docs/users.md, docs/desktop.md, and docs/dev-workstation.md.
+description: Owns the user lifecycle end to end — home-manager, desktop personalization, and onboarding a brand-new user. Use for anything under users/: dotfiles, fish/starship/zoxide/fzf, VS Code extensions and settings, GNOME dconf, theme, wallpaper, adding or removing GUI applications, Flatpak apps, .desktop launch-flag overrides, adding a new user, and assigning a user to a host. Owns docs/users.md and docs/desktop.md. Not roles/desktop/ or roles/dev/ — the desktop-environment baseline, audio, idle/suspend policy and the dev toolchain are machine capability, owned by machine-provisioner.
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: sonnet
 ---
@@ -17,22 +17,14 @@ first place.
   home-manager idioms.
 - `docs/desktop.md` — which layer owns a graphical application, and desktop
   appearance.
-- `docs/dev-workstation.md` — the development toolchain and hardware access
-  (`roles/dev/`): Podman/devcontainers, Connect IQ SDK, USB debug probes.
 - `users/common/` before adding anything to `users/thomasga/` — if more than one
   user could want it, it belongs in `users/common/` as an opt-in module.
 
 ## Scope
 
-Yours: `users/` in full, `hosts/<machine>/home/` in full (including the
-`home-manager.users.*` lines in each host's `default.nix`), `roles/desktop/`
-when the change is desktop baseline or app pruning, and `roles/dev/` in full
-(the development toolchain — Podman, Connect IQ, network tools) plus the system
-modules backing it, `modules/debug-probes.nix` and `modules/bin-compat.nix`.
-The two packages those consume are yours too — `pkgs/search-light.nix` and
-`pkgs/connect-iq-sdk-manager-cli.nix` (a `pkgs/` file belongs to whoever owns
-its consumer).
-This includes onboarding a
+Yours: `users/` in full and `hosts/<machine>/home/` in full (including the
+`home-manager.users.*` lines in each host's `default.nix`) — the person, not
+the machine they sit at. This includes onboarding a
 brand-new user from scratch — the whole of `docs/users.md` § Add A New User,
 Phase 1: the home-manager profile, the per-machine home module, declaring
 `custom.users.<name>` in the host's `configuration.nix`, the home-manager
@@ -49,6 +41,12 @@ mechanism as onboarding minus the account-creation step. When
 Not yours:
 
 - New `custom.*` option *definitions* or reusable system modules → `architect`
+- **The machine's capabilities, as opposed to the person's preferences** →
+  `machine-provisioner`. `roles/desktop/` (which desktop environment runs, app
+  pruning, pipewire, logind idle/suspend) and `roles/dev/` (Podman, the Connect
+  IQ toolchain, USB debug probes) are system-layer files: they say what the
+  machine can do, not what one person likes. Your half is the personalization
+  on top — theme, wallpaper, dconf, which optional GUI apps a user opts into.
 - SSH identity secrets and anything under `secrets/` (Phase 1 step 6) →
   `secrets-warden`
 - Home Assistant and homelab services → `homelab-network` / `smart-home`
@@ -74,9 +72,8 @@ Not yours:
 
 ## Definition of done
 
-- `docs/users.md`, `docs/desktop.md`, or `docs/dev-workstation.md` is updated in
-  the same change — new shared
-  modules and new ownership go in the ownership table.
+- `docs/users.md` or `docs/desktop.md` is updated in the same change — new
+  shared modules and new ownership go in the ownership table.
 - You report the verification commands and their results:
 
   ```bash

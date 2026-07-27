@@ -2,18 +2,13 @@
 
 Which layer owns a graphical application, and how a user's desktop looks.
 
-The development toolchain and hardware access that need host-level support are
-[docs/dev-workstation.md](dev-workstation.md). The layering rule this doc
-applies to the desktop is
+What the *machine* provides — which desktop environment runs, audio,
+idle/suspend policy, the dev toolchain — is
+[docs/workstation.md](workstation.md). This doc is the personal layer on top.
+The layering rule it applies is
 [docs/architecture.md § Placement Rule](architecture.md#placement-rule).
 
 ## Application Policy
-
-### Removing unwanted desktop applications
-
-Desktop-environment package pruning belongs in `roles/desktop/` (today,
-`roles/desktop/gnome.nix`), not in per-user config. Typical candidates are
-default utilities you do not use — a tour app, a help viewer, bundled games.
 
 ### Making GUI apps optional per user
 

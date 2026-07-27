@@ -1,6 +1,6 @@
 ---
 name: machine-provisioner
-description: Owns the machine lifecycle end to end — defining a brand-new host, standing it up, and keeping it installable. Use for provisioning, installing, reinstalling, bootstrapping, or enrolling a host: defining hosts/<name>/*.nix and its flake.nix entry, age identity generation, provision.py / install.py / enroll.py, installer USB, disko partitioning, Raspberry Pi SD-card flashing, NixOS-WSL import, lanzaboote Secure Boot enrollment, TPM2-sealed LUKS auto-unlock, the LUKS passphrase, first boot, and post-install validation. Owns docs/provisioning.md.
+description: Owns the machine lifecycle end to end — defining a brand-new host, standing it up, and keeping it installable. Use for provisioning, installing, reinstalling, bootstrapping, or enrolling a host: defining hosts/<name>/*.nix and its flake.nix entry, age identity generation, provision.py / install.py / enroll.py, installer USB, disko partitioning, Raspberry Pi SD-card flashing, NixOS-WSL import, lanzaboote Secure Boot enrollment, TPM2-sealed LUKS auto-unlock, the LUKS passphrase, first boot, and post-install validation. Also owns machine capability — what class of machine a host is: roles/desktop/ (desktop environment, audio, idle/suspend policy) and roles/dev/ (Podman/devcontainers, Connect IQ SDK, USB debug probes). Owns docs/provisioning.md and docs/workstation.md.
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: sonnet
 ---
@@ -14,6 +14,9 @@ including defining it in the first place.
 
 - `docs/provisioning.md` — the numbered install path and the three provision
   types.
+- `docs/workstation.md` — the capability layer: `roles/desktop/` (DE, audio,
+  idle/suspend) and `roles/dev/` (Podman, Connect IQ, network tools), plus the
+  system modules backing them.
 - The relevant `tools/*.py` before editing any step that describes it.
   `install.py`, `provision.py`, and `enroll.py` are the ground truth; the runbook
   is a description of them and drifts if you edit it from memory.
@@ -29,6 +32,22 @@ Yours: `hosts/<machine>/` — `configuration.nix`, `hardware.nix`, `power.nix`,
 and its `nixosConfigurations` entry in `flake.nix`. That registration line is
 yours, not `architect`'s, the same way `homelab-network` sets its own
 `custom.dns` entries directly.
+
+**Machine capability is also yours**: `roles/desktop/` (desktop-environment
+baseline, pipewire, logind idle/suspend policy) and `roles/dev/` (Podman and
+devcontainers, the Connect IQ toolchain, network tools), plus the system
+modules backing them — `modules/debug-probes.nix` and `modules/bin-compat.nix`
+— and the packages those consume, `pkgs/search-light.nix` and
+`pkgs/connect-iq-sdk-manager-cli.nix`. These say *what class of machine this
+is* and what it can do; `hosts/defiant/configuration.nix` not importing
+`roles/desktop` is that decision in action. They are system-layer files by the
+placement rule, not a person's workflow.
+
+That is why `roles/desktop/power.nix` is yours and not
+`user-provisioner`'s: it and `hosts/enterprise-d/power.nix` are one
+suspend/hibernate design, documented as a single table in
+`hosts/enterprise-d/README.md`. Splitting them across two agents splits one
+concern.
 
 **Except `hosts/<machine>/home/` and the `home-manager.users.*` lines in
 `default.nix`** — those are `user-provisioner`'s, whether it's onboarding a
@@ -76,7 +95,8 @@ You do not:
 
 ## Definition of done
 
-- `docs/provisioning.md` is updated in the same change when a step changes.
+- The owning doc is updated in the same change: `docs/provisioning.md` when an
+  install step changes, `docs/workstation.md` when the capability layer does.
 - The runbook you hand back is copy-pasteable from the repo root, with no `cd`
   and no placeholder the user cannot fill from context.
 - You state which steps you verified by reading the tooling, and which are

@@ -1,12 +1,32 @@
-# Development Workstation
+# Workstation Capability
 
-The development toolchain and hardware access a workstation needs — `roles/dev/`
-plus the system modules that back it.
+What a workstation-class machine provides: a graphical environment
+(`roles/desktop/`) and a development toolchain (`roles/dev/`), plus the system
+modules backing them.
 
-This is the layer that needs *host-level* support to work: a container runtime,
-udev rules for debug hardware, a `/bin/bash` shim. Desktop applications and
-appearance are [docs/desktop.md](desktop.md); the layering rule itself is
+This is machine capability, not personal preference — it is what the host *can
+do*, decided when the machine is defined. `hosts/defiant/configuration.nix` not
+importing `roles/desktop` is that decision in action. A person's own settings on
+top — theme, wallpaper, which optional apps they install — are
+[docs/desktop.md](desktop.md). The layering rule is
 [docs/architecture.md § Placement Rule](architecture.md#placement-rule).
+
+## What `roles/desktop/` Provides
+
+| File | Provides |
+| --- | --- |
+| `roles/desktop/gnome.nix` | The desktop environment, GDM, system-wide dconf, and pruning of unwanted default applications |
+| `roles/desktop/audio.nix` | pipewire with ALSA/Pulse compatibility and rtkit |
+| `roles/desktop/power.nix` | logind idle/suspend policy, UPower critical-battery hibernate, AC and remote-session detection |
+
+Pruning default desktop applications belongs here, not in per-user config —
+typical candidates are a tour app, a help viewer, bundled games.
+
+`roles/desktop/power.nix` is one half of this machine's suspend/hibernate
+design; the other half is `hosts/<machine>/power.nix`. They are documented
+together as a single table in
+[hosts/enterprise-d/README.md](../hosts/enterprise-d/README.md) — read both
+before changing either.
 
 ## What `roles/dev/` Provides
 

@@ -161,7 +161,7 @@ Most are declared under `modules/`, but not all — `custom.backups` is declared
 | `custom.flatpak.enable` | Declarative Flatpak plus a weekly update timer |
 | `custom.vr.enable` | VR runtime support |
 | `custom.ai.claude.enable` / `custom.ai.copilot.enable` | Claude / GitHub Copilot integration in VS Code |
-| `custom.debugProbes.enable` | udev rules for USB JTAG/SWD probes — see [docs/dev-workstation.md](dev-workstation.md#usb-debug-probes-udev) |
+| `custom.debugProbes.enable` | udev rules for USB JTAG/SWD probes — see [docs/workstation.md](workstation.md#usb-debug-probes-udev) |
 | `custom.binCompat.enable` | Symlinks `/bin/bash` for tools whose shebang expects it |
 
 ### Homelab services

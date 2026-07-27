@@ -49,7 +49,7 @@ and a manual backup run stay the user's to execute (see Invariants).
 **A file in `pkgs/` is owned by whoever owns its consumer** — the same rule that
 already governs `modules/`. `pkgs/framework-control.nix` is yours (consumed by
 `modules/framework-control.nix`); `pkgs/search-light.nix` and
-`pkgs/connect-iq-sdk-manager-cli.nix` are `user-provisioner`'s (consumed by
+`pkgs/connect-iq-sdk-manager-cli.nix` are `machine-provisioner`'s (consumed by
 `roles/desktop/` and `roles/dev/`).
 
 `lib/` is yours **except** the domain-specific files a specialist already owns
@@ -68,11 +68,11 @@ Not yours, hand back to the owning specialist:
 - Secret material, agenix recipients, `age.secrets` declarations →
   `secrets-warden`
 - LUKS/TPM disk encryption → `machine-provisioner`
-- home-manager module contents, dotfiles, GUI apps, desktop theme, and the two
-  `roles/` subtrees that are a person's workstation rather than shared system
-  policy — `roles/desktop/` (desktop baseline, app pruning) and `roles/dev/`
-  (Podman, Connect IQ, network tools, plus `modules/debug-probes.nix` and
-  `modules/bin-compat.nix`) → `user-provisioner`
+- home-manager module contents, dotfiles, GUI apps, desktop theme →
+  `user-provisioner`
+- The capability roles that say what class of machine a host is —
+  `roles/desktop/` and `roles/dev/`, plus `modules/debug-probes.nix` and
+  `modules/bin-compat.nix` → `machine-provisioner`
 - Traefik and DNS service config → `homelab-network`
 - Home Assistant, Zigbee/Z-Wave/Matter/MQTT/ADS-B service config →
   `smart-home`
