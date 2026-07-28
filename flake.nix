@@ -6,10 +6,24 @@
 
     disko.url = "github:nix-community/disko";
     disko.inputs.nixpkgs.follows = "nixpkgs";
-    home-manager.url = "github:nix-community/home-manager";
+    home-manager.url = "github:nix-community/home-manager/master";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
-    agenix.url = "github:ryantm/agenix";
-    agenix.inputs.nixpkgs.follows = "nixpkgs";
+    agenix = {
+      url = "github:ryantm/agenix";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        # agenix's own home-manager input is only used by its Darwin
+        # integration check and example homeConfiguration, neither of which
+        # we consume; its homeManagerModules.age output is static module code
+        # independent of which home-manager version built it. Following our
+        # pin instead of letting it fetch its own collapses the flake.lock
+        # split that produced a second, unused "home-manager" node (our own
+        # input actually resolves to "home-manager_2") — the exact trap that
+        # made an earlier bump silently miss the version our
+        # home-manager.users config evaluates against.
+        home-manager.follows = "home-manager";
+      };
+    };
     pre-commit.url = "github:cachix/pre-commit-hooks.nix";
     pre-commit.inputs.nixpkgs.follows = "nixpkgs";
 
@@ -108,7 +122,15 @@
       home-manager.lib.homeManagerConfiguration {
         pkgs = import nixpkgs {
           system = hostSystem;
-          config.allowUnfree = true;
+          config = {
+            allowUnfree = true;
+            # Standalone home configs build their own pkgs (the NixOS-module path
+            # inherits the host's config instead), so the electron_39 allowance in
+            # hosts/enterprise-d/configuration.nix does not reach them. Mirror it
+            # here so `home-manager switch` can build bitwarden. Drop when nixpkgs
+            # re-pins bitwarden-desktop off EOL electron.
+            permittedInsecurePackages = ["electron-39.8.10"];
+          };
           overlays = [nix-vscode-extensions.overlays.default];
         };
         extraSpecialArgs = {

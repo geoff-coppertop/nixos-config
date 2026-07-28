@@ -1,10 +1,10 @@
 {lib, ...}: let
   sshHosts = import ../../lib/ssh-hosts.nix;
 
-  importedMatchBlocks =
+  importedSettings =
     lib.mapAttrs (_: host: {
-      hostname = host.hostName;
-      inherit (host) user;
+      HostName = host.hostName;
+      User = host.user;
     })
     sshHosts;
 in {
@@ -12,13 +12,13 @@ in {
     enable = true;
     enableDefaultConfig = false;
 
-    matchBlocks =
+    settings =
       {
         "*" = {
-          addKeysToAgent = "yes";
-          hashKnownHosts = false;
+          AddKeysToAgent = "yes";
+          HashKnownHosts = false;
         };
       }
-      // importedMatchBlocks;
+      // importedSettings;
   };
 }

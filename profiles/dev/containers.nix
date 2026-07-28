@@ -37,7 +37,7 @@
       # short-name disambiguation prompt: it passes the bare image name (no
       # localhost/ prefix) in its FROM, which doesn't match any local image
       # exactly and falls through to short-name resolution.
-      registries.search = ["localhost" "docker.io" "quay.io"];
+      registries.settings.unqualified-search-registries = ["localhost" "docker.io" "quay.io"];
 
       containersConf.settings = {
         # Use Docker image format.  The devcontainer CLI's updateRemoteUserUID

@@ -18,15 +18,7 @@
     bitwarden-desktop
     discord
     google-chrome
-    # nixpkgs ships 1.19.0; bump to 1.21.1 to get the "Automatic" theme
-    # (added in 1.20.0) that follows the system light/dark preference.
-    (mailspring.overrideAttrs (_old: rec {
-      version = "1.21.1";
-      src = fetchurl {
-        url = "https://github.com/Foundry376/Mailspring/releases/download/${version}/mailspring-${version}-amd64.deb";
-        hash = "sha256-pyEWypqujSYYmbpUgcUMJoew4nIjE/dQWTVdYTxhmN4=";
-      };
-    }))
+    mailspring
     edgetx
     moonlight-qt
     qgroundcontrol
