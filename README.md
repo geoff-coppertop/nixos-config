@@ -1275,15 +1275,23 @@ devcontainers without being hand-copied in three places.
 
 - `dotfiles` is pinned as a non-flake input (`inputs.dotfiles = { url = "github:geoff-coppertop/dotfiles"; flake = false; };`)
   in `flake.nix`, the same way every other input is pinned via `flake.lock`.
-- `users/common/cli/dotfiles.nix` links `${dotfiles}/fish/config.fish`, `${dotfiles}/git/config`, and
-  `${dotfiles}/git/commit-template` straight into place with plain `home.file.<path>.source` — no extra package, no
-  activation step. home-manager's own collision detection hard-errors at eval time if anything else tries to write
-  those same paths.
+- The links are placed by the consuming user, not by a shared module: `users/thomasga/shell.nix` links
+  `${dotfiles}/fish/config.fish`, and `users/thomasga/git.nix` links `${dotfiles}/git/config` and
+  `${dotfiles}/git/commit-template`. Each uses a plain `home.file.<path>.source` — no extra package, no activation
+  step. home-manager's own collision detection hard-errors at eval time if anything else tries to write those same
+  paths. These live under `users/<name>/` rather than `users/common/` because the repo they point at belongs to one
+  person; a second user importing `users/common/cli` must not silently inherit someone else's shell and git config.
 - Because `programs.fish` stays disabled and `programs.git`/`programs.fzf`/`programs.starship`/`programs.zoxide` must
-  not also write `~/.config/fish/config.fish` or `~/.config/git/config`, `fzf.nix`/`starship.nix`/`zoxide.nix` set
-  `enableFishIntegration = false` (the init lines already live in `dotfiles`' `config.fish`), `git.nix` drops
-  `programs.git.enable` entirely (installing the `git` binary via `home.packages` instead), and
-  `users/thomasga/git.nix` no longer sets `alias`/`color`/`commit.template`/etc. through `programs.git.settings`.
+  not also write `~/.config/fish/config.fish` or `~/.config/git/config`, `users/thomasga/shell.nix` sets
+  `enableFishIntegration = false` for all three of fzf/starship/zoxide (their init lines already live in `dotfiles`'
+  `config.fish`), `users/common/cli/git.nix` drops `programs.git.enable` entirely (installing the `git` binary via
+  `home.packages` instead), and `users/thomasga/git.nix` no longer sets `alias`/`color`/`commit.template`/etc.
+  through `programs.git.settings`.
+- The `enableFishIntegration` opt-outs live with the user, not in `users/common/cli/`, for the same reason the links
+  do. They are a consequence of where *this user's* `config.fish` comes from; a user who lets home-manager manage
+  their shell init wants the upstream default, and shipping the opt-out in a shared module would silently leave fzf,
+  starship, and zoxide installed but unwired for them. `users/common/cli/{fzf,starship,zoxide}.nix` therefore just
+  enable the tools and leave integration alone.
 - Machine-specific git identity (`user.name`/`user.email`, `core.editor`, `safe.directory`, the `gh` credential-helper
   stanzas) is **not** published to the shared `dotfiles` repo. It stays home-manager-owned, written to
   `~/.config/git/config-local`, which `dotfiles`' `~/.config/git/config` pulls in via
