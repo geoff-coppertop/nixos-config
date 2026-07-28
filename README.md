@@ -41,6 +41,7 @@ This repo is the source of truth for machine setup, user setup, secrets wiring, 
   - [USB Debug Probes (udev)](#usb-debug-probes-udev)
   - [draw.io And Obsidian](#drawio-and-obsidian)
   - [Connect IQ SDK (Garmin)](#connect-iq-sdk-garmin)
+  - [EasyEffects (Framework Speaker EQ)](#easyeffects-framework-speaker-eq)
   - [Change GNOME Or Kernel Policy Later](#change-gnome-or-kernel-policy-later)
   - [Users And Configuration](#users-and-configuration)
   - [Dotfiles And Shell Scripts](#dotfiles-and-shell-scripts)
@@ -1131,6 +1132,30 @@ connect-iq-sdk-manager sdk download <version>
 connect-iq-sdk-manager sdk set <version>
 connect-iq-sdk-manager device download
 ```
+
+### EasyEffects (Framework Speaker EQ)
+
+`users/thomasga/easyeffects.nix` enables `services.easyeffects` (home-manager)
+as a per-user systemd service, sitting on top of pipewire
+(`roles/desktop/audio.nix`) to globally EQ the Framework 13's thin,
+down-firing speakers. It relies on `programs.dconf.enable = true`, already
+set system-wide by `roles/desktop/gnome.nix`.
+
+Four community presets from
+[ceiphr/ee-framework-presets](https://github.com/ceiphr/ee-framework-presets)
+(`gracefu`, `kieran_levin`, `lappy_mctopface`, `philonmetal`) are fetched with
+`pkgs.fetchurl`, pinned to a commit and content-hashed, and written straight
+to `xdg.dataFile."easyeffects/output/<name>.json"` — matching the pattern
+used elsewhere in this repo for third-party sources (`pkgs/search-light.nix`,
+`pkgs/framework-control.nix`) rather than vendoring a copy of someone else's
+files into git. To pick up an upstream preset change, bump the `rev` and the
+corresponding `hash` in `users/thomasga/easyeffects.nix` together.
+`lappy_mctopface` (tuned for on-lap use) loads at login via
+`services.easyeffects.preset`; `kieran_levin` (flat, tuned for on-a-table
+use) is the recommended alternative. Switch between them anytime from the
+EasyEffects UI's preset dropdown — the daemon reloads without a rebuild. The
+repo's "louder" preset variants were intentionally left out: upstream notes
+they can introduce ~1ms audio artifacts on pause/play.
 
 ### Change GNOME Or Kernel Policy Later
 

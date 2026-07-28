@@ -6,6 +6,7 @@
     ../common/gui-apps.nix
     ../common/excalidraw.nix
     ./ai.nix
+    ./easyeffects.nix
     ./git.nix
     ./ghostty.nix
     ./gnome.nix
