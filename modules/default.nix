@@ -7,7 +7,6 @@
     ./debug-probes.nix
     ./dns.nix
     ./flatpak.nix
-    ./framework-control.nix
     ./framework.nix
     ./fwupd.nix
     ./gaming.nix

@@ -3,8 +3,9 @@
   lib,
   pkgs,
   ...
-}:
-with lib; {
+}: let
+  inherit (lib) mkEnableOption mkIf mkForce mkDefault;
+in {
   options.custom.framework.enable = mkEnableOption "Framework laptop specific configuration";
 
   config = mkIf config.custom.framework.enable {
@@ -19,9 +20,15 @@ with lib; {
     # PAM configuration for fingerprint authentication
     security.pam.services = {
       # mkForce is required here to override GDM's default 'false' assignment
-      login.fprintAuth = lib.mkForce true;
+      login.fprintAuth = mkForce true;
       sudo.fprintAuth = true;
       gdm-fingerprint.fprintAuth = true;
     };
+
+    # A Framework host almost always wants the control service too — one
+    # switch instead of two separately-set booleans nothing links. mkDefault
+    # so a host that wants the hardware support without the service can still
+    # override it.
+    services.framework-control.enable = mkDefault true;
   };
 }

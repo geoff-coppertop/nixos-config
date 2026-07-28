@@ -63,7 +63,9 @@ in {
     };
   };
 
-  services.framework-control.enable = true;
+  # services.framework-control.enable comes from custom.framework.enable above
+  # (modules/framework.nix defaults it on for any Framework host); override
+  # here only if this host should not run the control service.
 
   # Lets `nix build` cross-compile aarch64-linux derivations (e.g. defiant) via
   # qemu-user emulation instead of failing with "platform mismatch". Slow —

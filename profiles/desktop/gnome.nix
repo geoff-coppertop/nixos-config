@@ -114,7 +114,6 @@ in {
     };
     displayManager.gdm = {
       enable = true;
-      wayland = true;
       autoSuspend = false;
     };
     printing.enable = true;
