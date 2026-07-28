@@ -52,14 +52,14 @@ This repo is the source of truth for machine setup, user setup, secrets wiring, 
 The repo is split by responsibility.
 
 - `hosts/<machine>/` owns machine-specific hardware, power, and disk layout.
-- `roles/` owns shared system policy such as base settings, networking, and the desktop baseline.
-- `modules/` owns reusable system features such as btrfs, secrets, and secure boot.
+- `profiles/` owns preset bundles a host opts into by name — the baseline OS settings, network discovery, the agenix identity path, the desktop baseline, the dev toolchain. Profiles set config; they declare no options.
+- `modules/` owns the `custom.*` feature modules — users, Wi-Fi, backups, btrfs, secure boot. Modules declare options; every host imports all of them via `modules/default.nix`, and each contributes nothing until its option is set.
 - `users/<name>/` owns personal applications, dotfiles, shell behavior, and workflow tooling through home-manager.
 - `secrets/` owns agenix-encrypted material that is safe to commit.
 
 When placing new configuration:
 
-- If it affects machine operation, put it in the system layer: `hosts/<machine>/` for machine-specific behavior, `roles/` for shared system policy, or `modules/` for reusable NixOS features.
+- If it affects machine operation, put it in the system layer: `hosts/<machine>/` for machine-specific behavior, `profiles/` for a preset a host opts into by name, or `modules/` for a reusable feature behind a `custom.*` option.
 - If it affects a person's workflow, put it in that user's home-manager config under `users/<name>/`, in a profile such as `users/<name>/desktop.nix` (full GUI) or `users/<name>/headless.nix` (CLI-only).
 - If several users may want it, create a reusable opt-in user module under `users/common/` and import it from the relevant profile instead of forcing it globally.
 
@@ -109,7 +109,7 @@ sudo nixos-rebuild switch --flake /path/to/nixos-config#holodeck-01
 
 ### Automatic updates
 
-`roles/common/base.nix` enables `system.autoUpgrade` for every host: it fetches `github:geoff-coppertop/nixos-config#<hostname>` weekly and stages the result as the next boot entry (`operation = boot`, `allowReboot = false`). Nothing reboots automatically; apply the staged generation at your convenience. Because it tracks the GitHub remote, only pushed commits are picked up.
+`profiles/common/base.nix` enables `system.autoUpgrade` for every host: it fetches `github:geoff-coppertop/nixos-config#<hostname>` weekly and stages the result as the next boot entry (`operation = boot`, `allowReboot = false`). Nothing reboots automatically; apply the staged generation at your convenience. Because it tracks the GitHub remote, only pushed commits are picked up.
 
 On hosts with `custom.isLaptop = true` (currently `enterprise-d`), the upgrade additionally skips while on battery — the same `ConditionACPower` gating used for NAS backups.
 
@@ -425,7 +425,7 @@ Alternative manual method:
 SSH trust is managed separately from agenix secrets.
 
 - SSH login keys should be per-host keypairs.
-- SSH host trust should be pinned in `lib/ssh-hosts.nix` and rendered to `programs.ssh.knownHosts` by `modules/ssh-known-hosts.nix`.
+- SSH host trust should be pinned in `lib/ssh-hosts.nix` and rendered to `programs.ssh.knownHosts` by `profiles/common/ssh-known-hosts.nix`.
 - `known_hosts` records server identity. `authorized_keys` grants login access. They are different data flows.
 
 #### Generate SSH Login Credentials
@@ -481,7 +481,7 @@ After enterprise-d boots for the first time:
 - `user`: the default SSH username
 - `userPublicKey`: the user's SSH **login** public key (login access; `null` until enrolled)
 
-`modules/ssh-known-hosts.nix` turns non-null `publicKey` values into `programs.ssh.knownHosts` so clients don't prompt on first connect. `roles/common/users.nix` aggregates non-null `userPublicKey` values into `openssh.authorizedKeys.keys` so every enrolled machine accepts logins from every other enrolled machine automatically.
+`profiles/common/ssh-known-hosts.nix` turns non-null `publicKey` values into `programs.ssh.knownHosts` so clients don't prompt on first connect. `modules/users.nix` aggregates non-null `userPublicKey` values into `openssh.authorizedKeys.keys` so every enrolled machine accepts logins from every other enrolled machine automatically.
 
 `tools/enroll.py` populates `userPublicKey` as part of enrollment. To pin `publicKey` after first boot, collect the host key and paste it in:
 
@@ -591,10 +591,10 @@ sudo restic --repo /mnt/nas-backups/thomasga/<hostname> snapshots
 
 #### Adding a New Host
 
-1. Import `../../modules/backups.nix` in the host's `configuration.nix`.
-2. Set `custom.isLaptop` appropriately.
-3. Set `custom.backups.nas.host`, `nas.share`, `nas.credentialsFile`, and enable at least one user.
-4. Ensure the per-user restic password and SMB credentials secrets are declared.
+1. Set `custom.isLaptop` appropriately. (`modules/backups.nix` is already imported
+   on every host via `modules/default.nix`; there is no per-host import to add.)
+2. Set `custom.backups.nas.host`, `nas.share`, `nas.credentialsFile`, and enable at least one user.
+3. Ensure the per-user restic password and SMB credentials secrets are declared.
 
 #### Limitations
 
@@ -878,7 +878,7 @@ Then:
 
 This repo uses agenix for committed secrets and Bitwarden for recovery material. Secrets live in `secrets/` and are safe to commit; only the decrypted content is sensitive.
 
-Runtime decryption on NixOS uses the dedicated age private key at `/var/lib/agenix/identity` (configured in `modules/secrets.nix`). Each host's `secrets.nix` (e.g. `hosts/enterprise-d/secrets.nix`) declares the `age.secrets` for that machine.
+Runtime decryption on NixOS uses the dedicated age private key at `/var/lib/agenix/identity` (configured in `profiles/common/secrets.nix`). Each host's `secrets.nix` (e.g. `hosts/enterprise-d/secrets.nix`) declares the `age.secrets` for that machine.
 
 #### First-Time Secret Bootstrap
 
@@ -948,7 +948,7 @@ Store your LUKS passphrase in Bitwarden or another secure offline location for d
 
 ### Wi-Fi Pre-configuration
 
-Wi-Fi credentials are declared in `roles/common/networking.nix` using `networking.networkmanager.ensureProfiles`. The SSID is stored in plaintext in the config; the password is kept in an agenix-encrypted secret and substituted at activation time. NetworkManager writes the final profile to `/etc/NetworkManager/system-connections/` (0600, root-only) — the same location and permissions as any manually-configured connection. LUKS encryption protects these files at rest. The agenix secret itself lives on tmpfs (`/run/agenix/`) and is never written to disk.
+Wi-Fi credentials are declared in `modules/wifi.nix` (gated on `custom.wifi.enable`) using `networking.networkmanager.ensureProfiles`. The SSID is stored in plaintext in the config; the password is kept in an agenix-encrypted secret and substituted at activation time. NetworkManager writes the final profile to `/etc/NetworkManager/system-connections/` (0600, root-only) — the same location and permissions as any manually-configured connection. LUKS encryption protects these files at rest. The agenix secret itself lives on tmpfs (`/run/agenix/`) and is never written to disk.
 
 Currently configured networks: `agt-home`, `agt-iot`, `agt-work`.
 
@@ -980,13 +980,13 @@ Each new network requires changes in four places:
    "wifi/newnet.age".publicKeys = [enterprise-d offlineAdmin];
    ```
 
-2. **`roles/common/networking.nix`** — expose the secret at runtime (alongside the existing WiFi entries):
+2. **`modules/wifi.nix`** — expose the secret at runtime (alongside the existing WiFi entries):
 
    ```nix
-   "wifi/newnet".file = ../../secrets/wifi/newnet.age;
+   "wifi/newnet".file = ../secrets/wifi/newnet.age;
    ```
 
-3. **`roles/common/networking.nix`** — add the secret path to `environmentFiles` and a new profile block:
+3. **`modules/wifi.nix`** — add the secret path to `environmentFiles` and a new profile block:
 
    ```nix
    environmentFiles = [
@@ -1107,7 +1107,7 @@ as plugins are toggled), so this repo intentionally doesn't manage that file
 
 ### Connect IQ SDK (Garmin)
 
-`roles/dev/tools.nix` installs `connect-iq-sdk-manager` (a non-interactive
+`profiles/dev/tools.nix` installs `connect-iq-sdk-manager` (a non-interactive
 Go CLI replacement for Garmin's broken Electron/webkit2gtk SDK Manager GUI —
 [lindell/connect-iq-sdk-manager-cli](https://github.com/lindell/connect-iq-sdk-manager-cli))
 and a JDK, since the SDK's `monkeyc` compiler is a Java app.
@@ -1153,7 +1153,7 @@ A user is fully assigned to a machine only when two pieces are present:
 
 ### Current Example: `thomasga`
 
-System user declaration lives in `roles/common/users.nix`:
+System user declaration lives in `modules/users.nix`:
 
 ```nix
 users.users.thomasga = {
@@ -1327,7 +1327,7 @@ home.file.".local/bin/dev-shell".source = ./files/dev-shell;
 This repo uses a layered application policy.
 
 1. System modules own hardware support, services, and mandatory tools.
-2. Desktop roles own the shared GNOME baseline and removal of unwanted GNOME applications.
+2. Desktop profiles own the shared GNOME baseline and removal of unwanted GNOME applications.
 3. User home-manager modules own optional desktop applications, dotfiles, and personal workflows.
 
 Use this decision guide:
@@ -1338,7 +1338,7 @@ Use this decision guide:
 
 ### Remove GNOME Applications You Do Not Want
 
-GNOME package pruning belongs in `roles/desktop/gnome.nix`, not in per-user config.
+GNOME package pruning belongs in `profiles/desktop/gnome.nix`, not in per-user config.
 
 Examples of applications you may want to prune from the default desktop baseline include:
 
@@ -1353,7 +1353,7 @@ Do not install apps like VS Code, Firefox, or Chrome globally if you want them t
 
 Preferred model:
 
-1. Keep them out of the global desktop role.
+1. Keep them out of the global desktop profile.
 2. Add them in the relevant user module.
 3. If several users may want them, factor them into a reusable opt-in module.
 
@@ -1363,14 +1363,14 @@ Shared optional apps for a user can live in `users/common/`. For example, a modu
 
 Current concrete ownership in this repo:
 
-- `roles/desktop/gnome.nix` enables GNOME, GDM, and dconf settings. `roles/desktop/audio.nix` enables pipewire. `roles/desktop/power.nix` runs the logind idle inhibitor.
-- `roles/common/flatpak.nix` enables Flatpak and Flatseal as optional platform services.
-- `roles/common/gaming.nix` enables Steam as an optional gaming platform.
-- `roles/common/base.nix` contains core system policy.
+- `profiles/desktop/gnome.nix` enables GNOME, GDM, and dconf settings. `profiles/desktop/audio.nix` enables pipewire. `profiles/desktop/power.nix` runs the logind idle inhibitor.
+- `modules/flatpak.nix` enables Flatpak and Flatseal as optional platform services.
+- `modules/gaming.nix` enables Steam as an optional gaming platform.
+- `profiles/common/base.nix` contains core system policy.
 - `flake.nix` enables unfree packages needed by Chrome and Steam.
 - `users/common/gui-apps.nix` enables Firefox and adds Fedora Media Writer, Bitwarden, Chrome, and Signal Desktop for any user that imports it.
 - `users/thomasga/desktop.nix` opts `thomasga` into that shared GUI app set on desktop machines.
-- `roles/common/users.nix` puts `thomasga` in `wheel`, which is why that user can administer enterprise-d.
+- `modules/users.nix` puts `thomasga` in `wheel`, which is why that user can administer enterprise-d.
 
 Example opt-in browser module:
 
@@ -1389,7 +1389,7 @@ In this repo, that policy is set in `flake.nix`.
 
 ### User Theme, Background, And GNOME Preferences
 
-Per-user GNOME appearance belongs under that user's home-manager config, not in the system desktop role.
+Per-user GNOME appearance belongs under that user's home-manager config, not in the system desktop profile.
 
 - Put wallpaper files under `users/<name>/files/`.
 - Link them into the home directory with `home.file` from a user module.

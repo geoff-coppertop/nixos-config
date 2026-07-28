@@ -49,7 +49,7 @@ in {
       # regenerated a fresh random key each time, mismatched what the
       # coordinator already had committed, and crash-looped forever.
       # Substituting the real key in at activation time, the same pattern
-      # roles/common/wifi.nix uses for secrets that can't reach a Nix
+      # modules/wifi.nix uses for secrets that can't reach a Nix
       # build-time setting.
       #
       # This must be a serviceConfig.ExecStartPre entry, not preStart:

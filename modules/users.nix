@@ -6,15 +6,18 @@
 }: let
   inherit
     (lib)
+    any
+    attrValues
     concatLists
     filterAttrs
     mapAttrs
     mapAttrsToList
+    mkIf
     mkOption
     optionals
     types
     ;
-  sshHosts = import ../../lib/ssh-hosts.nix;
+  sshHosts = import ../lib/ssh-hosts.nix;
   cfg = config.custom.users;
 
   authorizedKeysFor = userName:
@@ -39,6 +42,12 @@
     ];
 
   tmpfileRules = concatLists (mapAttrsToList mkTmpfileRules cfg);
+
+  # users.users.<name>.shell = pkgs.fish requires programs.fish.enable, which
+  # is what puts fish in /etc/shells — without it the login shell is invalid.
+  # Derive it from the declared users rather than hardcoding, so a host that
+  # declares only non-fish users doesn't get fish.
+  usesShell = shell: any (userCfg: userCfg.shell == shell) (attrValues cfg);
 in {
   options.custom.users = mkOption {
     default = {};
@@ -68,8 +77,12 @@ in {
     }));
   };
 
-  config = {
-    programs.fish.enable = true;
+  config = mkIf (cfg != {}) {
+    # mkIf rather than a plain bool: types.bool merges with mergeEqualOption,
+    # so defining `false` here would conflict with anything else asking for
+    # fish. With mkIf, a host whose users all use another shell gets no
+    # definition at all.
+    programs.fish.enable = mkIf (usesShell pkgs.fish) true;
 
     users.users = mapAttrs mkUserConfig cfg;
 

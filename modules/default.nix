@@ -1,6 +1,7 @@
 {
   imports = [
     ./adsb.nix
+    ./backups.nix
     ./bin-compat.nix
     ./btrfs.nix
     ./debug-probes.nix
@@ -11,15 +12,17 @@
     ./fwupd.nix
     ./gaming.nix
     ./home-assistant.nix
+    ./is-laptop.nix
     ./matter.nix
     ./mqtt.nix
     ./network-drives.nix
-    ./secrets.nix
     ./secure-boot.nix
     ./snapper.nix
     ./tpm-luks.nix
     ./traefik.nix
+    ./users.nix
     ./vr.nix
+    ./wifi.nix
     ./zigbee.nix
     ./zwave.nix
   ];
