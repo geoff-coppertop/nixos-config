@@ -8,7 +8,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "changed=$(git diff --name-only HEAD 2>/dev/null | grep -E \"[.]nix$\" | grep -Ev \"^secrets/\"); if [ -n \"$changed\" ]; then printf \"%s\\n\" \"{\\\"systemMessage\\\": \\\"Nix files changed this turn — consider running /init to keep CLAUDE.md current.\\\"}\"; fi"
+            "command": "changed=$(git diff --name-only HEAD 2>/dev/null | grep -E \"[.]nix$\" | grep -Ev \"^secrets/\"); if [ -n \"$changed\" ]; then printf \"%s\\n\" \"{\\\"systemMessage\\\": \\\"Nix files changed this turn — update the owning docs/ file (see CLAUDE.md § Routing). Do not run /init; it regenerates CLAUDE.md wholesale.\\\"}\"; fi"
           }
         ]
       }

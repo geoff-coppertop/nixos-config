@@ -8,7 +8,9 @@ in {
     ./disko.nix
     ./secrets.nix
 
-    ../../roles
+    ../../profiles/common
+    ../../profiles/desktop
+    ../../profiles/dev
 
     ../../modules
   ];

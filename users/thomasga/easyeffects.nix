@@ -11,8 +11,8 @@
       inherit hash;
     };
 in {
-  # roles/desktop/gnome.nix already sets programs.dconf.enable = true at the
-  # system level, which the easyeffects daemon requires.
+  # profiles/desktop/gnome.nix already sets programs.dconf.enable = true at
+  # the system level, which the easyeffects daemon requires.
   services.easyeffects = {
     enable = true;
     # Framework 13 speakers are thin and lap use is the common case; the
