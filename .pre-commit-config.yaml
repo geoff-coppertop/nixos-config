@@ -42,3 +42,17 @@ repos:
         entry: python3 ./tools/check_no_plaintext_secrets.py
         language: system
         pass_filenames: false
+
+      - id: orphan-nix
+        name: orphan-nix
+        entry: python3 ./tools/check_orphan_nix.py
+        language: system
+        files: \.nix$
+        pass_filenames: false
+
+      - id: orphan-nix-self-test
+        name: orphan-nix-self-test
+        entry: python3 ./tools/test_check_orphan_nix.py
+        language: system
+        files: ^tools/(check_orphan_nix|test_check_orphan_nix)\.py$
+        pass_filenames: false
