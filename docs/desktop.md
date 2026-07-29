@@ -121,3 +121,12 @@ is the recommended alternative. Switch between them anytime from the
 EasyEffects UI's preset dropdown — the daemon reloads without a rebuild. The
 repo's "louder" preset variants were intentionally left out: upstream notes
 they can introduce ~1ms audio artifacts on pause/play.
+
+`users/thomasga/gnome.nix` also lists
+`"eepresetselector@ulville.github.io"` in `enabled-extensions`, turning on the
+top-panel preset switcher packaged in `pkgs/eepresetselector.nix` (see
+`docs/workstation.md` for the packaging side) — a faster way to swap between
+the four presets above than opening the EasyEffects UI. Its default
+keybindings (`<Control><Super>o`/`i`/`b` to cycle output/input presets and
+toggle global bypass) don't collide with anything else this repo sets, so no
+per-extension dconf settings block was added; defaults are left as-is.
