@@ -157,6 +157,7 @@ in {
       enabled-extensions = [
         "blur-my-shell@aunetx"
         "dash-to-dock@micxgx.gmail.com"
+        "eepresetselector@ulville.github.io"
         "just-perfection-desktop@just-perfection"
         "search-light@icedman.github.com"
       ];

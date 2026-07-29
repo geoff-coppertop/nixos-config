@@ -22,6 +22,20 @@ top — theme, wallpaper, which optional apps they install — are
 Pruning default desktop applications belongs here, not in per-user config —
 typical candidates are a tour app, a help viewer, bundled games.
 
+`profiles/desktop/gnome.nix` also installs two GNOME Shell extensions absent
+from nixpkgs, each packaged as its own derivation in `pkgs/` (`fetchFromGitHub`
+pinned to a rev, `glib-compile-schemas`, installed to
+`$out/share/gnome-shell/extensions/<uuid>/`) rather than referenced as
+`pkgs.gnomeExtensions.*`:
+
+- `pkgs/search-light.nix` — an app-search launcher.
+- `pkgs/eepresetselector.nix` — a top-panel menu to switch EasyEffects
+  presets, uuid `eepresetselector@ulville.github.io`. Complements the
+  EasyEffects EQ presets in `users/thomasga/easyeffects.nix`; enabling the
+  extension itself and its keybindings is per-user (`docs/desktop.md`), same
+  split as every other extension here — this profile only makes the package
+  available.
+
 `profiles/desktop/power.nix` is one half of this machine's suspend/hibernate
 design; the other half is `hosts/<machine>/power.nix`. They are documented
 together as a single table in
