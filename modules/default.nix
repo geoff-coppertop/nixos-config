@@ -5,6 +5,7 @@
     ./bin-compat.nix
     ./btrfs.nix
     ./debug-probes.nix
+    ./desktop.nix
     ./dns.nix
     ./flatpak.nix
     ./framework.nix

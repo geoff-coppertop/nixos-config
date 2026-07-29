@@ -34,7 +34,8 @@ package policy, which is set in `flake.nix`.
 
 | File | Owns |
 | --- | --- |
-| `profiles/desktop/gnome.nix` | GNOME, GDM, system dconf settings |
+| `profiles/desktop/gnome.nix` | GNOME, GDM, system dconf settings — active only when `custom.desktop.environment = "gnome"` |
+| `profiles/desktop/printing.nix` | CUPS printing, DE-independent |
 | `profiles/desktop/audio.nix` | pipewire |
 | `profiles/desktop/power.nix` | logind idle inhibitor |
 | `modules/flatpak.nix` | Flatpak and Flatseal, as optional platform services |
@@ -43,6 +44,7 @@ package policy, which is set in `flake.nix`.
 | `flake.nix` | Unfree package policy needed by Chrome and Steam |
 | `users/common/gui-apps.nix` | Firefox, Fedora Media Writer, Bitwarden, Chrome, Signal Desktop, for any user importing it |
 | `users/thomasga/desktop.nix` | Opts `thomasga` into that shared GUI set on desktop machines |
+| `users/thomasga/desktop-common.nix` | DE-neutral home bits: wallpaper decode, avatar, Steam-shortcut cleanup, launcher hygiene — loaded regardless of the selected desktop |
 | `users/thomasga/vscode.nix` | VS Code through home-manager rather than the system profile |
 | `users/thomasga/easyeffects.nix` | EasyEffects EQ for the Framework 13 speakers |
 
@@ -64,12 +66,15 @@ the home-manager build.
 For `thomasga` the concrete setup is:
 
 - Source asset: `users/thomasga/files/wallpapers/space-shuttle.jxl`
-- Conversion and GNOME settings: `users/thomasga/gnome.nix`
+- Conversion (DE-neutral): `users/thomasga/desktop-common.nix`
+- GNOME settings: `users/thomasga/gnome.nix`
 - Resulting linked wallpaper: `~/Pictures/Wallpapers/space-shuttle.png`
 
-`users/thomasga/gnome.nix` converts the checked-in Fedora `.jxl` source to `.png`
-with `pkgs.libjxl` and points both `picture-uri` and `picture-uri-dark` at the
-generated PNG, avoiding any reliance on runtime JPEG XL wallpaper support.
+`users/thomasga/desktop-common.nix` converts the checked-in Fedora `.jxl` source
+to `.png` with `pkgs.libjxl` and links it to a stable path so any desktop
+environment's config can point at it without redoing the conversion.
+`users/thomasga/gnome.nix` points both `picture-uri` and `picture-uri-dark` at
+that generated PNG, avoiding any reliance on runtime JPEG XL wallpaper support.
 
 System-wide dark mode is `custom.appearance.darkMode`, defined in
 `users/common/appearance.nix`.
