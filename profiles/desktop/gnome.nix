@@ -5,6 +5,7 @@
   ...
 }: let
   search-light = import ../../pkgs/search-light.nix {inherit pkgs;};
+  eepresetselector = import ../../pkgs/eepresetselector.nix {inherit pkgs;};
 in {
   environment = {
     gnome.excludePackages = with pkgs; [
@@ -44,6 +45,7 @@ in {
     systemPackages = with pkgs; [
       gnome-tweaks
       search-light
+      eepresetselector
       gnomeExtensions.blur-my-shell
       gnomeExtensions.dash-to-dock
       gnomeExtensions.just-perfection
