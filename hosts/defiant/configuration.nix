@@ -71,12 +71,18 @@ in {
       enable = true;
       domain = "coppertop.ca";
       inherit lanIp;
-      # lanSubnet defaults to 192.168.1.0/24 (module default), which isn't
-      # defiant's actual subnet — it's reserved at 192.168.20.10. Overriding
-      # to match, so unbound's access-control actually covers defiant's own
-      # LAN for direct (bypass) queries on port 5335.
-      lanSubnet = "192.168.20.0/24";
-      subdomains = ["home" "dns" "adsb" "zigbee"];
+      # lanSubnet defaults to 192.168.1.0/24 (module default), narrower than
+      # the actual network: 3 VLANs, all 192.168.x.0/24. Widened so unbound's
+      # access-control covers direct (bypass) queries on port 5335 from any
+      # of them, not just defiant's own homelab VLAN (192.168.20.0/24).
+      lanSubnet = "192.168.0.0/16";
+      # dns1 (this host) and dns2 (excelsior, proxied cross-host below) both
+      # terminate TLS at defiant's Traefik, so both resolve locally to
+      # defiant's own lanIp.
+      subdomains = ["home" "dns1" "dns2" "adsb" "zigbee"];
+      # Renamed from the module default "dns" now that a second independent
+      # DNS instance (excelsior) exists — dns1/dns2 naming pairs the two.
+      adminSubdomain = "dns1";
     };
 
     traefik = {
@@ -218,6 +224,23 @@ in {
     };
 
     isLaptop = false;
+  };
+
+  # dns2: excelsior runs its own independent unbound+AdGuard instance (real
+  # DNS redundancy — clients get both IPs from DHCP), but Traefik only runs
+  # here on defiant. modules/dns.nix's self-registration only ever points at
+  # 127.0.0.1, so excelsior's admin UI needs a route defined manually,
+  # cross-host, rather than through that module. Merges fine alongside the
+  # module-contributed routes since dynamicConfigOptions is a freeform TOML
+  # type (confirmed: dns.nix/home-assistant.nix/zigbee.nix/adsb.nix already
+  # each set their own nested keys under .http.routers/.http.services here).
+  services.traefik.dynamicConfigOptions.http = {
+    routers.dns2 = {
+      rule = "Host(`dns2.coppertop.ca`)";
+      service = "dns2";
+      tls = {};
+    };
+    services.dns2.loadBalancer.servers = [{url = "http://192.168.1.10:3000";}];
   };
 
   system.stateVersion = "25.11";
