@@ -376,7 +376,7 @@ has:
 
 | Field | Meaning |
 | --- | --- |
-| `hostName` | The real SSH hostname |
+| `hostName` | The SSH hostname to dial — each host's `.local` mDNS name (resolved via avahi; the bare hostname has no DNS record) |
 | `aliases` | Optional short names to expose in SSH config |
 | `publicKey` | The verified SSH **host** public key (server identity); `null` until pinned |
 | `user` | The default SSH username |
@@ -385,7 +385,7 @@ has:
 ```nix
 enterprise-d = {
   aliases = ["enterprise-d"];
-  hostName = "enterprise-d";
+  hostName = "enterprise-d.local";
   publicKey = null;
   user = "thomasga";
   userPublicKeys = {
