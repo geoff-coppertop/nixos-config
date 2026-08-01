@@ -1,6 +1,6 @@
 {
   defiant = {
-    aliases = ["defiant"];
+    aliases = ["defiant" "defiant.local"];
     hostName = "defiant";
     publicKey = null;
     user = "thomasga";
@@ -23,5 +23,12 @@
     userPublicKeys = {
       thomasga = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKLdwIYeJFENvp95oViLvszT3v4/EK8dF5AIgCjDE+eT thomasga@holodeck-01";
     };
+  };
+  excelsior = {
+    aliases = ["excelsior" "excelsior.local"];
+    hostName = "excelsior";
+    publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHrIHWFlPQ9DIQGG5GrghyYAjmLMmPMQGzw+ML8uNpqr";
+    user = "thomasga";
+    userPublicKeys = {thomasga = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHuovWfG89BTyZhSeMd4av3Eizu8ynNvuxpq7j8+5ldS thomasga@excelsior";};
   };
 }
