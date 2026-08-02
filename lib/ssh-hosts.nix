@@ -38,4 +38,13 @@
     user = "thomasga";
     userPublicKeys = {thomasga = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOmsSJjqOzYrowRUv5tz6xX6EYj5Gt7F2ml4Y8NKI7EW thomasga@reliant";};
   };
+  stargazer = {
+    aliases = ["stargazer"];
+    hostName = "stargazer";
+    publicKey = null;
+    user = "thomasga";
+    # Populated after `nix develop -c python3 tools/enroll.py stargazer` and
+    # generating the login key on the machine (see hosts/stargazer/README.md).
+    userPublicKeys = {};
+  };
 }

@@ -172,6 +172,15 @@
         ];
       };
 
+      "stargazer" = mkNixosSystem {
+        system = "x86_64-linux";
+        extraModules = [
+          ./hosts/stargazer
+          {home-manager.users.thomasga.programs.firefox.configPath = ".mozilla/firefox";}
+          disko.nixosModules.disko
+        ];
+      };
+
       "holodeck-01" = mkNixosSystem {
         system = "x86_64-linux";
         extraModules = [
@@ -209,6 +218,11 @@
       "thomasga@enterprise-d" = mkHomeConfig {
         user = "thomasga";
         machine = "enterprise-d";
+        hostSystem = "x86_64-linux";
+      };
+      "thomasga@stargazer" = mkHomeConfig {
+        user = "thomasga";
+        machine = "stargazer";
         hostSystem = "x86_64-linux";
       };
       "thomasga@holodeck-01" = mkHomeConfig {

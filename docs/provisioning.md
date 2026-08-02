@@ -12,7 +12,7 @@ Each host declares how it is provisioned in `hosts/<machine>/provision-type`:
 
 | Type | Hosts | Media | Installer |
 | --- | --- | --- | --- |
-| `disko` | `enterprise-d`, `excelsior` | NixOS installer USB | `tools/install.py` runs disko, then `nixos-install` |
+| `disko` | `enterprise-d`, `excelsior`, `stargazer`, `reliant` | NixOS installer USB | `tools/install.py` runs disko, then `nixos-install` |
 | `sd-card` | `defiant` | SD card | `nix run .#install` builds and flashes the aarch64 SD image |
 | `wsl` | `holodeck-01` | none | Not currently automated — see [hosts/holodeck-01/README.md](../hosts/holodeck-01/README.md) |
 

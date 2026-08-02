@@ -1,7 +1,7 @@
 # NixOS Config
 
 This repo is the source of truth for machine setup, user setup, secrets wiring,
-and update policy across five machines. Everything is declarative and committed;
+and update policy across six machines. Everything is declarative and committed;
 nothing is configured by hand after install.
 
 ## Machines
@@ -9,6 +9,7 @@ nothing is configured by hand after install.
 | Machine | Type | Arch | Entrypoint | Host doc |
 | --- | --- | --- | --- | --- |
 | `enterprise-d` | Framework laptop | `x86_64-linux` | `hosts/enterprise-d/configuration.nix` | [README](hosts/enterprise-d/README.md) |
+| `stargazer` | Gaming/sim desktop, NVIDIA | `x86_64-linux` | `hosts/stargazer/configuration.nix` | [README](hosts/stargazer/README.md) |
 | `defiant` | Raspberry Pi 4 homelab server | `aarch64-linux` | `hosts/defiant/configuration.nix` | [README](hosts/defiant/README.md) |
 | `holodeck-01` | NixOS on WSL2 | `x86_64-linux` | `hosts/holodeck-01/configuration.nix` | [README](hosts/holodeck-01/README.md) |
 | `excelsior` | HP EliteDesk 800 G2 Mini game server | `x86_64-linux` | `hosts/excelsior/configuration.nix` | [README](hosts/excelsior/README.md) |

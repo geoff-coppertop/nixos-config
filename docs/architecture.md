@@ -206,6 +206,7 @@ The machines currently in this repo are listed in the [root README](../README.md
 | --- | --- |
 | `flake.nix` | Single entry point: inputs, dev shell, checks, apps, `nixosConfigurations`, `homeConfigurations` |
 | `hosts/enterprise-d/` | Framework laptop: hardware scan, disko disk layout, power/hibernate policy |
+| `hosts/stargazer/` | Gaming/sim desktop: NVIDIA, two-disk disko layout, VR and game-streaming modules |
 | `hosts/defiant/` | Raspberry Pi 4 homelab server: SD image, homelab service config, Home Assistant automations |
 | `hosts/holodeck-01/` | NixOS-WSL instance |
 | `hosts/excelsior/` | Headless x86_64 game server: DCS World dedicated server + DCS-SRS, second independent DNS instance |
@@ -264,7 +265,7 @@ test from § Layers applied consistently, with no exceptions today.
 | `custom.backups` | `modules/backups.nix` | Per-entry restic backups to the NAS over SMB or NFS |
 | `custom.wifi.enable` | `modules/wifi.nix` | NetworkManager `ensureProfiles` Wi-Fi profiles |
 | `custom.networkDrives` | `modules/network-drives.nix` | Per-user SMB share as a lazy, keyring-free CIFS `x-systemd.automount`; adds GTK bookmarks and Dolphin Places entries |
-| `custom.ssh.identitySecret` | `users/common/` | Names the agenix secret holding a user's SSH login key |
+| `custom.ssh.identityKeyName` | `users/common/` | Names the agenix secret holding a user's SSH login key |
 
 ### Boot, disk, and firmware
 

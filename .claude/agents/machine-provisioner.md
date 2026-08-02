@@ -115,6 +115,23 @@ You do not:
 
 - The owning doc is updated in the same change: `docs/provisioning.md` when an
   install step changes, `docs/workstation.md` when the capability layer does.
+- **Defining a brand-new host is not done at `flake.nix` registration.** Every
+  existing host has all of the following; a new one silently regresses tooling
+  or goes undiscovered without them:
+  - `hosts/<name>/provision-type` — not optional decoration. `provision.py`
+    skips any host missing it (with only a stderr warning), so the machine
+    disappears from the installer menu rather than erroring loudly.
+  - Its own row in the root `README.md` § Machines table and `CLAUDE.md`'s
+    machine table (and that file's "N machines" count) — neither file is owned
+    by this agent or any other single domain, so a new host is the one time you
+    touch both.
+  - Its own row in `docs/architecture.md` § Directory Map and, if it shares a
+    `provision-type` with an existing host, that host added to
+    `docs/provisioning.md`'s Provision Types table rather than left implicit.
+  - If it is deliberately excluded from CI's `build` matrix (e.g. unpinned
+    package hashes), say so in `docs/operations.md` next to the matrix, not just
+    in the host's own README — otherwise the omission reads as an oversight to
+    the next person editing the workflow.
 - The runbook you hand back is copy-pasteable from the repo root, with no `cd`
   and no placeholder the user cannot fill from context.
 - You state which steps you verified by reading the tooling, and which are

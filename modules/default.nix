@@ -11,6 +11,7 @@
     ./flatpak.nix
     ./framework.nix
     ./fwupd.nix
+    ./game-streaming.nix
     ./gaming.nix
     ./home-assistant.nix
     ./is-laptop.nix
@@ -19,12 +20,14 @@
     ./network-drives.nix
     ./nix-gc.nix
     ./secure-boot.nix
+    ./simagic.nix
     ./snapper.nix
     ./tpm-luks.nix
     ./traefik.nix
     ./users.nix
     ./vr.nix
     ./wifi.nix
+    ./wine-gaming.nix
     ./zigbee.nix
     ./zwave.nix
   ];
