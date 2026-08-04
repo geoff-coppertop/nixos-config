@@ -1,17 +1,28 @@
 {
   config,
   lib,
+  osConfig ? null,
   ...
 }: let
   cfg = config.custom.appearance;
+  de =
+    if osConfig == null
+    then "gnome"
+    else osConfig.custom.desktop.environment or "gnome";
 in {
   options.custom.appearance.darkMode = lib.mkEnableOption "system-wide dark mode";
 
   config = lib.mkIf cfg.darkMode {
+    # GTK apps (Firefox, VS Code, …) read this via gsettings / the XDG
+    # color-scheme portal under both GNOME and KDE, so it stays DE-independent.
     dconf.settings."org/gnome/desktop/interface" = {
       color-scheme = "prefer-dark";
       gtk-application-prefer-dark-style = true;
     };
+
+    # Plasma's global color scheme when KDE is the active desktop. Inert under
+    # GNOME (programs.plasma is disabled there).
+    programs.plasma.workspace.colorScheme = lib.mkIf (de == "kde") "BreezeDark";
 
     # Bitwarden (Electron) doesn't reliably read the XDG color-scheme portal on Linux;
     # --force-dark-mode tells Chromium to report prefers-color-scheme:dark unconditionally.

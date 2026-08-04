@@ -1,6 +1,7 @@
 {
   nixpkgs,
   home-manager,
+  plasma-manager,
   agenix,
   lanzaboote,
   nix-flatpak,
@@ -25,6 +26,7 @@ nixpkgs.lib.nixosSystem {
           useGlobalPkgs = true;
           useUserPackages = true;
           backupFileExtension = "backup";
+          sharedModules = [plasma-manager.homeModules.plasma-manager];
           extraSpecialArgs = {
             inherit dotfiles;
           };

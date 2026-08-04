@@ -18,6 +18,13 @@ in {
   custom = {
     users.thomasga = thomasga // {groups = ["wheel" "networkmanager" "plugdev"];};
 
+    desktop = {
+      environment = "kde";
+      # Framework 13's 13.5" panel is small enough that a permanently-visible
+      # panel eats into usable screen space; autohide it.
+      autohidePanel = true;
+    };
+
     wifi.enable = true;
     gaming.enable = true;
     flatpak.enable = true;

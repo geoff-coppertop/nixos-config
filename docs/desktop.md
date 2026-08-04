@@ -35,6 +35,7 @@ package policy, which is set in `flake.nix`.
 | File | Owns |
 | --- | --- |
 | `profiles/desktop/gnome.nix` | GNOME, GDM, system dconf settings — active only when `custom.desktop.environment = "gnome"` |
+| `profiles/desktop/kde.nix` | KDE Plasma 6, SDDM, KWallet+PAM — active only when `custom.desktop.environment = "kde"` |
 | `profiles/desktop/printing.nix` | CUPS printing, DE-independent |
 | `profiles/desktop/audio.nix` | pipewire |
 | `profiles/desktop/power.nix` | logind idle inhibitor |
@@ -56,8 +57,9 @@ in the system desktop profile.
 - Put wallpaper files under `users/<name>/files/`.
 - Link them into the home directory with `home.file` from a user module.
 - Set dark mode, accent color, and wallpaper through the desktop environment's
-  settings mechanism in a user module — today, GNOME's `dconf.settings`, as in
-  `users/thomasga/gnome.nix`.
+  settings mechanism in a user module — GNOME's `dconf.settings` in
+  `users/thomasga/gnome.nix`, or KDE's `programs.plasma` (plasma-manager) in
+  `users/thomasga/kde.nix`.
 
 If the source wallpaper format is not one the desktop environment reliably
 consumes directly, keep the upstream source in the repo and convert it during
@@ -67,14 +69,16 @@ For `thomasga` the concrete setup is:
 
 - Source asset: `users/thomasga/files/wallpapers/space-shuttle.jxl`
 - Conversion (DE-neutral): `users/thomasga/desktop-common.nix`
-- GNOME settings: `users/thomasga/gnome.nix`
+- GNOME settings: `users/thomasga/gnome.nix`; KDE: `users/thomasga/kde.nix`
 - Resulting linked wallpaper: `~/Pictures/Wallpapers/space-shuttle.png`
 
 `users/thomasga/desktop-common.nix` converts the checked-in Fedora `.jxl` source
 to `.png` with `pkgs.libjxl` and links it to a stable path so any desktop
 environment's config can point at it without redoing the conversion.
 `users/thomasga/gnome.nix` points both `picture-uri` and `picture-uri-dark` at
-that generated PNG, avoiding any reliance on runtime JPEG XL wallpaper support.
+that generated PNG; `users/thomasga/kde.nix` points Plasma's workspace
+wallpaper and the kscreenlocker background at the same path. Either way avoids
+any reliance on runtime JPEG XL wallpaper support.
 
 System-wide dark mode is `custom.appearance.darkMode`, defined in
 `users/common/appearance.nix`.
@@ -108,7 +112,8 @@ Managing it would clobber plugin state on every `nixos-rebuild switch`.
 as a per-user systemd service, sitting on top of pipewire
 (`profiles/desktop/audio.nix`) to globally EQ the Framework 13's thin,
 down-firing speakers. It relies on `programs.dconf.enable = true`, already set
-system-wide by `profiles/desktop/gnome.nix`.
+system-wide by whichever desktop profile is active (`profiles/desktop/gnome.nix`
+or `profiles/desktop/kde.nix`).
 
 Four community presets from
 [ceiphr/ee-framework-presets](https://github.com/ceiphr/ee-framework-presets)
