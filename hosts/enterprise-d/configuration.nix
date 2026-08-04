@@ -18,6 +18,8 @@ in {
   custom = {
     users.thomasga = thomasga // {groups = ["wheel" "networkmanager" "plugdev"];};
 
+    desktop.environment = "hyprland";
+
     wifi.enable = true;
     gaming.enable = true;
     flatpak.enable = true;

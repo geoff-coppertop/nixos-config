@@ -193,7 +193,7 @@ test from § Layers applied consistently, with no exceptions today.
 
 | Option | What it does |
 | --- | --- |
-| `custom.desktop.environment` | Declared in `modules/desktop.nix`. Selects the desktop environment / Wayland compositor (currently `"gnome"`, default `"gnome"`). The DE's system profile (`profiles/desktop/<de>.nix`) and its home-manager config (`users/<name>/<de>.nix`, gated on `osConfig.custom.desktop.environment`) both `lib.mkIf` on this value, so the tree can carry several desktops with only the selected one applied. Each DE owns its own greeter (GDM in `gnome.nix`); DE-independent layers — audio, power/idle, printing (`profiles/desktop/printing.nix`), and the DE-neutral home bits in `users/<name>/desktop-common.nix` — are always present. |
+| `custom.desktop.environment` | Declared in `modules/desktop.nix`. Selects the desktop environment / Wayland compositor (`"gnome"` or `"hyprland"`, default `"gnome"`). The DE's system profile (`profiles/desktop/<de>.nix`) and its home-manager config (`users/<name>/<de>.nix`, gated on `osConfig.custom.desktop.environment`) both `lib.mkIf` on this value, so the tree can carry several desktops with only the selected one applied. Each DE owns its own greeter (GNOME and Hyprland both use GDM, configured in their own profile file); DE-independent layers — audio, power/idle, printing (`profiles/desktop/printing.nix`), and the DE-neutral home bits in `users/<name>/desktop-common.nix` — are always present. |
 | `custom.appearance.darkMode` | System-wide dark mode (home-manager, `users/common/appearance.nix`) |
 | `custom.cli.shell` | Selects which shell the user CLI modules activate |
 | `custom.gaming.enable` | Steam |
