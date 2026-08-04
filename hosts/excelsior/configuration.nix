@@ -26,6 +26,10 @@ in {
 
     dcsServer = {
       enable = true;
+      # Login saved + auto-login enabled in the DCS launcher (confirmed live:
+      # the container starts straight into a running session with no login
+      # prompt), so the server can launch unattended with the container.
+      autoStart = true;
       srs.enable = true;
       # Module default (3000) collides with AdGuard Home's admin UI, which
       # also defaults to 3000 and is what defiant's dns2.coppertop.ca
