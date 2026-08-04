@@ -30,6 +30,15 @@ in {
       # the container starts straight into a running session with no login
       # prompt), so the server can launch unattended with the container.
       autoStart = true;
+      # DCS is fully installed and up to date. Confirmed live: leaving this
+      # at the module default (true) re-runs DCS_updater.exe on every
+      # restart, and its "Nothing to install" result pops up a GUI dialog
+      # that blocks indefinitely with nobody there to click OK -- autoStart
+      # never reaches DCS_server.exe. Disabling it here skips the updater
+      # entirely on restart, so autoStart is actually unattended. Flip back
+      # to true (and click through the dialog once via the web desktop) to
+      # pick up a DCS update, then back to false.
+      autoInstall = false;
       srs.enable = true;
       # Module default (3000) collides with AdGuard Home's admin UI, which
       # also defaults to 3000 and is what defiant's dns2.coppertop.ca

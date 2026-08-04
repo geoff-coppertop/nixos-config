@@ -84,14 +84,21 @@ rebuild so the DCS server launches with the container.
 
 ## DCS Server Maintenance
 
-**Updates**: happen automatically, no manual step needed. `custom.dcsServer.autoInstall`
-(module default `true` → `DCSAUTOINSTALL=1`) runs `DCS_updater.exe apply` on
-every container start, not just the first — confirmed live via
-`journalctl -u podman-dcs-server`, which shows the updater checking and
-reporting `Nothing to install` on a restart, well after the initial install
-had already finished. Restarting the container (`systemctl restart
-podman-dcs-server`, or any host reboot/rebuild) is enough to pick up a new
-DCS version.
+**Updates are manual, not automatic** — `custom.dcsServer.autoInstall` is set
+to `false` on this host, overriding the module default. Confirmed live: with
+it left at the default (`true` → `DCSAUTOINSTALL=1`), `DCS_updater.exe apply`
+re-runs on *every* container restart, not just the first. When there's
+nothing to install, it doesn't exit quietly — it pops up a GUI "Nothing to
+install" dialog that blocks indefinitely waiting for someone to click OK,
+which means `AUTOSTART` never reaches `DCS_server.exe` on an unattended
+restart (confirmed live: after a restart with nobody touching the web
+desktop, `DCS_server.exe` was simply never running — only the stuck
+updater).
+
+To pick up a new DCS version: temporarily set `autoInstall = true;`, rebuild,
+restart the container, open the tunneled web desktop, and click through the
+updater dialog once. Then set it back to `false;` and rebuild again so future
+restarts stay unattended.
 
 **Re-authenticating / changing the saved login**: not documented by the
 upstream Aterfax image. If you ever need to log out or switch accounts,
