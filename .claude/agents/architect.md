@@ -48,10 +48,11 @@ Ownership means keeping it true; `nixos-rebuild switch`, `nix flake update`,
 and a manual backup run stay the user's to execute (see Invariants).
 
 **A file in `pkgs/` is owned by whoever owns its consumer** — the same rule that
-already governs `modules/`. `pkgs/framework-control.nix` is yours (consumed by
-`modules/framework-control.nix`); `pkgs/search-light.nix` and
+already governs `modules/`. `pkgs/search-light.nix` and
 `pkgs/connect-iq-sdk-manager-cli.nix` are `machine-provisioner`'s (consumed by
-`profiles/desktop/` and `profiles/dev/`).
+`profiles/desktop/` and `profiles/dev/`). `framework-control` moved upstream to
+nixpkgs (both the package and the `services.framework-control` module), so
+there is no longer a repo-local file for either.
 
 `lib/` is yours **except** the domain-specific files a specialist already owns
 directly: `lib/ssh-hosts.nix` (`secrets-warden` — it's the inventory they pin

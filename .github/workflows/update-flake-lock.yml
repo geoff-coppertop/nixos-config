@@ -1,0 +1,49 @@
+name: Update flake.lock
+
+# Manual only — never runs on push or pull_request. Exists specifically for
+# cases where the lockfile bump itself is the thing under test (e.g. a PR
+# that depends on a newer nixpkgs) and running it locally has proven
+# unreliable — the update needs to happen, get committed, and get pushed in
+# one atomic step, on the exact branch under review.
+on:
+  workflow_dispatch:
+    inputs:
+      input:
+        description: "Flake input to update (blank updates every input, same as `nix flake update`)"
+        required: false
+        default: "nixpkgs"
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: cachix/install-nix-action@v27
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+
+      - name: update flake.lock
+        run: |
+          if [ -n "${{ github.event.inputs.input }}" ]; then
+            nix flake lock --update-input "${{ github.event.inputs.input }}"
+          else
+            nix flake update
+          fi
+
+      - name: commit and push, if anything changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- flake.lock; then
+            echo "flake.lock unchanged, nothing to commit"
+            exit 0
+          fi
+          git add flake.lock
+          git commit -m "flake.lock: update ${{ github.event.inputs.input || 'all inputs' }} via workflow_dispatch"
+          git push origin HEAD:"${{ github.ref_name }}"

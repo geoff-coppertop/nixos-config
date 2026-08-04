@@ -4,8 +4,8 @@
 
     defaultCommand = "fd --type f";
 
-    fileWidgetCommand = "fd --type f";
+    fileWidget.command = "fd --type f";
 
-    changeDirWidgetCommand = "fd --type d";
+    changeDirWidget.command = "fd --type d";
   };
 }

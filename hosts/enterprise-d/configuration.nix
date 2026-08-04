@@ -63,7 +63,15 @@ in {
     };
   };
 
-  services.framework-control.enable = true;
+  # services.framework-control.enable comes from custom.framework.enable above
+  # (modules/framework.nix defaults it on for any Framework host); override
+  # here only if this host should not run the control service.
+
+  # bitwarden-desktop is still pinned to electron_39 upstream (EOL, no more
+  # security patches); nixpkgs marks it insecure. Known, currently-open
+  # packaging lag (nixpkgs#529107, nixpkgs#526914) — remove this once
+  # bitwarden-desktop is rebuilt against a supported electron release.
+  nixpkgs.config.permittedInsecurePackages = ["electron-39.8.10"];
 
   # Lets `nix build` cross-compile aarch64-linux derivations (e.g. defiant) via
   # qemu-user emulation instead of failing with "platform mismatch". Slow —

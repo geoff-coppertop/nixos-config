@@ -155,7 +155,7 @@ The machines currently in this repo are listed in the [root README](../README.md
 | `users/common/` | Shared opt-in user modules: CLI tools, GUI apps, appearance |
 | `lib/` | `apps.nix`, `checks.nix`, `module-inertness.nix` (the `modules-inert` check), `devshell.nix`, `nas.nix`, `nixos-system.nix`, `ssh-hosts.nix`, `traefik-route.nix` |
 | `secrets/` | agenix `.age` files (safe to commit) plus `secrets/secrets.nix` (recipient declarations) |
-| `pkgs/` | Custom package builds: `framework-control`, `search-light`, `connect-iq-sdk-manager-cli` |
+| `pkgs/` | Custom package builds: `search-light`, `connect-iq-sdk-manager-cli` (`framework-control` moved upstream to nixpkgs) |
 | `tools/` | Python provisioning and secret helpers (plus one shell script, `hibernate-test-report.sh`) |
 | `docs/` | This documentation tree |
 
@@ -187,7 +187,7 @@ test from § Layers applied consistently, with no exceptions today.
 | `custom.secureBoot.enable` | Secure Boot via lanzaboote |
 | `custom.tpmLuks.enable` | TPM2-sealed LUKS root unlock |
 | `custom.fwupd.enable` | fwupd daemon for LVFS firmware updates |
-| `custom.framework.enable` | Framework laptop drivers (fingerprint reader, keyboard brightness, charge limit) plus the `framework-control` GUI |
+| `custom.framework.enable` | `framework-tool` CLI plus fingerprint-reader support (fprintd, PAM for login/sudo/GDM); defaults `services.framework-control.enable` on (`mkDefault`, overridable) |
 
 ### Desktop and workstation
 
