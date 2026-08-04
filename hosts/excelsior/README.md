@@ -82,6 +82,24 @@ Then open `http://localhost:3001` (web desktop) and
 After DCS login is saved, set `custom.dcsServer.autoStart = true;` and
 rebuild so the DCS server launches with the container.
 
+## DCS Server Maintenance
+
+**Updates**: happen automatically, no manual step needed. `custom.dcsServer.autoInstall`
+(module default `true` → `DCSAUTOINSTALL=1`) runs `DCS_updater.exe apply` on
+every container start, not just the first — confirmed live via
+`journalctl -u podman-dcs-server`, which shows the updater checking and
+reporting `Nothing to install` on a restart, well after the initial install
+had already finished. Restarting the container (`systemctl restart
+podman-dcs-server`, or any host reboot/rebuild) is enough to pick up a new
+DCS version.
+
+**Re-authenticating / changing the saved login**: not documented by the
+upstream Aterfax image. If you ever need to log out or switch accounts,
+open the launcher through the tunneled web desktop (see above) and look
+for a logout/change-account option in the launcher UI itself — there's no
+known config file or CLI path for this, and guessing one wrong risks
+corrupting the DCS install rather than just requiring a re-login.
+
 ## DNS Bypass
 
 Clients needing unfiltered DNS — this skips AdGuard's ad-blocking but keeps
