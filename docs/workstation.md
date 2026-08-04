@@ -15,7 +15,8 @@ top — theme, wallpaper, which optional apps they install — are
 
 | File | Provides |
 | --- | --- |
-| `profiles/desktop/gnome.nix` | The desktop environment, GDM, system-wide dconf, and pruning of unwanted default applications |
+| `profiles/desktop/gnome.nix` | GNOME, GDM, system-wide dconf, and pruning of unwanted default applications — active only when `custom.desktop.environment = "gnome"` (declared in `modules/desktop.nix`) |
+| `profiles/desktop/printing.nix` | CUPS printing — DE-independent, always on |
 | `profiles/desktop/audio.nix` | pipewire with ALSA/Pulse compatibility and rtkit |
 | `profiles/desktop/power.nix` | logind idle/suspend policy, UPower critical-battery hibernate, AC and remote-session detection |
 

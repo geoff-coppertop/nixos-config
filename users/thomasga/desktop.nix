@@ -9,6 +9,7 @@
     ./easyeffects.nix
     ./git.nix
     ./ghostty.nix
+    ./desktop-common.nix
     ./gnome.nix
     ./ssh.nix
     ./ssh-key.nix

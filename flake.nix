@@ -135,6 +135,17 @@
         };
         extraSpecialArgs = {
           inherit dotfiles;
+          # gnome.nix/kde.nix declare `osConfig ? null` and treat null as "not
+          # running under the NixOS integration module" (falls back to
+          # "gnome"). That default only fires when the module system supplies
+          # no value for osConfig at all; it does not protect against a cycle
+          # if some other module conditionally contributes its own
+          # `_module.args` based on config that participates in the same
+          # evaluation (e.g. a DE module gating an extra specialArg on its own
+          # enable option). Passing osConfig = null explicitly here removes
+          # the standalone (non-NixOS) path's dependence on args-merging
+          # fallback resolution entirely.
+          osConfig = null;
         };
         modules = [
           ./hosts/${machine}/home/${user}.nix

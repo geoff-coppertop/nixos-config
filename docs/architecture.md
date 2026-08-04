@@ -175,7 +175,7 @@ test from § Layers applied consistently, with no exceptions today.
 | `custom.users` | `modules/users.nix` | Declares user accounts, groups, and SSH authorized keys |
 | `custom.backups` | `modules/backups.nix` | Per-entry restic backups to the NAS over SMB or NFS |
 | `custom.wifi.enable` | `modules/wifi.nix` | NetworkManager `ensureProfiles` Wi-Fi profiles |
-| `custom.networkDrives` | `modules/network-drives.nix` | Auto-mount SMB shares at graphical login |
+| `custom.networkDrives` | `modules/network-drives.nix` | Per-user SMB share as a lazy, keyring-free CIFS `x-systemd.automount`; adds GTK bookmarks and Dolphin Places entries |
 | `custom.ssh.identitySecret` | `users/common/` | Names the agenix secret holding a user's SSH login key |
 
 ### Boot, disk, and firmware
@@ -193,6 +193,7 @@ test from § Layers applied consistently, with no exceptions today.
 
 | Option | What it does |
 | --- | --- |
+| `custom.desktop.environment` | Declared in `modules/desktop.nix`. Selects the desktop environment / Wayland compositor (currently `"gnome"`, default `"gnome"`). The DE's system profile (`profiles/desktop/<de>.nix`) and its home-manager config (`users/<name>/<de>.nix`, gated on `osConfig.custom.desktop.environment`) both `lib.mkIf` on this value, so the tree can carry several desktops with only the selected one applied. Each DE owns its own greeter (GDM in `gnome.nix`); DE-independent layers — audio, power/idle, printing (`profiles/desktop/printing.nix`), and the DE-neutral home bits in `users/<name>/desktop-common.nix` — are always present. |
 | `custom.appearance.darkMode` | System-wide dark mode (home-manager, `users/common/appearance.nix`) |
 | `custom.cli.shell` | Selects which shell the user CLI modules activate |
 | `custom.gaming.enable` | Steam |
