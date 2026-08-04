@@ -93,6 +93,12 @@ in {
   environment.systemPackages = with pkgs; [
     pciutils
     usbutils
+    # Confirmed live: SSHing into a headless host from a Ghostty terminal
+    # (TERM=xterm-ghostty) breaks terminfo-dependent commands like `clear`
+    # ("unknown terminal type") since the remote machine has no matching
+    # terminfo entry. ghostty.terminfo is a dedicated package output for
+    # exactly this — installing the terminfo without the GUI app itself.
+    ghostty.terminfo
   ];
 
   documentation.nixos.enable = false;
