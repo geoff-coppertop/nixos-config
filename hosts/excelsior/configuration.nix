@@ -1,6 +1,7 @@
 _: let
   nas = import ../../lib/nas.nix;
   thomasga = import ../../users/thomasga/account.nix;
+  dnsRecords = import ../../lib/dns-records.nix;
 in {
   imports = [
     ./secrets.nix
@@ -102,8 +103,8 @@ in {
       autoInstall = false;
       srs.enable = true;
       # Module default (3000) collides with AdGuard Home's admin UI, which
-      # also defaults to 3000 and is what defiant's dns2.coppertop.ca
-      # Traefik route depends on (hosts/defiant/configuration.nix) — same
+      # also defaults to 3000 and is what this host's dns2.coppertop.ca
+      # Traefik route depends on (custom.dns.adminSubdomain below) — same
       # class of conflict defiant already hit and fixed for zwave-js.
       desktopPort = 3001;
     };
@@ -111,19 +112,19 @@ in {
     dns = {
       enable = true;
       domain = "coppertop.ca";
-      lanIp = "192.168.1.10";
+      lanIp = dnsRecords.hosts.excelsior;
       # Module default (192.168.1.0/24) is narrower than the actual network:
       # 3 VLANs, all 192.168.x.0/24. Widened to match defiant's override so
       # direct (bypass) queries on port 5335 work from any of them.
       lanSubnet = "192.168.0.0/16";
-      # Media services now run behind this host's own Traefik, so their names
-      # resolve here (both resolvers serve identical records; defiant carries
-      # the matching extraRecords). AdGuard's admin UI (dns2) still goes through
-      # defiant's cross-host router, so adminSubdomain is left at the default.
-      subdomains = ["jellyfin" "arm" "tmm"];
-      # The coppertop.ca landing page (Homepage) runs on defiant; both
-      # resolvers must return the same apex record.
-      apexRecord = "192.168.20.10";
+      # Serve the whole zone from the shared source of truth, identical to
+      # defiant, so this resolver alone answers everything.
+      extraRecords = dnsRecords.records;
+      apexRecord = dnsRecords.apex;
+      # This host's own AdGuard admin UI, now served by this host's own
+      # Traefik (self-registered by the dns module) instead of being proxied
+      # cross-host through defiant.
+      adminSubdomain = "dns2";
     };
 
     # Traefik on excelsior fronts its own media services so heavy Jellyfin
