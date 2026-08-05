@@ -184,6 +184,14 @@
         system = "aarch64-linux";
         extraModules = [./hosts/defiant];
       };
+
+      "excelsior" = mkNixosSystem {
+        system = "x86_64-linux";
+        extraModules = [
+          ./hosts/excelsior
+          disko.nixosModules.disko
+        ];
+      };
     };
 
     homeConfigurations = {
@@ -201,6 +209,12 @@
         user = "thomasga";
         machine = "defiant";
         hostSystem = "aarch64-linux";
+      };
+
+      "thomasga@excelsior" = mkHomeConfig {
+        user = "thomasga";
+        machine = "excelsior";
+        hostSystem = "x86_64-linux";
       };
     };
   };

@@ -146,6 +146,7 @@ The machines currently in this repo are listed in the [root README](../README.md
 | `hosts/enterprise-d/` | Framework laptop: hardware scan, disko disk layout, power/hibernate policy |
 | `hosts/defiant/` | Raspberry Pi 4 homelab server: SD image, homelab service config, Home Assistant automations |
 | `hosts/holodeck-01/` | NixOS-WSL instance |
+| `hosts/excelsior/` | Headless x86_64 game server: DCS World dedicated server + DCS-SRS, second independent DNS instance |
 | `profiles/common/` | Baseline every host gets: nix settings/GC, `system.autoUpgrade`, timezone/locale, kernel, fonts; plus network discovery (avahi/mDNS), the agenix identity path, SSH known-hosts rendering |
 | `profiles/desktop/` | Desktop environment baseline, audio (pipewire), power/idle policy |
 | `profiles/dev/` | Dev tooling: GitHub CLI, container runtime, network tools |
@@ -205,11 +206,15 @@ test from § Layers applied consistently, with no exceptions today.
 
 ### Homelab services
 
-All of these are enabled on `defiant`. See [docs/homelab-network.md](homelab-network.md).
+`custom.traefik` and the appliance modules (`home-assistant`, `mqtt`, `matter`,
+`zigbee`, `zwave`, `adsb`) are enabled only on `defiant`. `custom.dns` runs on
+**both** `defiant` and `excelsior` as two independent instances — AdGuard Home
+has no native clustering, so redundancy means two separate resolvers, not
+shared config. See [docs/homelab-network.md](homelab-network.md).
 
 | Option | What it does |
 | --- | --- |
-| `custom.dns` | unbound recursive resolver plus AdGuard Home, with split-horizon records |
+| `custom.dns` | unbound recursive resolver plus AdGuard Home, with split-horizon records; `adminSubdomain` names its own Traefik route when two instances share one domain |
 | `custom.traefik` | Reverse proxy with ACME wildcard certificates via a DNS-01 provider |
 | `custom.home-assistant` | Home Assistant service, `extraComponents`, HTTP/proxy wiring |
 | `custom.mqtt` | Mosquitto broker |
@@ -217,6 +222,16 @@ All of these are enabled on `defiant`. See [docs/homelab-network.md](homelab-net
 | `custom.zigbee` | Zigbee2MQTT |
 | `custom.zwave` | Z-Wave JS server |
 | `custom.adsb` | dump1090 ADS-B receiver |
+
+### Game server
+
+Enabled on `excelsior`. Not a "homelab service" in the Traefik/appliance sense
+above — a standalone game server with its own two-container split.
+
+| Option | What it does |
+| --- | --- |
+| `custom.dcsServer` | DCS World dedicated server (Aterfax OCI image under podman) |
+| `custom.dcsServer.srs` | DCS-SRS voice server — a separate `jaycadi/dcs-srs-server` container, not bundled with the DCS image |
 
 ## Flake Inputs
 

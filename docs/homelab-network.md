@@ -3,7 +3,9 @@
 Reverse proxy and DNS composition for `defiant` — the routing backbone every
 other homelab service registers into. The appliance/device layer that sits
 behind it (Home Assistant, Zigbee, Z-Wave, Matter, MQTT, ADS-B) is
-[docs/smart-home.md](smart-home.md).
+[docs/smart-home.md](smart-home.md). `custom.dns` also runs a second,
+independent instance on `excelsior` — see § Second DNS Instance (excelsior)
+below.
 
 The full option-to-module table is
 [docs/architecture.md § Custom Options § Homelab services](architecture.md#homelab-services) —
@@ -79,6 +81,48 @@ service with a strict reverse-proxy trust check rejects the request outright if
 the proxy connects over `::1`. Home Assistant, whose `trusted_proxies` lists only
 `127.0.0.1`, returned 400 in exactly this way while AdGuard's route (which has no
 such check) worked.
+
+## Second DNS Instance (excelsior)
+
+AdGuard Home has no native clustering — every real-world HA setup for it is a
+DIY workaround (dual independent instances, or one instance behind a
+keepalived VIP with no config sync either way). This repo runs **dual
+independent instances**: `defiant`'s existing one, plus a second, fully
+separate `custom.dns` on `excelsior`. Neither shares config or state with the
+other — router/DHCP should hand out both reserved IPs as primary/secondary
+DNS for real redundancy; that's a router-side step, not managed by this repo.
+
+Both admin UIs are reachable without an SSH tunnel, proxied through
+`defiant`'s single Traefik instance (Traefik never runs a second copy on
+`excelsior`):
+
+- `dns1.coppertop.ca` → `defiant`'s own AdGuard UI, self-registered by
+  `modules/dns.nix` the normal way (§ Traefik Route Registration above), with
+  `custom.dns.adminSubdomain = "dns1";` overriding the module's `"dns"`
+  default now that a second instance exists to disambiguate from.
+- `dns2.coppertop.ca` → `excelsior`'s AdGuard UI. This **cannot** use the
+  module's self-registration, which only ever targets `127.0.0.1` — Traefik
+  runs on a different host than the service it's proxying. Instead,
+  `hosts/defiant/configuration.nix` defines this router by hand, pointing
+  `lib/traefik-route.nix`'s pattern at `excelsior`'s real LAN IP:
+
+  ```nix
+  services.traefik.dynamicConfigOptions.http = {
+    routers.dns2 = {
+      rule = "Host(`dns2.coppertop.ca`)";
+      service = "dns2";
+      tls = {};
+    };
+    services.dns2.loadBalancer.servers = [{url = "http://192.168.1.10:3000";}];
+  };
+  ```
+
+  This merges fine alongside every module-contributed route on `defiant`
+  since `dynamicConfigOptions` is a TOML freeform type.
+
+`excelsior`'s AdGuard admin port needs no extra firewall work for this to
+reach it from `defiant`: `services.adguardhome.host` defaults to `0.0.0.0`,
+and `modules/dns.nix` already sets `openFirewall = true`.
 
 ## Adding A New Homelab Service
 

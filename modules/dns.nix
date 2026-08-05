@@ -31,6 +31,12 @@ in {
       default = [];
       description = "Subdomains to resolve to lanIp (e.g. [\"homeassistant\" \"zigbee\"]).";
     };
+
+    adminSubdomain = mkOption {
+      type = types.str;
+      default = "dns";
+      description = "Subdomain for AdGuard Home's admin UI when custom.traefik.enable is set on this host.";
+    };
   };
 
   config = mkIf cfg.enable (mkMerge [
@@ -113,7 +119,7 @@ in {
     (mkIf config.custom.traefik.enable {
       services.traefik.dynamicConfigOptions.http = mkTraefikRoute {
         name = "adguard";
-        subdomain = "dns";
+        subdomain = cfg.adminSubdomain;
         port = 3000;
         inherit (config.custom.traefik.acme) domain;
       };

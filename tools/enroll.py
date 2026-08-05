@@ -280,7 +280,7 @@ def enroll_machine(machine: str, username: str = "thomasga") -> bool:
 
     if not host_secrets_nix.exists():
         host_secrets_nix.write_text(
-            f"{{...}}: {{\n"
+            f"_: {{\n"
             f"  age.secrets = {{\n"
             f'    "thomasga/ssh-id-ed25519-{machine}" = {{\n'
             f"      file = ../../{ssh_secret_path};\n"

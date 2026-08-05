@@ -7,6 +7,8 @@ let
   defiant = "age18yumsydkuuz54uvj8rnxpehpnse6eduvghdcsf7pgc0pylywwg2s6yv6xr";
 
   # Replace this with a distinct offline recovery key before expanding the fleet.
+  excelsior = "age133y2ha4g4qa8esa52jp7k99xhqxm05m5q8yj909xynsv9ncv53xqfwyrgw";
+
   offlineAdmin = "age135v2shcv64lul85dy5qqpwlnqw4rvdcsukymx63neqp37d9hpe0sp2jzp9";
 in {
   "thomasga/restic-password.age".publicKeys = [enterprise-d offlineAdmin];
@@ -31,4 +33,5 @@ in {
   # expected to be reused by a future weather station module too.
   "defiant/location.age".publicKeys = [defiant offlineAdmin];
   "defiant/zwave-secrets.age".publicKeys = [defiant offlineAdmin];
+  "thomasga/ssh-id-ed25519-excelsior.age".publicKeys = [excelsior offlineAdmin];
 }

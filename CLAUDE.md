@@ -4,7 +4,7 @@ Guidance for Claude Code (claude.ai/code) when working in this repository.
 
 ## What This Repository Does
 
-A NixOS flake managing **three** machines declaratively — disk layout, OS,
+A NixOS flake managing **four** machines declaratively — disk layout, OS,
 hardware, secrets, home-manager user environments, homelab services, and backup
 policy. Everything is committed; nothing is configured by hand after install.
 
@@ -13,6 +13,7 @@ policy. Everything is committed; nothing is configured by hand after install.
 | `enterprise-d` | Framework laptop, full GNOME desktop | `x86_64-linux` | `hosts/enterprise-d/README.md` |
 | `defiant` | Raspberry Pi 4 headless homelab server | `aarch64-linux` | `hosts/defiant/README.md` |
 | `holodeck-01` | NixOS on WSL2, headless | `x86_64-linux` | `hosts/holodeck-01/README.md` |
+| `excelsior` | HP EliteDesk 800 G2 Mini headless game server | `x86_64-linux` | `hosts/excelsior/README.md` |
 
 The current user is `thomasga` (Geoffrey Thomas).
 

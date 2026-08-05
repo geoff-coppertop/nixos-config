@@ -4,6 +4,7 @@
     ./backups.nix
     ./bin-compat.nix
     ./btrfs.nix
+    ./dcs-server.nix
     ./debug-probes.nix
     ./desktop.nix
     ./dns.nix

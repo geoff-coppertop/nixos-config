@@ -40,13 +40,21 @@ The reusable service layer these options configure is documented in
 
 | Service | URL | Port behind Traefik |
 | --- | --- | --- |
-| AdGuard Home | `https://dns.coppertop.ca` | 3000 |
+| AdGuard Home (this host) | `https://dns1.coppertop.ca` | 3000 |
+| AdGuard Home (excelsior, proxied cross-host — see its `dns2` router below) | `https://dns2.coppertop.ca` | excelsior `192.168.1.10:3000` |
 | Home Assistant | `https://home.coppertop.ca` | 8123 |
 | Zigbee2MQTT | `https://zigbee.coppertop.ca` | 8082 |
 | ADS-B map | `https://adsb.coppertop.ca` | 8080 |
 | Z-Wave JS | `ws://localhost:3001` (not proxied) | 3001 |
 | Matter server | `ws://localhost:5580/ws` (not proxied) | 5580 |
 | MQTT broker | `localhost:1883` (not proxied) | 1883 |
+
+`dns1`/`dns2` naming: excelsior runs a second, fully independent unbound +
+AdGuard instance for real DNS redundancy (see
+[hosts/excelsior/README.md](../excelsior/README.md)) — Traefik only runs
+here on defiant, so its admin UI is proxied cross-host via a manually
+defined router in `configuration.nix` (`modules/dns.nix`'s self-registration
+only ever points at `127.0.0.1`).
 
 ## First-Time Service Setup
 
@@ -77,7 +85,7 @@ Clients needing unfiltered DNS — this skips AdGuard's ad-blocking but keeps
 `coppertop.ca` resolution:
 
 ```bash
-dig @defiant -p 5335 home.coppertop.ca
+dig @defiant.local -p 5335 home.coppertop.ca
 ```
 
 Point a device at `192.168.20.10:5335` in its DNS settings to bypass AdGuard
@@ -88,10 +96,15 @@ permanently.
 These were all confirmed on the running machine and are the reason the config
 looks the way it does. Changing them back reintroduces a real failure.
 
-- **`custom.dns.lanSubnet` is overridden to `192.168.20.0/24`.** The module
-  default is `192.168.1.0/24`, which is not this host's subnet. Without the
-  override, unbound's `access-control` does not cover defiant's own LAN for
-  direct bypass queries on port 5335.
+- **`custom.dns.lanSubnet` is overridden to `192.168.0.0/16`.** The module
+  default (`192.168.1.0/24`) and a narrower per-host override
+  (`192.168.20.0/24`, this host's own VLAN) each only cover one of the
+  network's 3 VLANs. Widened on both defiant and excelsior so unbound's
+  `access-control` allows direct bypass queries on port 5335 from any of
+  them.
+- **`custom.dns.adminSubdomain = "dns1"`.** Renamed from the module default
+  `"dns"` now that excelsior runs a second, independent DNS instance —
+  `dns1`/`dns2` naming pairs the two admin UIs.
 - **`custom.zwave.port = 3001`.** The module default of 3000 is already
   AdGuard Home's admin UI on this host — confirmed with `ss -tlnp` and
   `lsof -i :3000` showing AdGuardHome, not zwave-js, holding the port, which is

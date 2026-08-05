@@ -42,7 +42,7 @@ Not yours:
 - Deploying. Report the command, do not run it:
 
   ```bash
-  nixos-rebuild switch --flake .#defiant --target-host thomasga@defiant --use-remote-sudo
+  nixos-rebuild switch --flake .#defiant --target-host thomasga@defiant.local --sudo
   ```
 
 ## Invariants

@@ -12,7 +12,7 @@ Each host declares how it is provisioned in `hosts/<machine>/provision-type`:
 
 | Type | Hosts | Media | Installer |
 | --- | --- | --- | --- |
-| `disko` | `enterprise-d` | NixOS installer USB | `tools/install.py` runs disko, then `nixos-install` |
+| `disko` | `enterprise-d`, `excelsior` | NixOS installer USB | `tools/install.py` runs disko, then `nixos-install` |
 | `sd-card` | `defiant` | SD card | `nix run .#install` builds and flashes the aarch64 SD image |
 | `wsl` | `holodeck-01` | none | Not currently automated — see [hosts/holodeck-01/README.md](../hosts/holodeck-01/README.md) |
 
@@ -282,9 +282,14 @@ manual eject needed.
 
 ```bash
 nixos-rebuild switch --flake .#defiant \
-  --target-host thomasga@defiant \
-  --use-remote-sudo
+  --target-host thomasga@defiant.local \
+  --sudo
 ```
+
+The bare hostname isn't resolvable — use the mDNS `.local` name. `--sudo`, not
+the deprecated `--use-remote-sudo`. Every headless host sets
+`security.sudo.wheelNeedsPassword = false;` (the SSH key check is the real
+access gate), so no interactive password prompt.
 
 Zigbee2MQTT and Z-Wave JS start up using the keys created during enrollment — no
 further extraction step is needed.

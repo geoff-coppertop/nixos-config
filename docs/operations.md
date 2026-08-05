@@ -100,8 +100,9 @@ sudo nixos-rebuild switch --flake .#enterprise-d
 | --- | --- | --- |
 | `enterprise-d` | `sudo nixos-rebuild switch --flake .#enterprise-d` | On `enterprise-d` |
 | `holodeck-01` | `sudo nixos-rebuild switch --flake .#holodeck-01` | Inside the WSL distro |
-| `defiant` | `nixos-rebuild switch --flake .#defiant --target-host thomasga@defiant --use-remote-sudo` | Any machine with SSH and Nix |
-| `enterprise-d` (remote) | `nixos-rebuild switch --flake .#enterprise-d --target-host thomasga@enterprise-d --use-remote-sudo` | Any machine with SSH and Nix |
+| `defiant` | `nixos-rebuild switch --flake .#defiant --target-host thomasga@defiant.local --sudo` | Any machine with SSH and Nix |
+| `excelsior` | `nixos-rebuild switch --flake .#excelsior --target-host thomasga@excelsior.local --sudo` | Any machine with SSH and Nix |
+| `enterprise-d` (remote) | `nixos-rebuild switch --flake .#enterprise-d --target-host thomasga@enterprise-d --sudo` | Any machine with SSH and Nix |
 
 ### Automatic updates
 
