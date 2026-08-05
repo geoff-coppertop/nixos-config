@@ -97,7 +97,7 @@ The greeter's own compositor cannot report idle — the GDM dconf profile sets `
 
 | File | Responsibility |
 | --- | --- |
-| `hosts/enterprise-d/power.nix` | logind lid/key actions, `IdleAction`, RTC wakeup kernel param, `hibernate-trigger` system-sleep hook (arms RTC wakealarm, decides hibernate on resume, logging), `hibernate-trigger-fallback` (re-suspends on a failed hibernate so the RTC cycle retries instead of draining awake), build-time assertions that `resumeDevice` matches a configured swap device |
+| `hosts/enterprise-d/power.nix` | logind lid/key actions, `IdleAction`, RTC wakeup kernel param, `hibernate-trigger` system-sleep hook (arms RTC wakealarm, decides hibernate on resume, logging), a preflight on `hibernate-trigger-hibernate` that diagnoses (and, for a known `memfd_secret()` cause, auto-remediates) a kernel-level hibernate block before every attempt, `hibernate-trigger-fallback` (re-suspends on a failed hibernate so the RTC cycle retries instead of draining awake), build-time assertions that `resumeDevice` matches a configured swap device |
 | `profiles/desktop/power.nix` | UPower critical-battery hibernate; `idle-hint` user service (swayidle sets logind `IdleHint` on `ext-idle-notify-v1` compositors, skipped on GNOME/gdm, start-limited so an unsupported compositor fails visibly); `greeter-idle-hint` system timer (marks an active greeter-class session idle so the login screen can suspend); `logind-idle-inhibitor` user service (blocks logind `IdleAction` only while on AC, skipped for gdm); `remote-session-idle-inhibitor` (SSH counts as activity) and the `battery-idle-suspend` watchdog (forces `suspend -i` on battery past 5 min idle, overriding application inhibitors, via a root polkit grant; skips when a remote session is active); shared Mains-only AC-detection and remote-session helpers |
 | `users/thomasga/gnome.nix` | GNOME-side dconf only: screen blank at 4 min (which is also when Mutter sets logind `IdleHint` — the suspend chain's trigger), lock on blank, gsd-power disabled from sleeping the system |
 
@@ -160,6 +160,42 @@ hibernate retries every ~10 min from sleep instead of draining awake. If
 hibernate is ever skipped unexpectedly, or a spurious wake reappears, this
 is the first thing to check, alongside `journalctl -k -b -1` for the wake
 cause.
+
+### Hibernate preflight: `hibernate-trigger-diag`
+
+Before every RTC-triggered hibernate attempt, an `ExecStartPre` on
+`hibernate-trigger-hibernate.service` checks whether the kernel currently
+supports hibernation at all (`grep disk /sys/power/state` — this reflects
+`hibernation_available()` in `kernel/power/hibernate.c`, which is false if
+`nohibernate` is set, kernel lockdown is active, a CXL device is present, or
+any process holds a `memfd_secret()` mapping). If hibernation is
+unavailable, everything that decision depends on — `/sys/power/state`,
+`/sys/power/resume`, `swapon --show`, held inhibitors
+(`systemd-inhibit --list`), and lockdown status — is logged in one line
+under `hibernate-trigger-diag`:
+
+```bash
+journalctl -t hibernate-trigger-diag
+```
+
+One specific cause gets auto-remediated: a process holding a
+`memfd_secret()` mapping blocks hibernation system-wide, for every process,
+for as long as it runs (`secretmem_active()` in `mm/secretmem.c` is a
+global, not per-process, gate). Backgrounded Electron/Chromium apps have
+been observed doing this opportunistically (Bitwarden's V8 sandbox is the
+one seen here so far) with no user-visible symptom other than hibernate
+silently never succeeding. The preflight finds any such process via
+`/proc/*/maps`, closes it (`SIGTERM`, then `SIGKILL` after 2s if still
+alive), and retries. Whether or not that fixes it, a desktop notification
+fires either way ("Closed an app so the system could hibernate" or "Hibernate
+is blocked and couldn't be resolved automatically"), pointing at
+`journalctl -t hibernate-trigger-diag` for detail — so a hibernate-blocking
+issue is discovered within the hour it happens, not weeks of silent
+retry-loop failures later.
+
+This preflight never fails the service itself — every branch exits 0 — so a
+preflight bug can't get in the way of the actual hibernate attempt or its
+existing `hibernate-trigger-fallback` retry path.
 
 ### DE independence
 
