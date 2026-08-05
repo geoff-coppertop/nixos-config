@@ -216,6 +216,72 @@ home.file.".gitconfig".source = ./files/gitconfig;
 home.file.".local/bin/dev-shell".source = ./files/dev-shell;
 ```
 
+## UniFi Network MCP Server
+
+`users/thomasga/ai.nix` declares `custom.ai.claude.mcpServers.unifi`, and
+`users/thomasga/ai-mcp-unifi.nix` (imported by `users/thomasga/desktop.nix`,
+so `enterprise-d` only) wires it up. It runs
+[`unifi-network-mcp`](https://github.com/sirkirby/unifi-mcp) as a local
+**stdio** subprocess that Claude Code spawns on demand — no persistent
+daemon, no network-exposed HTTP transport, matching upstream's own security
+guidance (the HTTP/SSE transport has no built-in auth; stdio is the safe
+default).
+
+### Enabling it on a host
+
+Set these in that host's `hosts/<machine>/home/thomasga.nix` (`enterprise-d`
+is the only one today), not in the shared `users/thomasga/` files:
+
+```nix
+custom.ai.claude.mcpServers.unifi = {
+  enable = true;
+  host = "192.168.1.1"; # the controller's real address
+  credentialsFile = "/run/agenix/thomasga/unifi-network-credentials";
+};
+```
+
+`port` (default `443`), `site` (default `"default"`), and `verifySsl`
+(default `false`, since self-hosted controllers are usually self-signed) only
+need overriding if they differ from those defaults.
+
+### The credentials secret
+
+`credentialsFile` must point at a decrypted agenix secret for a **dedicated,
+local (non-SSO) UniFi admin account** with full mutation rights over
+firewall/VLAN config — not your personal UniFi login. That secret is owned by
+`secrets-warden` (see [docs/secrets.md](secrets.md)); at present it is
+`secrets/thomasga/unifi-network-credentials.age`, declared in
+`hosts/enterprise-d/secrets.nix` as `age.secrets."thomasga/unifi-network-credentials"`
+and decrypted to `/run/agenix/thomasga/unifi-network-credentials`. It is
+expected to contain exactly:
+
+```text
+UNIFI_NETWORK_USERNAME=your-local-admin-username
+UNIFI_NETWORK_PASSWORD=your-local-admin-password
+```
+
+Fill in the real values with `nix run .#secret-edit -- secrets/thomasga/unifi-network-credentials.age`
+once the account exists on the controller. Confirm the exact plaintext format
+against `docs/secrets.md` § Secret Inventory before relying on it — if
+`secrets-warden` chose a different shape (e.g. `username=`/`password=` like
+the NAS SMB credentials secret), update the `credentialsFile` sourcing logic
+in `users/thomasga/ai-mcp-unifi.nix` to match rather than the secret.
+
+### Packaging: `uvx`, not a pinned nixpkgs derivation
+
+`unifi-network-mcp` depends on two of its own workspace packages
+(`unifi-core`, `unifi-mcp-shared`), neither in nixpkgs, and ships frequent
+releases (dozens within its first year). Packaging all three declaratively as
+pinned `python3Packages.buildPythonApplication` derivations is the pattern
+this repo otherwise prefers, but here it means hand-maintaining three PyPI
+projects' worth of hashes for a beta tool used by one person locally. Instead,
+`ai-mcp-unifi.nix` wraps upstream's own documented install path — `uvx
+unifi-network-mcp@<version>` — in a `pkgs.writeShellApplication`, with the
+version pinned in that file (not exposed as an option) so upgrades stay an
+explicit, reviewable repo change instead of floating on `@latest`. Revisit as
+a real nixpkgs derivation if the missing dependencies land in nixpkgs, or once
+the server leaves beta.
+
 ## Home-Manager Idioms
 
 **VS Code.** `programs.vscode` uses `profiles.default` for `extensions` and
