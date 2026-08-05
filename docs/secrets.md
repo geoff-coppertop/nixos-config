@@ -174,6 +174,48 @@ username=nas-user
 password=nas-password
 ```
 
+### UniFi controller admin credentials
+
+`secrets/thomasga/unifi-network-credentials.age` backs the `unifi-network-mcp`
+stdio MCP server that Claude Code spawns on demand on enterprise-d. It decrypts
+to exactly two lines in systemd `EnvironmentFile` format — no quotes, no `export`,
+no trailing blank line:
+
+```text
+UNIFI_NETWORK_USERNAME=mcp-automation
+UNIFI_NETWORK_PASSWORD=controller-admin-password
+```
+
+| Property | Value |
+| --- | --- |
+| Recipients | `enterprise-d`, `offlineAdmin` |
+| Runtime path | `/run/agenix/thomasga/unifi-network-credentials` |
+| Owner | `thomasga` |
+| Declared in | `hosts/enterprise-d/secrets.nix` |
+
+The account must be a **local UniFi controller admin**, not a Ubiquiti SSO
+account, and must not have MFA enabled — the MCP server logs in with a plain
+username/password against the controller API. It holds full mutation rights
+(firewall rules, VLANs); treat it like any other admin credential here.
+
+`UNIFI_NETWORK_HOST`, `UNIFI_NETWORK_PORT` and `UNIFI_NETWORK_SITE` are not
+secret and are set in `users/thomasga/ai.nix`, not in this file.
+
+Consume it as an `EnvironmentFile` (systemd user service, or `env -S`-style
+wrapper) rather than `source`-ing it from a shell. Shell sourcing mangles
+passwords containing spaces, `$`, backticks or quotes; systemd's parser does
+not. The `garmin-env` service in `users/thomasga/connect-iq.nix` is the nearest
+existing example of pushing per-user secret values into the user environment.
+
+> **Not yet populated.** The recipient entry and the `age.secrets` declaration
+> are committed, but the encrypted file itself does not exist yet. Until
+> Geoffrey creates it with the real controller credentials, evaluating the
+> enterprise-d configuration fails on the missing path. Create it with:
+>
+> ```bash
+> EDITOR=nano nix run .#secret-edit -- secrets/thomasga/unifi-network-credentials.age
+> ```
+
 ### Wi-Fi passphrases
 
 Each Wi-Fi secret decrypts to exactly one line — the variable name and password,

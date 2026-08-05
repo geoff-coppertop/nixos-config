@@ -22,5 +22,9 @@
       file = ../../secrets/thomasga/garmin-password.age;
       owner = "thomasga";
     };
+    "thomasga/unifi-network-credentials" = {
+      file = ../../secrets/thomasga/unifi-network-credentials.age;
+      owner = "thomasga";
+    };
   };
 }
