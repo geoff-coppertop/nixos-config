@@ -57,6 +57,20 @@ creates a new host, leave `default.nix` with an empty or minimal
 attachment for whichever users need this machine — same as you hand off
 Step 2 to `secrets-warden`.
 
+**Defining a new host is two phases, and they are separate PRs** — see
+`docs/provisioning.md` § Two Phases. Step 1 for a *brand-new* host produces a
+Phase-1-only configuration: `custom.users`, `custom.backups`, whatever
+networking is already unconditional in `profiles/common`, and nothing more.
+Do not import `profiles/desktop` or `profiles/dev`, and do not enable any
+other `custom.*` service module, in that first PR — even though both profiles
+are your own scope (see "Machine capability is also yours" above). Opting the
+new host into `profiles/desktop` or `profiles/dev` is Phase 2 work: a
+separate PR that can be opened any time but must not merge before the Phase 1
+PR has merged and the machine is confirmed up per `docs/provisioning.md`
+§ Step 7. This does not weaken your ownership of those profiles — it says
+*when* you exercise it for a new host,
+not that someone else does.
+
 You do:
 
 - Create `hosts/<name>/*.nix` for a new machine and register it in `flake.nix`

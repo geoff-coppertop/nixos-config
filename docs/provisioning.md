@@ -21,6 +21,60 @@ on that provision type, so the same entry point covers both media paths.
 `nix run .#provision` (`tools/provision.py`) is the lower-level driver
 `install.py` calls to perform the per-type work.
 
+## Two Phases
+
+Bringing up a machine is always two phases, and they are separate PRs:
+
+- **Phase 1 — Machine Provisioning** (this document, Steps 1-7 below): get the
+  machine installed, on the network, reachable over SSH, and enrolled in
+  backups and secrets. Nothing else.
+- **Phase 2 — Application Provisioning**: everything that makes the machine
+  useful for a person or a service — desktop or dev capability, home-manager
+  user environments, homelab or smart-home service modules. See
+  [Phase 2 — Application Provisioning](#phase-2--application-provisioning)
+  below.
+
+Phase 1 and Phase 2 are always separate PRs — never bundled together. Phase 2
+work can start any time, including in parallel with Phase 1, but a Phase 2 PR
+must not merge before its Phase 1 PR has merged and the machine is confirmed
+up — Phase 2 assumes the machine is already up per the Phase 1 checklist. This
+keeps a new machine's first PR provably minimal: reviewable purely as "does
+this box boot, join the network, and back itself up," with no capability or
+service-module changes mixed in.
+
+## Phase 1 — Machine Provisioning
+
+In scope:
+
+- OS install (`disko`, `sd-card`, or `wsl`, per Steps 1-7 below)
+- Networking already unconditional in `profiles/common`
+- `services.openssh` (set per-host in `configuration.nix`)
+- `custom.users` (`modules/users.nix`) — system-level Linux accounts and SSH
+  authorized keys; without this nobody can log in over SSH
+- agenix secrets enrollment — age identity, SSH host key pinning
+  (`secrets-warden`'s hand-off, Step 2 below)
+- `custom.backups` (`modules/backups.nix`)
+
+Out of scope — these are Phase 2, added in later, separate PRs by their owning
+agent:
+
+- `profiles/desktop` and `profiles/dev` (machine capability — see
+  [docs/workstation.md](workstation.md))
+- home-manager user environments — dotfiles, shell, per-user apps (see
+  [docs/users.md](users.md))
+- any other `custom.*` service module: homelab DNS/Traefik
+  ([docs/homelab-network.md](homelab-network.md)), Home Assistant/Zigbee/Z-Wave/
+  MQTT/ADS-B ([docs/smart-home.md](smart-home.md)), Wi-Fi, network drives,
+  gaming, Flatpak, and so on
+
+A new host's Step 1 files (`configuration.nix`, `default.nix`) must import
+only what this list requires. Do not import `profiles/desktop` or
+`profiles/dev`, and do not enable any service module beyond `custom.users` and
+`custom.backups`, when defining a brand-new host. `default.nix` gets an
+empty or minimal `home-manager.users` block — filling it in is
+`user-provisioner`'s hand-off, same shape as the Step 2 hand-off to
+`secrets-warden` below.
+
 ## Step 1 — Define the Machine in the Repo
 
 Skip this step if the machine already exists in the repo.
@@ -184,6 +238,32 @@ In general, after first boot:
    `nix eval .#nixosConfigurations.<machine>.config.age.identityPaths --json`
 4. Run the checks in
    [docs/operations.md § Validation Commands](operations.md#validation-commands)
+
+Phase 1 is done once this checklist passes and the Phase 1 PR has merged.
+
+## Phase 2 — Application Provisioning
+
+Everything that is not required to get the machine up, on the network, and
+backed up. Opened as one or more separate PRs, never bundled into the Phase 1
+PR. Phase 2 work can start any time, but a Phase 2 PR must not merge before
+the Phase 1 PR has merged and the machine is confirmed up (this checklist
+passed) — Phase 2 assumes the machine is already up.
+
+Each concern below is a separate PR from the agent that owns it:
+
+- **Machine capability** — opting the host into `profiles/desktop` or
+  `profiles/dev`: `machine-provisioner`'s own domain, see
+  [docs/workstation.md](workstation.md)
+- **A person's environment on this machine** — attaching home-manager,
+  dotfiles, per-user apps: `user-provisioner`, see [docs/users.md](users.md)
+- **Homelab reverse proxy and DNS** (`defiant`) — Traefik, AdGuard, unbound:
+  `homelab-network`, see [docs/homelab-network.md](homelab-network.md)
+- **Homelab appliance layer** (`defiant`) — Home Assistant, Zigbee, Z-Wave,
+  Matter, MQTT, ADS-B: `smart-home`, see [docs/smart-home.md](smart-home.md)
+
+If a new host needs a genuinely new kind of module or profile that doesn't
+exist yet, that design question is `architect`'s, per
+[docs/architecture.md](architecture.md).
 
 ## Disk Encryption And TPM
 
