@@ -92,6 +92,15 @@ Not yours, hand back to the owning specialist:
   new kind of thing", it is not yours — hand back immediately rather than doing
   the instance work yourself just because it touches `flake.nix`.
 - Nix must pass `alejandra`, `statix`, and `deadnix`.
+- **Reject any bare `./` or `../` path literal used as a literal build-input
+  value** — `.source = ./file;`, `${./file}` or `${../file}` interpolated into
+  a builder script, `toString` applied to a path-typed option, a `src =`
+  attribute pointing at an in-tree directory. Each of those embeds a subpath of
+  the single whole-repo store copy of `self`, so its store identity moves on
+  every unrelated commit and silently defeats `tools/ci_changed_hosts.py`.
+  Require `lib/local-file.nix` instead, and point at
+  `docs/architecture.md` § Local Files As Build Inputs. `age.secrets.*.file` is
+  the one exception; leave it as-is.
 - Never `cd`. Never use heredocs.
 
 ## Definition of done

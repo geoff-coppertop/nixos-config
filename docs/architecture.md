@@ -122,6 +122,68 @@ This check covers reachability, not whether a module's config is gated —
 `lib/module-inertness.nix` (§ Layers, above) is what catches an ungated
 module.
 
+## Local Files As Build Inputs
+
+A `.nix` file in this repo that references a local asset — an avatar, a
+wallpaper, a static udev rule file — must not hand the bare path literal
+straight to a derivation. Use `lib/local-file.nix`:
+
+```nix
+localFile = import ../../lib/local-file.nix;
+# ...
+".face".source = localFile {path = ./files/face.png;};
+```
+
+### Why
+
+Nix copies this flake's whole local source (`self`) into the store as **one**
+content-addressed unit before evaluation begins. A bare relative path literal
+written inside that tree — `./files/face.png` — resolves to a *subpath* of that
+single copy, not to an independently-hashed copy of just that file. So the
+moment the literal is coerced to a string or store path, the resulting value
+carries the whole-repo hash:
+
+- `toString ./file`
+- `${./file}` interpolated into a derivation builder script
+- `.source = ./file;` in home-manager or `environment.etc`
+
+Every one of those embeds a value that changes whenever **any** tracked file
+anywhere in the repo changes, including files with no logical relationship to
+it. `builtins.path` instead NAR-hashes the given path's own content,
+independent of where it sits during evaluation, which is all
+`lib/local-file.nix` does.
+
+This is not cosmetic. It silently defeats `tools/ci_changed_hosts.py`, which
+decides what CI builds by comparing each host's toplevel `drvPath` across two
+commits: a host whose closure embeds one of these references shows as changed
+on a commit that touched only some other host. That was empirically confirmed
+with `nix-diff`; `enterprise-d` was rebuilt by a PR that touched only
+`hosts/defiant/*`, via `users/thomasga/account.nix`'s `avatar`.
+
+One shape that looks identical but is **not** affected:
+`age.secrets.<name>.file = ../../secrets/x.age;`. In the same real CI run,
+`holodeck-01` and `excelsior` — which each carry such references — both
+reported `drvPath unchanged`. Leave them alone; the reason has not been pinned
+down, and reshaping what agenix receives as `file` risks breaking decryption
+for no measured gain.
+
+### Decision rule
+
+Two branches, and the first is almost always the right one:
+
+| Situation | Do this |
+| --- | --- |
+| The content is used only by this repo — avatars, wallpapers, static rule files. The common case. | `lib/local-file.nix` |
+| The content is genuinely shared with a project outside this repo | A real separate repo, pinned as a `flake = false` input, `dotfiles`-style |
+
+The second branch is rare and is **not** a workaround for the hashing problem
+above — `lib/local-file.nix` already solves that, in-tree, with no new
+repository to maintain. The only thing that justifies a separate input is an
+actual external consumer. The existing precedent is the `dotfiles` input,
+whose fish/git configuration is consumed both here and by a separate
+devcontainer-features project. Do not spin up a repository every time an asset
+needs to reach a derivation.
+
 ## Machine Naming
 
 Machine names are drawn from ships, stations, and notable locations in Star
@@ -155,7 +217,7 @@ The machines currently in this repo are listed in the [root README](../README.md
 | `modules/udev-rules/` | Verbatim upstream udev rule files loaded via `services.udev.packages` |
 | `users/thomasga/` | Git, SSH, fish shell, GNOME dconf, VS Code, wallpaper, per-machine profiles |
 | `users/common/` | Shared opt-in user modules: CLI tools, GUI apps, appearance |
-| `lib/` | `apps.nix`, `checks.nix`, `module-inertness.nix` (the `modules-inert` check), `devshell.nix`, `nas.nix`, `nixos-system.nix`, `ssh-hosts.nix`, `traefik-route.nix` |
+| `lib/` | `apps.nix`, `checks.nix`, `module-inertness.nix` (the `modules-inert` check), `devshell.nix`, `local-file.nix` (see [§ Local Files As Build Inputs](#local-files-as-build-inputs)), `nas.nix`, `nixos-system.nix`, `ssh-hosts.nix`, `traefik-route.nix` |
 | `secrets/` | agenix `.age` files (safe to commit) plus `secrets/secrets.nix` (recipient declarations) |
 | `pkgs/` | Custom package builds: `search-light`, `connect-iq-sdk-manager-cli` (`framework-control` moved upstream to nixpkgs) |
 | `tools/` | Python provisioning and secret helpers (plus one shell script, `hibernate-test-report.sh`) |

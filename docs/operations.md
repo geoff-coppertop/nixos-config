@@ -266,6 +266,16 @@ errors out, the host is built anyway. The one hard failure is being unable to
 enumerate `nixosConfigurations` at head — there is no safe list to fall back
 to, so `changes` exits non-zero and CI goes red instead of building nothing.
 
+**Caveat — over-selection from bare local-file references.** A host can show as
+changed even when nothing it imports functionally changed, if anywhere in its
+closure a `.nix` file hands a bare `./`/`../` path literal to a derivation as a
+build input. Such a literal resolves to a subpath of the one whole-repo store
+copy of `self`, so its store identity moves on every commit and drags the
+host's `drvPath` with it. This costs a wasted build, never a missed one — the
+optimization stays correct, just less effective. The mechanism and the fix
+(`lib/local-file.nix`) are in
+[docs/architecture.md § Local Files As Build Inputs](architecture.md#local-files-as-build-inputs).
+
 The build job frees disk space on the runner before building, since a full
 desktop closure can exhaust the default runner disk.
 

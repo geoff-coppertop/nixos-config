@@ -82,6 +82,10 @@ You do:
 - Own LUKS/TPM disk encryption (`docs/provisioning.md § Disk Encryption And
   TPM`) — it's a memorized passphrase plus a boot-time module toggle
   (`custom.tpmLuks.enable`), not agenix material
+- Check any new local asset file referenced by a machine-capability module
+  (udev rules, or similar static files under `profiles/dev`/`profiles/desktop`
+  and their backing `modules/`) goes through `lib/local-file.nix` rather than a
+  bare path literal — see `docs/workstation.md`
 
 You do not:
 
