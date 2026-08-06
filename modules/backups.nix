@@ -72,7 +72,18 @@
         Nice = 19;
         IOSchedulingClass = "best-effort";
         IOSchedulingPriority = 7;
+        # The unit runs as root and systemd sets no $HOME for it, so restic's
+        # own cache-directory autodetection fails outright ("neither
+        # $XDG_CACHE_HOME nor $HOME are defined") before it ever reaches the
+        # repository. Let systemd own the directory instead: it creates
+        # /var/cache/nas-backup-<name> with the right ownership and mode, and
+        # applies its normal cache lifecycle to it. One directory per entry,
+        # because each entry is a separate restic repository and they must not
+        # share a cache.
+        CacheDirectory = serviceName userName;
       };
+
+      environment.RESTIC_CACHE_DIR = "/var/cache/${serviceName userName}";
 
       path = with pkgs; [coreutils restic util-linux];
 

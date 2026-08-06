@@ -34,6 +34,12 @@ Each enabled entry gets its own systemd service (`nas-backup-<name>`) and timer
 Each entry gets its **own restic repository**, and therefore its own
 `restic-password` secret, keyed to the entry name rather than the machine.
 
+The service runs as root, and systemd gives root services no `$HOME`, so restic
+cannot pick a cache directory on its own. The unit therefore declares
+`CacheDirectory` and points `RESTIC_CACHE_DIR` at it: each entry caches in
+`/var/cache/nas-backup-<name>`, one directory per repository. Deleting that
+directory is safe — restic rebuilds it on the next run, more slowly.
+
 ## Enabling Backups On A Host
 
 **1. Create the two secrets a backup entry needs**: an SMB credentials secret
