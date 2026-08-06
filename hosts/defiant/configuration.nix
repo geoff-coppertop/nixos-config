@@ -19,7 +19,14 @@ in {
   # ── Boot ──────────────────────────────────────────────────────────────────
   boot = {
     loader.grub.enable = false;
-    loader.generic-extlinux-compatible.enable = true;
+    loader.generic-extlinux-compatible = {
+      enable = true;
+      # Unbounded otherwise (module default is 20) — old boot generations
+      # accumulate on the SD card's fixed-size partition. Matches the
+      # systemd-boot configurationLimit on enterprise-d/excelsior, and
+      # nix-gc's keepGenerations = 10 in profiles/common/base.nix.
+      configurationLimit = 10;
+    };
     initrd.availableKernelModules = ["xhci_pci" "usbhid" "usb_storage"];
     supportedFilesystems.zfs = false;
   };

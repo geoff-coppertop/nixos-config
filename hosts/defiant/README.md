@@ -123,6 +123,14 @@ looks the way it does. Changing them back reintroduces a real failure.
 - **`ssdp` needs an explicit entry.** It is one of `default_config`'s
   always-loaded discovery integrations, but its dependencies are not part of the
   small nixpkgs `default_config` baseline.
+- **The SD card is fixed-size, unlike the systemd-boot hosts' NVMe/SSD.**
+  `boot.loader.generic-extlinux-compatible.configurationLimit` had no override
+  (module default 20) while old boot generations accumulated unbounded,
+  causing a `nix-copy-closure` deploy to fail with "No space left on device".
+  Now capped at 10, matching `enterprise-d`/`excelsior`'s `systemd-boot`
+  `configurationLimit` and `profiles/common/base.nix`'s Nix profile
+  `keepGenerations = 10`. Check `df -h /` before a large deploy regardless —
+  see [docs/provisioning.md § SD-Card Hosts](../../docs/provisioning.md#sd-card-hosts-defiant).
 
 ## Backup Jobs
 
