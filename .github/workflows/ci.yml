@@ -102,6 +102,37 @@ jobs:
         if: steps.flakecheck.outcome == 'failure'
         run: exit 1
 
+  # Which hosts actually need rebuilding, decided by diffing each host's
+  # toplevel derivation between the base and head commit. fetch-depth: 0 is
+  # required — the script checks out the base commit to evaluate it. See
+  # tools/ci_changed_hosts.py for how the decision is made and where it
+  # deliberately fails safe.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.detect.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: cachix/install-nix-action@v27
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+
+      - name: detect hosts whose toplevel changed
+        id: detect
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          matrix=$(python3 tools/ci_changed_hosts.py --base "$BASE_SHA" --head "$HEAD_SHA")
+          echo "matrix=$matrix"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
   # Each machine is built natively, one per job so every host gets its own
   # runner disk instead of sharing one across sequential builds. Confirmed
   # live: enterprise-d's toplevel is a full GNOME desktop closure (Steam, VS
@@ -116,20 +147,16 @@ jobs:
   # x86_64 runner — this repo is public, so those runners are free-tier
   # eligible. Native means no emulation tax, unlike the local cross-build
   # this repo previously relied on for defiant coverage.
+  #
+  # The matrix is not static: the changes job above emits one {host, runner}
+  # entry per host whose toplevel derivation actually moved. An empty list
+  # produces zero matrix jobs, which is what a docs-only change should cost.
   build:
-    needs: flake-check
+    needs: [flake-check, changes]
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - host: enterprise-d
-            runner: ubuntu-latest
-          - host: holodeck-01
-            runner: ubuntu-latest
-          - host: defiant
-            runner: ubuntu-24.04-arm
-          - host: excelsior
-            runner: ubuntu-latest
+        include: ${{ fromJSON(needs.changes.outputs.matrix) }}
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4

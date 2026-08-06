@@ -81,6 +81,7 @@ The remaining helpers in `tools/` are run directly:
 | `tools/bootstrap_ssh_key.py` | Create and encrypt an SSH keypair (used by `enroll.py`) |
 | `tools/install_age_identity.py` | Install or rotate a host age identity on disk |
 | `tools/check_no_plaintext_secrets.py` | Pre-commit guard against staging plaintext secrets |
+| `tools/ci_changed_hosts.py` | CI only: prints the build matrix of hosts whose toplevel derivation changed |
 | `tools/common.py` | Shared helpers for the scripts above |
 | `tools/hibernate-test-report.sh` | Collect a hibernate/resume diagnostic report |
 
@@ -214,14 +215,28 @@ The `no-plaintext-secrets` pre-commit hook blocks staging anything that looks
 like a raw secret. Never create files under `secrets/` except through
 `nix run .#secret-edit`.
 
-`.github/workflows/ci.yml` runs three jobs on every push to `master` and every
-pull request, each posting its output as a PR comment before failing:
+`.github/workflows/ci.yml` runs on every push to `master` and every pull
+request, each job posting its output as a PR comment before failing:
 
 | Job | Command |
 | --- | --- |
 | `lint` | `nix develop -c pre-commit run --all-files` |
 | `flake-check` | `nix flake check --no-build` |
-| `build` | Matrix over all three hosts: `nix build .#nixosConfigurations.<host>.config.system.build.toplevel --no-link` |
+| `changes` | `python3 tools/ci_changed_hosts.py --base <sha> --head <sha>` |
+| `build` | Matrix over the hosts `changes` selected: `nix build .#nixosConfigurations.<host>.config.system.build.toplevel --no-link` |
 
-The build job runs `enterprise-d` and `holodeck-01` on `ubuntu-latest` and
-`defiant` on `ubuntu-24.04-arm`, freeing disk space first.
+`lint` and `flake-check` are unconditional. `build` is not: it depends on
+`changes`, which runs `tools/ci_changed_hosts.py` to evaluate each of the four
+hosts' toplevel `drvPath` at the base commit and again at the head commit of
+the push or PR, and prints a build matrix containing only those hosts whose
+`drvPath` differs. A host whose derivation is byte-identical at both commits
+cannot produce a different build, so it is skipped; a docs-only change moves no
+host's `drvPath` and runs zero build jobs.
+
+The comparison is on the derivation itself, not on changed file paths, so
+there is no host-to-path map that can go stale. It fails safe: if the base
+commit is unreachable (new branch, force-push, shallow history) or an eval
+errors out, the host is built anyway.
+
+The build job runs `enterprise-d`, `holodeck-01`, and `excelsior` on
+`ubuntu-latest` and `defiant` on `ubuntu-24.04-arm`, freeing disk space first.
