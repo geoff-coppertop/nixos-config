@@ -291,6 +291,21 @@ the deprecated `--use-remote-sudo`. Every headless host sets
 `security.sudo.wheelNeedsPassword = false;` (the SSH key check is the real
 access gate), so no interactive password prompt.
 
+The SD card is fixed-size — unlike `enterprise-d`/`excelsior`'s NVMe/SSD, there
+is no headroom to grow into. Check free space before a large deploy:
+
+```bash
+ssh thomasga@defiant.local "df -h /"
+```
+
+`hosts/defiant/configuration.nix` caps boot generations at 10
+(`boot.loader.generic-extlinux-compatible.configurationLimit`), matching the
+`systemd-boot` hosts and `profiles/common/base.nix`'s `keepGenerations = 10`
+Nix profile cap — old generations no longer accumulate unbounded. If `df -h`
+still shows the root partition nearly full, it's Nix store garbage
+(unreferenced paths, not kept generations): run `nix-collect-garbage -d`
+on the host, or wait for the nightly `nix-gc` timer.
+
 Zigbee2MQTT and Z-Wave JS start up using the keys created during enrollment — no
 further extraction step is needed.
 
