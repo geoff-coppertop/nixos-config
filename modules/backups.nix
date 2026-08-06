@@ -96,8 +96,24 @@
 
         mkdir -p "$repo"
 
-        if ! restic --repo "$repo" snapshots >/dev/null 2>&1; then
-          restic --repo "$repo" init
+        # The repository lives on a mounted filesystem, so its `config` file is
+        # the authoritative "already initialised" marker. Never probe with
+        # `restic snapshots` — that also fails on a stale lock or a transient
+        # NAS error, and initialising over a real repository is fatal.
+        if [ ! -e "$repo/config" ]; then
+          if init_output=$(restic --repo "$repo" init 2>&1); then
+            echo "$init_output"
+          else
+            case "$init_output" in
+              *"config file already exists"*)
+                echo "restic repository at $repo is already initialised; continuing"
+                ;;
+              *)
+                echo "$init_output" >&2
+                exit 1
+                ;;
+            esac
+          fi
         fi
 
         restic --repo "$repo" backup ${backupArgs userCfg} ${excludeArgs userCfg}

@@ -22,7 +22,10 @@ Each enabled entry gets its own systemd service (`nas-backup-<name>`) and timer
 
 1. Triggers an automount of the NAS share.
 2. Exits silently if the share is not reachable.
-3. Initialises a restic repository on first run.
+3. Initialises a restic repository if — and only if — one is not already there.
+   The check is the presence of `<repo>/config` on the mounted share, and an
+   `init` that still reports `config file already exists` is treated as success,
+   so a re-run over an existing repository is a no-op rather than a failure.
 4. Backs up the configured paths (default: `/home/<name>`, excluding `.cache`).
 5. Prunes old snapshots according to the retention policy — 7 daily, 4 weekly,
    12 monthly, 3 yearly by default. That progressively reduces granularity over
@@ -104,6 +107,10 @@ sudo restic --repo /mnt/nas-backups/thomasga/<hostname> snapshots
   backups.
 - If SMB is unavailable at boot the automount fails silently, and the next timer
   invocation retries.
+- The services are `wantedBy = multi-user.target`, so a `nixos-rebuild switch`
+  restarts them and starts a backup immediately. If that interrupts a run in
+  progress, restic may leave a lock behind; restic clears its own stale locks on
+  the following run, and `restic --repo <repo> unlock` forces it.
 - Service state paths are case-sensitive and not always what the service name
   suggests — `defiant` backs up `/var/lib/AdGuardHome`, capitalized, because the
   lowercase path does not exist. Confirm with `ls` on the host before adding an
