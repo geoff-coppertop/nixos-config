@@ -260,15 +260,36 @@ for the traceback. Tracked upstream at
 nixpkgs revision this flake currently pins, no workaround has landed there.
 
 `modules/matter.nix` works around this by overriding
-`services.matter-server.package`: it patches the ~7-line PAA-cert-fetch call
-site in `matter_server/server/server.py` to install a static, pinned set of
-production PAA root certs instead of fetching anything over the network. The
+`services.matter-server.package`: it patches `fetch_certificates()` itself in
+`matter_server/server/helpers/paa_certificates.py` to install a static,
+pinned set of production PAA root certs instead of fetching anything over
+the network. Patching the function directly (rather than its call site
+inside `server.py`'s `start()`, the original approach) means it's a real,
+top-level, importable function — so a standalone test,
+`tests/server/test_paa_certificates_pinned.py`, is added by the same
+`postPatch` and calls the patched function directly to assert it actually
+installs the pinned certs. That test exists because the *only* upstream
+test that exercises `fetch_certificates()` at all is `test_server_start`,
+which has to stay deselected (see `disabledTests` in `modules/matter.nix`)
+for an unrelated reason: it fails in this build sandbox on a zeroconf
+IPv6-multicast socket call, not on anything this patch touches. The pinned
 certs come from `project-chip/connectedhomeip`'s
 `credentials/production/paa-root-certs` directory — the same source
 `fetch_git_certificates()` would otherwise pull from at runtime — fetched at
 build time via `pkgs.fetchgit` with `rootDir` set to that path (a sparse
 checkout, not the full multi-gigabyte SDK tree) and pinned to a commit via
 `pinnedPaaCertsRev`.
+
+**Checking whether this is fixed upstream**: nothing here watches for that
+automatically. Either watch
+[nixpkgs#377136](https://github.com/NixOS/nixpkgs/issues/377136) directly for
+a close/fix-landed comment, check `python-matter-server`'s release notes
+after a `nix flake update` pulls a newer version (the real fix is either it
+catching `ValueError` around cert parsing, not just `ClientError`/
+`TimeoutError`, or `cryptography` relaxing its ASN.1 strictness for this
+class of malformed cert), or periodically retest by temporarily dropping
+`services.matter-server.package` back to the default and seeing if
+`server.start()` completes against the live DCL fetch again.
 
 **Trade-off**: no automatic pickup of PAA certs for newly-onboarded Matter
 vendors. If commissioning a new device fails with a certificate/attestation
