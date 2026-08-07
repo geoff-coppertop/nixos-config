@@ -145,6 +145,12 @@ These must hold without reading any doc first.
 - **Copyable commands go in a plain markdown code block in the message body**,
   never inside an `AskUserQuestion` option's label or description — those aren't
   copyable from the option UI.
+- **CI runs the real validation** (`nix flake check`, pre-commit, alejandra,
+  statix, deadnix, per-host builds) on every push. When a sandbox has no `nix`
+  binary, that's not a blocker to work around or apologize for — do whatever
+  manual/structural verification is possible, then commit and push and let CI
+  gate it, and say so plainly instead of repeatedly flagging the local-validation
+  gap.
 
 ### Git and PRs
 
