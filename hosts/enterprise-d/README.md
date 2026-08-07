@@ -228,6 +228,26 @@ The natural path — let the system idle until `IdleAction` fires `suspend-then-
 
 A system-sleep hook to enforce this from inside `systemd-hibernate.service` was investigated and dropped: it would have to either accept a visible pre-sleep flash on every manual hibernate (since the only available locking mechanism renders the lock screen visibly) or invoke significant additional engineering (patched gsd-power, mutter D-Bus extensions, or a DRM-ioctl helper). Neither tradeoff justified the cost for a rarely-used path.
 
+## Known Gotchas
+
+These were all confirmed on the running machine and are the reason the config
+looks the way it does. Changing them back reintroduces a real failure.
+
+- **`suspend-then-hibernate` doesn't reach hibernate reliably here.** A
+  self-owned RTC wakealarm + `system-sleep` hook replaces it instead — see
+  [§ Why a self-owned RTC trigger instead of `suspend-then-hibernate`](#why-a-self-owned-rtc-trigger-instead-of-suspend-then-hibernate).
+- **Manual `systemctl hibernate` from an active session resumes with a
+  briefly broken display.** Known-broken with no clean fix; use the natural
+  idle path or a `loginctl lock-session` delay instead — see
+  [§ Manual hibernate from an active session is known-broken](#manual-hibernate-from-an-active-session-is-known-broken).
+- **`bitwarden-desktop` is pinned to an EOL, insecure electron release.**
+  `nixpkgs.config.permittedInsecurePackages = ["electron-39.8.10"]` in
+  `hosts/enterprise-d/configuration.nix:70-74` works around an open nixpkgs
+  packaging lag ([nixpkgs#529107](https://github.com/NixOS/nixpkgs/issues/529107),
+  [nixpkgs#526914](https://github.com/NixOS/nixpkgs/issues/526914)) — remove
+  the override once bitwarden-desktop is rebuilt against a supported
+  electron.
+
 ## Verification
 
 ```bash

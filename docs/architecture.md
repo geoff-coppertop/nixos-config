@@ -223,6 +223,28 @@ The machines currently in this repo are listed in the [root README](../README.md
 | `tools/` | Python provisioning and secret helpers (plus one shell script, `hibernate-test-report.sh`) |
 | `docs/` | This documentation tree |
 
+## Documenting an Upstream Workaround
+
+When the config deviates from the obvious shape because of an upstream bug, the
+deviation gets a one-line bullet in the `## Known Gotchas` section of the owning
+host README (or, for a cross-host concern, the owning domain doc). The bullet
+names the option or setting and states the consequence in one sentence, then
+links to the fuller explanation — the relevant `docs/*.md` subsection and/or the
+code comment that cites the actual upstream issue. The issue link itself lives
+in that code comment, next to the line it justifies, so it is visible to anyone
+reading the code without the doc.
+
+## Known Workarounds
+
+Index of every doc that carries a `## Known Gotchas` section. Links only, by
+design: the text stays in one place and this list exists so the set of active
+workarounds can be found and revisited without re-deriving where they live.
+
+- [`hosts/defiant/README.md` § Known Gotchas](../hosts/defiant/README.md#known-gotchas)
+- [`hosts/excelsior/README.md` § Known Gotchas](../hosts/excelsior/README.md#known-gotchas)
+- [`hosts/enterprise-d/README.md` § Known Gotchas](../hosts/enterprise-d/README.md#known-gotchas)
+- [`docs/desktop.md` § Known Gotchas](desktop.md#known-gotchas)
+
 ## Custom Options
 
 Modules expose behavior through `custom.*` options rather than direct NixOS

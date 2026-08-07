@@ -143,3 +143,14 @@ the four presets above than opening the EasyEffects UI. Its default
 keybindings (`<Control><Super>o`/`i`/`b` to cycle output/input presets and
 toggle global bypass) don't collide with anything else this repo sets, so no
 per-extension dconf settings block was added; defaults are left as-is.
+
+## Known Gotchas
+
+- **VS Code launches with `disable-hardware-acceleration = true`.** amdgpu
+  invalidates GPU context on hibernate resume, crashing VS Code's Chromium GPU
+  process (SIGTRAP); no upstream issue is cited, just "until fixed upstream" —
+  see `users/thomasga/vscode.nix:34`.
+- **Signal's `.desktop` entry launches with `--disable-gpu`.** Same amdgpu
+  hibernate-resume GPU-context crash as VS Code above, worked around by
+  overriding the upstream `.desktop` entry; no upstream issue is cited either
+  — see `users/common/gui-apps.nix:31-32`.
