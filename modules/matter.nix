@@ -44,39 +44,41 @@
   # (and its now-unreferenced fetch_certificates/fetch_dcl_certificates/
   # fetch_git_certificates functions) is left untouched.
   matterServerPackage = pkgs.python-matter-server.overrideAttrs (oldAttrs: {
-    # NOTE: this block is intentionally flush-left (not indented to match
-    # its nesting in this file). It's inside a Nix `''...''` string, which
-    # strips whatever whitespace is common to every line before handing the
-    # text to bash — the embedded Python here relies on its exact 8/12/16/20
-    # space indentation to still be valid Python after that stripping, so it
-    # is written with zero incidental indentation of its own to strip.
+    # NOTE: this block is inside a Nix `''...''` string, which strips
+    # whatever whitespace is common to every line before handing the text to
+    # bash. alejandra keeps every line of the block shifted by the same
+    # amount (matching its nesting here), so that common prefix is always
+    # uniform and gets stripped back off cleanly — the embedded Python's
+    # *relative* 8/12/16/20-space indentation survives either way. Don't
+    # hand-indent individual lines of this block differently from the rest;
+    # that would change what's common and corrupt the Python.
     postPatch =
       (oldAttrs.postPatch or "")
       + ''
-substituteInPlace matter_server/server/server.py \
-  --replace-fail \
-'        # (re)fetch all PAA certificates once at startup
-        # NOTE: this must be done before initializing the controller
-        await fetch_certificates(
-            self.paa_root_cert_dir,
-            fetch_test_certificates=self.enable_test_net_dcl,
-            fetch_production_certificates=True,
-        )' \
-'        # Patched by nixos-config (modules/matter.nix): install a
-        # pinned, static set of production PAA root certs instead of
-        # fetching from DCL/GitHub at startup, which uncaught-ValueErrors
-        # on a cert DCL currently serves and keeps the server from ever
-        # binding its websocket port. See
-        # https://github.com/NixOS/nixpkgs/issues/377136.
-        def _install_pinned_paa_certs() -> None:
-            self.paa_root_cert_dir.mkdir(parents=True, exist_ok=True)
-            for cert_file in sorted(Path("${pinnedPaaCerts}").iterdir()):
-                if cert_file.suffix in (".pem", ".der"):
-                    (self.paa_root_cert_dir / cert_file.name).write_bytes(
-                        cert_file.read_bytes()
-                    )
+        substituteInPlace matter_server/server/server.py \
+          --replace-fail \
+        '        # (re)fetch all PAA certificates once at startup
+                # NOTE: this must be done before initializing the controller
+                await fetch_certificates(
+                    self.paa_root_cert_dir,
+                    fetch_test_certificates=self.enable_test_net_dcl,
+                    fetch_production_certificates=True,
+                )' \
+        '        # Patched by nixos-config (modules/matter.nix): install a
+                # pinned, static set of production PAA root certs instead of
+                # fetching from DCL/GitHub at startup, which uncaught-ValueErrors
+                # on a cert DCL currently serves and keeps the server from ever
+                # binding its websocket port. See
+                # https://github.com/NixOS/nixpkgs/issues/377136.
+                def _install_pinned_paa_certs() -> None:
+                    self.paa_root_cert_dir.mkdir(parents=True, exist_ok=True)
+                    for cert_file in sorted(Path("${pinnedPaaCerts}").iterdir()):
+                        if cert_file.suffix in (".pem", ".der"):
+                            (self.paa_root_cert_dir / cert_file.name).write_bytes(
+                                cert_file.read_bytes()
+                            )
 
-        await self.loop.run_in_executor(None, _install_pinned_paa_certs)'
+                await self.loop.run_in_executor(None, _install_pinned_paa_certs)'
       '';
   });
 in {
