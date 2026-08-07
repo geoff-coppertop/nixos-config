@@ -162,11 +162,14 @@ These must hold without reading any doc first.
   offer it as an option.
 - **Rely on the activity subscription alone when watching a PR.** Don't also
   schedule a self check-in (`send_later`/routines) as a backstop.
-- **Every change ships with test steps unless it's docs-only.** Put concrete
+- **Every change ships with test steps, including docs-only ones.** Put concrete
   commands and exact expected output in the PR description, not "verify it
   works". State plainly which steps you actually ran and which are for the user
-  (anything needing hardware or a host you can't reach). The sole exception is a
-  docs-only change with no runtime surface.
+  (anything needing hardware or a host you can't reach). A docs-only change
+  still has a real check behind it — markdownlint runs over every `.md` in the
+  tree (see Hard Rules) — so its test plan is that CI check passing, not an
+  empty section. Manual runtime steps are the part that's optional, and only
+  when there's genuinely no runtime surface to exercise.
 - **Flag incremental commits for squashing.** Any sequence that revises the same
   not-yet-merged work — a `feat` then a `fix` for a bug it introduced, or several
   `docs` commits refining one section — is not clean history. Nobody has seen the
