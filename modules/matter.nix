@@ -35,9 +35,7 @@
     # connectedhomeip tree.
     rootDir = "credentials/production/paa-root-certs";
     fetchSubmodules = false;
-    # TODO: placeholder. `nix build` will fail on the first run and print the
-    # real "got: sha256-..." hash to paste in here.
-    hash = lib.fakeHash;
+    hash = "sha256-XCrCYJMbU4SHnQfsqhPoA8GQbSahucQz4qVzETyVHKM=";
   };
 
   # Only the ~7-line call site in server.py needs to change: it's a small,
