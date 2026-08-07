@@ -240,3 +240,27 @@ errors out, the host is built anyway.
 
 The build job runs `enterprise-d`, `holodeck-01`, and `excelsior` on
 `ubuntu-latest` and `defiant` on `ubuntu-24.04-arm`, freeing disk space first.
+
+### Pull request template
+
+`.github/pull_request_template.md` pre-fills the description of every PR opened
+against this repo. It is a checklist, not prose, and exists so no PR ships
+without a test plan someone else can re-run.
+
+It asks for two things:
+
+1. **Summary** — why the change is needed and which hosts it affects. Not
+   what changed — the diff shows that.
+2. **Test plan** — one ordered checklist of concrete copyable commands in
+   fenced code blocks with the expected output noted. Tick a box only if you
+   ran that command and saw that output; leave unchecked whatever needs
+   hardware, an unreachable host, or a command nobody automates
+   (`nixos-rebuild switch`, `nix flake update`, a manual backup, the
+   installer), and say in the item who runs it. Lint and format is never
+   skippable — `pre-commit` runs markdownlint over every `.md` file, so even a
+   docs-only PR runs it. Only the flake-evaluation and host-build steps are
+   N/A when no `.nix` file changed.
+
+The default author steps mirror the [validation commands](#validation-commands)
+above and the CI jobs in the table before this section; keep the three in step
+when any of them changes.
