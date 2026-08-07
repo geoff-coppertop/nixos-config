@@ -39,6 +39,14 @@ Rules:
 
 - Read the owning doc before editing files in that domain.
 - Any change to files in a domain updates that domain's doc in the same commit.
+- **A workaround for an upstream bug — a package override, an insecure-package
+  pin, a disabled test, anything patching around behavior that isn't this
+  repo's own — gets a one-line bullet in the owning doc's or host README's
+  `## Known Gotchas` section, in the same commit.** See `docs/architecture.md`
+  § Documenting an Upstream Workaround for the format and the links-only index
+  this feeds. Without this, workarounds go undocumented until someone
+  stumbles on the code comment — which is exactly how three of them sat
+  unlinked from any doc before this rule existed.
 - **Everything has an owner. Owning is not the same as executing.** An agent
   owns a doc when it is responsible for keeping it true; that is independent of
   whether the *commands* in it may be run by an agent. Nothing is left unowned
