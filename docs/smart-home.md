@@ -241,3 +241,46 @@ boot with `ls /dev/tty{ACM,USB}*` before pinning them in the config.
 Matter-bridged devices such as the Aqara U100 locks. `custom.adsb` runs a
 standalone dump1090 receiver with its own map UI — it does not feed Home
 Assistant and has no automation surface of its own.
+
+### Matter: pinned PAA root certs, not live DCL fetch
+
+Upstream python-matter-server fetches current PAA (Product Attestation
+Authority) root certificates from the Distributed Compliance Ledger (DCL) and
+the `project-chip/connectedhomeip` Git repo on every `server.start()`, before
+it binds its websocket port. As of this writing, DCL serves at least one
+certificate that fails strict ASN.1 parsing in the `cryptography` library;
+that raises an uncaught `ValueError` inside
+`matter_server/server/helpers/paa_certificates.py` (only `ClientError`/
+`TimeoutError` are caught around the fetch call in `server.py`), so
+`start()` never completes. systemd still reports the unit `active (running)`
+— the process doesn't crash, aiorun just logs "Task exception was never
+retrieved" and idles — so this fails silently unless you check the journal
+for the traceback. Tracked upstream at
+[nixpkgs#377136](https://github.com/NixOS/nixpkgs/issues/377136); as of the
+nixpkgs revision this flake currently pins, no workaround has landed there.
+
+`modules/matter.nix` works around this by overriding
+`services.matter-server.package`: it patches the ~7-line PAA-cert-fetch call
+site in `matter_server/server/server.py` to install a static, pinned set of
+production PAA root certs instead of fetching anything over the network. The
+certs come from `project-chip/connectedhomeip`'s
+`credentials/production/paa-root-certs` directory — the same source
+`fetch_git_certificates()` would otherwise pull from at runtime — fetched at
+build time via `pkgs.fetchgit` with `rootDir` set to that path (a sparse
+checkout, not the full multi-gigabyte SDK tree) and pinned to a commit via
+`pinnedPaaCertsRev`.
+
+**Trade-off**: no automatic pickup of PAA certs for newly-onboarded Matter
+vendors. If commissioning a new device fails with a certificate/attestation
+error and the device is legitimate, the pinned set is probably stale. To
+re-pin:
+
+1. Get a current commit: `git ls-remote https://github.com/project-chip/connectedhomeip.git refs/heads/master`.
+2. Update `pinnedPaaCertsRev` in `modules/matter.nix` to that commit (and the
+   date in its comment).
+3. Set `hash = lib.fakeHash;` temporarily, run a build, and copy the real
+   `sha256-...` hash from the mismatch error into `hash`.
+4. Rebuild and redeploy.
+
+Never regenerate or rotate anything Zigbee/Z-Wave-related to "fix" a Matter
+problem — these are unrelated radio networks; see § Radio Networks § Both.
