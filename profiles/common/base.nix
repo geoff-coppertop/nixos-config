@@ -5,7 +5,7 @@
   ...
 }: let
   inherit (lib) optionalAttrs;
-  keepGenerations = 10;
+  keepGenerations = toString config.custom.nix.gc.keepGenerations;
 in {
   nix = {
     settings = {
@@ -47,7 +47,7 @@ in {
     #
     # preStart prunes by count before nix-gc prunes by age, giving OR
     # semantics: a generation is dropped if there are more than
-    # keepGenerations OR it is older than 30 days.
+    # custom.nix.gc.keepGenerations OR it is older than 30 days.
     services.nix-gc = {
       serviceConfig = {
         Nice = 19;
@@ -57,10 +57,10 @@ in {
       preStart = ''
         ${pkgs.nix}/bin/nix-env \
           -p /nix/var/nix/profiles/system \
-          --delete-generations +${toString keepGenerations} 2>/dev/null || true
+          --delete-generations +${keepGenerations} 2>/dev/null || true
         for p in /nix/var/nix/profiles/per-user/*/home-manager; do
           [ -e "$p" ] || continue
-          ${pkgs.nix}/bin/nix-env -p "$p" --delete-generations +${toString keepGenerations} 2>/dev/null || true
+          ${pkgs.nix}/bin/nix-env -p "$p" --delete-generations +${keepGenerations} 2>/dev/null || true
         done
       '';
     };

@@ -22,13 +22,32 @@ in {
     loader.generic-extlinux-compatible = {
       enable = true;
       # Unbounded otherwise (module default is 20) — old boot generations
-      # accumulate on the SD card's fixed-size partition. Matches the
-      # systemd-boot configurationLimit on enterprise-d/excelsior, and
-      # nix-gc's keepGenerations = 10 in profiles/common/base.nix.
-      configurationLimit = 10;
+      # accumulate on the SD card's fixed-size partition. Kept in sync with
+      # this host's custom.nix.gc.keepGenerations override below (3, down
+      # from the shared default of 10) — a full `nix-collect-garbage -d` at
+      # the old 10-generation cap still only got the 30G card down to a
+      # ~23-24G floor, so both caps dropped together.
+      configurationLimit = 3;
     };
     initrd.availableKernelModules = ["xhci_pci" "usbhid" "usb_storage"];
     supportedFilesystems.zfs = false;
+  };
+
+  # ── Nix store headroom ────────────────────────────────────────────────────
+  # The 30G SD card has no headroom to grow into, unlike the NVMe/SSD hosts.
+  # A full `nix-collect-garbage -d` (which also drops all old generations)
+  # only got the card down to a ~23-24G floor at the old 10-generation cap —
+  # min-free/max-free add proactive GC on top of the weekly nix-gc timer so a
+  # build or deploy can trigger collection mid-operation instead of failing
+  # outright with "No space left on device". Scoped to this host only —
+  # not set in profiles/common/base.nix, since the other hosts have plenty
+  # of headroom and shouldn't get the extra GC churn.
+  nix.settings = {
+    # Below this much free space, a build/copy triggers GC before proceeding.
+    min-free = 2 * 1024 * 1024 * 1024; # 2GiB
+    # GC (whether triggered by min-free or the weekly timer) deletes store
+    # paths down to this much free space, then stops.
+    max-free = 5 * 1024 * 1024 * 1024; # 5GiB
   };
 
   # ── Hardware ──────────────────────────────────────────────────────────────
@@ -67,6 +86,10 @@ in {
 
   # ── Homelab services ──────────────────────────────────────────────────────
   custom = {
+    # Per-host override of the shared default (10) — see the SD card headroom
+    # comment above nix.settings.min-free/max-free.
+    nix.gc.keepGenerations = 3;
+
     users.thomasga =
       thomasga
       // {

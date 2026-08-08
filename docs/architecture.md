@@ -173,6 +173,7 @@ test from § Layers applied consistently, with no exceptions today.
 | Option | Declared in | What it does |
 | --- | --- | --- |
 | `custom.isLaptop` | `modules/is-laptop.nix` | Gates AC-power-sensitive maintenance jobs (NAS backups, auto-upgrade, Flatpak auto-update) |
+| `custom.nix.gc.keepGenerations` | `modules/nix-gc.nix` | How many system and home-manager profile generations the weekly nix-gc run keeps (default `10`); lower it on hosts with little disk headroom, such as an SD-card-booted Pi |
 | `custom.users` | `modules/users.nix` | Declares user accounts, groups, and SSH authorized keys |
 | `custom.backups` | `modules/backups.nix` | Per-entry restic backups to the NAS over SMB or NFS |
 | `custom.wifi.enable` | `modules/wifi.nix` | NetworkManager `ensureProfiles` Wi-Fi profiles |

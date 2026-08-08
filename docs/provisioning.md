@@ -298,13 +298,19 @@ is no headroom to grow into. Check free space before a large deploy:
 ssh thomasga@defiant.local "df -h /"
 ```
 
-`hosts/defiant/configuration.nix` caps boot generations at 10
-(`boot.loader.generic-extlinux-compatible.configurationLimit`), matching the
-`systemd-boot` hosts and `profiles/common/base.nix`'s `keepGenerations = 10`
-Nix profile cap — old generations no longer accumulate unbounded. If `df -h`
-still shows the root partition nearly full, it's Nix store garbage
-(unreferenced paths, not kept generations): run `nix-collect-garbage -d`
-on the host, or wait for the nightly `nix-gc` timer.
+`hosts/defiant/configuration.nix` caps boot generations at 3
+(`boot.loader.generic-extlinux-compatible.configurationLimit`), kept in sync
+with this host's `custom.nix.gc.keepGenerations = 3` override — a per-host
+override of `profiles/common/base.nix`'s `custom.nix.gc.keepGenerations`
+option (shared default: 10) — old generations no longer accumulate unbounded.
+The drop from 10 to 3 followed a full `nix-collect-garbage -d` (which also
+drops all old generations) only getting the 30G card down to a ~23-24G floor
+at the old cap. `hosts/defiant/configuration.nix` also sets
+`nix.settings.min-free`/`max-free` (2GiB/5GiB), scoped to this host only, so
+a build or deploy triggers proactive GC mid-operation instead of failing
+outright. If `df -h` still shows the root partition nearly full, it's Nix
+store garbage (unreferenced paths, not kept generations): run
+`nix-collect-garbage -d` on the host, or wait for the nightly `nix-gc` timer.
 
 Zigbee2MQTT and Z-Wave JS start up using the keys created during enrollment — no
 further extraction step is needed.
