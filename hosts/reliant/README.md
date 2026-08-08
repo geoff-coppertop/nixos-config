@@ -87,12 +87,13 @@ onward (same as `enterprise-d`/`excelsior`).
 
 ## Backups
 
-`custom.backups` is intentionally **not** enabled in this Phase 1 PR — same
-as `excelsior`'s initial provisioning. The module asserts at least one entry
-under `custom.backups.users`, and per-person home-directory entries are
-`user-provisioner`'s (see
-[docs/backups.md § How Backups Run](../../docs/backups.md#how-backups-run)).
-Wire it up once a user or a Phase 2 service is actually running here.
+`custom.backups` is enabled, matching `enterprise-d`'s precedent (not
+`excelsior`'s — that host lacking backups is an existing gap, not a pattern
+to copy). Reuses `enterprise-d`'s job-keyed `thomasga` restic-password and
+NAS-SMB-credentials secrets: both are keyed to the backup job name, not the
+machine, and the restic repo path already includes the hostname, so sharing
+these secrets across hosts doesn't collide their backup data — see
+[docs/secrets.md § Secret Inventory](../../docs/secrets.md#secret-inventory).
 
 ## Provisioning
 

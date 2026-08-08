@@ -5,6 +5,7 @@
 # only after this Phase 1 PR has merged and the machine is confirmed up per
 # docs/provisioning.md § Step 7.
 _: let
+  nas = import ../../lib/nas.nix;
   thomasga = import ../../users/thomasga/account.nix;
 in {
   imports = [
@@ -30,13 +31,24 @@ in {
         avatar = null;
       };
 
-    # custom.backups intentionally left disabled in this Phase 1 PR — same
-    # as excelsior's initial provisioning (see hosts/excelsior/README.md
-    # § Provisioning). Enabling it needs at least one entry under
-    # custom.backups.users (the module asserts this), and per-person
-    # home-directory entries are user-provisioner's (docs/backups.md
-    # § How Backups Run) — wire it up once a user or Phase 2 service is
-    # actually running here.
+    # Matches enterprise-d's precedent, not excelsior's (excelsior lacking
+    # backups is an existing gap there, not the pattern to copy). Reuses
+    # enterprise-d's job-keyed "thomasga" secrets — restic-password and
+    # nas-smb-credentials are keyed to the backup job name, not the
+    # machine (docs/secrets.md § Secret Inventory), and the restic repo
+    # path already includes the hostname, so sharing these secrets across
+    # hosts doesn't collide their backup data.
+    backups = {
+      enable = true;
+
+      nas = {
+        credentialsFile = "/run/agenix/thomasga/nas-smb-credentials";
+        inherit (nas) host;
+        share = nas.shares.backups;
+      };
+
+      users.thomasga.enable = true;
+    };
   };
 
   # Headless — the only way in is SSH with an authorized key
