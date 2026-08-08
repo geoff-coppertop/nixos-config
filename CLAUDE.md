@@ -154,6 +154,11 @@ These must hold without reading any doc first.
 
 ### Git and PRs
 
+- **Never create a new git branch without asking first and getting explicit
+  confirmation** — including when splitting work up, consolidating existing
+  branches, or cleaning up after yourself. Branches created without asking
+  pile up fast, are easy to lose track of, and the user ends up doing the
+  cleanup you should have asked permission for in the first place.
 - **Never merge PRs.** Open them, update them, and stop. Merging is the user's
   decision.
 - **Always subscribe to PR activity without asking.** As soon as a PR exists for
