@@ -103,17 +103,17 @@ Host-specific notes:
 
 - Step 1 (this PR) is done: `hosts/reliant/` is defined and registered in
   `flake.nix` as `nixosConfigurations."reliant"`.
-- Step 2 (enrollment, `secrets-warden`'s hand-off) is **not** done yet:
-  `hosts/reliant/secrets.nix` is pre-created with an empty `age.secrets`
-  block, so `tools/enroll.py reliant` will **not** auto-add the
-  `thomasga/ssh-id-ed25519-reliant` entry to it (it only does that when the
-  file doesn't already exist) — add that entry by hand after running
-  enroll.py, or delete the file first and let enroll.py regenerate it.
+- Step 2 (enrollment) is done: `tools/enroll.py reliant` generated the age
+  identity and SSH login key. `hosts/reliant/secrets.nix` was pre-created
+  with an empty `age.secrets` block by this PR, so enroll.py's own
+  auto-wiring was skipped (it only writes that file when it doesn't already
+  exist) — the `thomasga/ssh-id-ed25519-reliant` entry was added by hand
+  after the fact.
 - The LUKS passphrase prompt in `install.py` is vestigial for this host —
   disko has no LUKS here, the value is unused.
-- Pin the SSH host key after first boot:
-  `ssh-keyscan -t ed25519 reliant.local` → `publicKey` in
-  `lib/ssh-hosts.nix`.
+- The machine has been physically installed and first-booted. The SSH host
+  key is pinned in `lib/ssh-hosts.nix`, and the reserved LAN IP
+  (`192.168.20.15`) is confirmed against its Unifi DHCP reservation.
 - No `homeConfigurations."thomasga@reliant"` entry exists in `flake.nix` yet
   — it would import `hosts/reliant/home/thomasga.nix`, which doesn't exist.
   `user-provisioner` adds both together when attaching a user (Phase 2).
