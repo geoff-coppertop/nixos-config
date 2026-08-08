@@ -9,10 +9,14 @@ let
   # Replace this with a distinct offline recovery key before expanding the fleet.
   excelsior = "age133y2ha4g4qa8esa52jp7k99xhqxm05m5q8yj909xynsv9ncv53xqfwyrgw";
 
+  reliant = "age1lqu53gj7uyp6t98avjh25736kcl0a8devzgfepag5j5l4fkmvq7scs5y9w";
+
   offlineAdmin = "age135v2shcv64lul85dy5qqpwlnqw4rvdcsukymx63neqp37d9hpe0sp2jzp9";
 in {
-  "thomasga/restic-password.age".publicKeys = [enterprise-d offlineAdmin];
-  "thomasga/nas-smb-credentials.age".publicKeys = [enterprise-d offlineAdmin];
+  # Job-keyed, not machine-keyed: every host running the "thomasga" backup job
+  # is a recipient. The restic repo path already disambiguates by hostname.
+  "thomasga/restic-password.age".publicKeys = [enterprise-d reliant offlineAdmin];
+  "thomasga/nas-smb-credentials.age".publicKeys = [enterprise-d reliant offlineAdmin];
   "thomasga/ssh-id-ed25519-enterprise-d.age".publicKeys = [enterprise-d offlineAdmin];
   "thomasga/github-token.age".publicKeys = [enterprise-d offlineAdmin];
   "thomasga/garmin-username.age".publicKeys = [enterprise-d offlineAdmin];
@@ -34,4 +38,5 @@ in {
   "defiant/location.age".publicKeys = [defiant offlineAdmin];
   "defiant/zwave-secrets.age".publicKeys = [defiant offlineAdmin];
   "thomasga/ssh-id-ed25519-excelsior.age".publicKeys = [excelsior offlineAdmin];
+  "thomasga/ssh-id-ed25519-reliant.age".publicKeys = [reliant offlineAdmin];
 }

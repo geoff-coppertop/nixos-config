@@ -33,7 +33,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from common import repo_root
 
-HOSTS = ["enterprise-d", "holodeck-01", "defiant", "excelsior"]
+HOSTS = ["enterprise-d", "holodeck-01", "defiant", "excelsior", "reliant"]
 
 # defiant is aarch64-linux and builds natively on GitHub's arm64-hosted
 # runners; every other host is x86_64-linux.

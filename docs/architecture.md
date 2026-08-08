@@ -147,6 +147,7 @@ The machines currently in this repo are listed in the [root README](../README.md
 | `hosts/defiant/` | Raspberry Pi 4 homelab server: SD image, homelab service config, Home Assistant automations |
 | `hosts/holodeck-01/` | NixOS-WSL instance |
 | `hosts/excelsior/` | Headless x86_64 game server: DCS World dedicated server + DCS-SRS, second independent DNS instance |
+| `hosts/reliant/` | Gigabyte Brix mini PC: bare Phase 1 host (disko disk layout, no homelab services yet), intended to eventually replace `defiant` |
 | `profiles/common/` | Baseline every host gets: nix settings/GC, `system.autoUpgrade`, timezone/locale, kernel, fonts; plus network discovery (avahi/mDNS), the agenix identity path, SSH known-hosts rendering |
 | `profiles/desktop/` | Desktop environment baseline, audio (pipewire), power/idle policy |
 | `profiles/dev/` | Dev tooling: GitHub CLI, container runtime, network tools |

@@ -103,6 +103,7 @@ sudo nixos-rebuild switch --flake .#enterprise-d
 | `holodeck-01` | `sudo nixos-rebuild switch --flake .#holodeck-01` | Inside the WSL distro |
 | `defiant` | `nixos-rebuild switch --flake .#defiant --target-host thomasga@defiant.local --sudo` | Any machine with SSH and Nix |
 | `excelsior` | `nixos-rebuild switch --flake .#excelsior --target-host thomasga@excelsior.local --sudo` | Any machine with SSH and Nix |
+| `reliant` | `nixos-rebuild switch --flake .#reliant --target-host thomasga@reliant.local --sudo` | Any machine with SSH and Nix |
 | `enterprise-d` (remote) | `nixos-rebuild switch --flake .#enterprise-d --target-host thomasga@enterprise-d --sudo` | Any machine with SSH and Nix |
 
 ### Automatic updates
@@ -238,8 +239,13 @@ there is no host-to-path map that can go stale. It fails safe: if the base
 commit is unreachable (new branch, force-push, shallow history) or an eval
 errors out, the host is built anyway.
 
-The build job runs `enterprise-d`, `holodeck-01`, and `excelsior` on
+The build job runs `enterprise-d`, `holodeck-01`, `excelsior`, and `reliant` on
 `ubuntu-latest` and `defiant` on `ubuntu-24.04-arm`, freeing disk space first.
+
+The host list the script iterates is the `HOSTS` constant in
+`tools/ci_changed_hosts.py`. It is the one hand-maintained list left, and it is
+not derived from `flake.nix` — **a new host must be added there or CI will
+never build it**, silently and without failing.
 
 ### Pull request template
 

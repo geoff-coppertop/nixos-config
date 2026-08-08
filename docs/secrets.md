@@ -151,18 +151,24 @@ under `custom.backups.users`, not to the machine — each entry gets its own
 restic repository. `passwordFile` defaults to
 `/run/agenix/<name>/restic-password`.
 
-| Secret | Backup job |
-| --- | --- |
-| `secrets/thomasga/restic-password.age` | `thomasga` (home directory) |
-| `secrets/hass/restic-password.age` | `hass` |
-| `secrets/zigbee2mqtt/restic-password.age` | `zigbee2mqtt` |
-| `secrets/zwave-js/restic-password.age` | `zwave-js` |
-| `secrets/adguardhome/restic-password.age` | `adguardhome` |
+| Secret | Backup job | Host recipients |
+| --- | --- | --- |
+| `secrets/thomasga/restic-password.age` | `thomasga` (home directory) | `enterprise-d`, `reliant` |
+| `secrets/hass/restic-password.age` | `hass` | `defiant` |
+| `secrets/zigbee2mqtt/restic-password.age` | `zigbee2mqtt` | `defiant` |
+| `secrets/zwave-js/restic-password.age` | `zwave-js` | `defiant` |
+| `secrets/adguardhome/restic-password.age` | `adguardhome` | `defiant` |
+
+Because a job-keyed secret is shared, more than one host can be a recipient of
+the same file — the restic repository path embeds the hostname
+(`<mountPoint>/<job>/<hostname>`), so the hosts do not collide in the
+repository. Add a host only when that host actually runs the job.
 
 ### NAS SMB credentials
 
-`secrets/thomasga/nas-smb-credentials.age` and
-`secrets/defiant/nas-smb-credentials.age` decrypt to:
+`secrets/thomasga/nas-smb-credentials.age` (recipients: `enterprise-d`,
+`reliant`) and `secrets/defiant/nas-smb-credentials.age` (recipient: `defiant`)
+decrypt to:
 
 ```text
 username=nas-user

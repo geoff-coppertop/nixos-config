@@ -1,7 +1,7 @@
 # NixOS Config
 
 This repo is the source of truth for machine setup, user setup, secrets wiring,
-and update policy across four machines. Everything is declarative and committed;
+and update policy across five machines. Everything is declarative and committed;
 nothing is configured by hand after install.
 
 ## Machines
@@ -12,6 +12,7 @@ nothing is configured by hand after install.
 | `defiant` | Raspberry Pi 4 homelab server | `aarch64-linux` | `hosts/defiant/configuration.nix` | [README](hosts/defiant/README.md) |
 | `holodeck-01` | NixOS on WSL2 | `x86_64-linux` | `hosts/holodeck-01/configuration.nix` | [README](hosts/holodeck-01/README.md) |
 | `excelsior` | HP EliteDesk 800 G2 Mini game server | `x86_64-linux` | `hosts/excelsior/configuration.nix` | [README](hosts/excelsior/README.md) |
+| `reliant` | Gigabyte GB-BXi5-4200 "Brix" mini PC, bare Phase 1 host (future defiant replacement) | `x86_64-linux` | `hosts/reliant/configuration.nix` | [README](hosts/reliant/README.md) |
 
 Naming convention and the rest of the layout are in
 [docs/architecture.md](docs/architecture.md).
