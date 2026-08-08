@@ -58,11 +58,9 @@ in {
   };
 
   # ── Networking ────────────────────────────────────────────────────────────
-  # Reserved LAN IP: 192.168.20.11 — TEMPORARY placeholder, distinct from
-  # defiant's own reservation (192.168.20.10, staying with defiant until the
-  # Phase 2 cutover). Confirm this against the actual Unifi DHCP reservation
-  # once the machine is on the network (docs/provisioning.md § Step 7) and
-  # correct it here if it doesn't match. Not yet consumed by any custom.*
+  # Reserved LAN IP: 192.168.20.15, set as a DHCP reservation in Unifi —
+  # distinct from defiant's own reservation (192.168.20.10, staying with
+  # defiant until the Phase 2 cutover). Not yet consumed by any custom.*
   # option — this host has no DNS or other service module enabled in this
   # Phase 1 PR; wire it into custom.dns.lanIp (or equivalent) when Phase 2
   # brings the homelab stack over.

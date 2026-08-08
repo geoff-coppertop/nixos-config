@@ -43,11 +43,9 @@ onward (same as `enterprise-d`/`excelsior`).
   physically installed yet. Verify against the installer's own hardware
   detection during Step 5 and correct here if the Brix needs anything this
   omits.
-- Reserved LAN IP `192.168.20.11` — **TEMPORARY placeholder**, distinct from
-  `defiant`'s own reservation (`192.168.20.10`, which stays with `defiant`
-  until the Phase 2 cutover). Confirm this against the actual Unifi DHCP
-  reservation once the machine is on the network and correct
-  `configuration.nix` if it doesn't match. Not yet consumed by any
+- Reserved LAN IP `192.168.20.15`, set as a DHCP reservation in Unifi —
+  distinct from `defiant`'s own reservation (`192.168.20.10`, which stays
+  with `defiant` until the Phase 2 cutover). Not yet consumed by any
   `custom.*` option — no DNS or other service module is enabled in this
   Phase 1 PR.
 - Headless. `profiles/desktop` is deliberately **not** imported — there is no
