@@ -13,8 +13,10 @@ let
 
   offlineAdmin = "age135v2shcv64lul85dy5qqpwlnqw4rvdcsukymx63neqp37d9hpe0sp2jzp9";
 in {
-  "thomasga/restic-password.age".publicKeys = [enterprise-d offlineAdmin];
-  "thomasga/nas-smb-credentials.age".publicKeys = [enterprise-d offlineAdmin];
+  # Job-keyed, not machine-keyed: every host running the "thomasga" backup job
+  # is a recipient. The restic repo path already disambiguates by hostname.
+  "thomasga/restic-password.age".publicKeys = [enterprise-d reliant offlineAdmin];
+  "thomasga/nas-smb-credentials.age".publicKeys = [enterprise-d reliant offlineAdmin];
   "thomasga/ssh-id-ed25519-enterprise-d.age".publicKeys = [enterprise-d offlineAdmin];
   "thomasga/github-token.age".publicKeys = [enterprise-d offlineAdmin];
   "thomasga/garmin-username.age".publicKeys = [enterprise-d offlineAdmin];
