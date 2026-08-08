@@ -8,9 +8,9 @@ rather than guessing from changed file paths.
 The host list is not written down here. It is read out of the flake at each
 commit (`nixosConfigurations`), so registering a host in flake.nix is the only
 step needed for it to get CI coverage — there is no second list to remember.
-The runner is chosen the same way, from each host's own
-`config.nixpkgs.hostPlatform.system`, so an aarch64 host lands on an arm64
-runner because of what it *is*, not because of what it is *called*.
+The runner is chosen the same way, from each host's own `pkgs.system`, so an
+aarch64 host lands on an arm64 runner because of what it *is*, not because of
+what it is *called*.
 
 For each host defined at the head commit, evaluate its system and its
 toplevel drvPath, and compare that drvPath against the same host's drvPath at
@@ -65,9 +65,20 @@ FALLBACK_RUNNER = "ubuntu-latest"
 # toplevel derivation in one evaluation. A drvPath carries store context;
 # unsafeDiscardStringContext reduces it to a plain string so --json always
 # serialises it as one, which is all this script compares.
+#
+# cfg.pkgs.system, not cfg.config.nixpkgs.hostPlatform.system: this repo's
+# mkNixosSystem (lib/nixos-system.nix) calls nixpkgs.lib.nixosSystem with the
+# top-level `system` argument, which selects the pkgs evaluation platform but
+# does not populate the nixpkgs.hostPlatform *option* — that path evaluated
+# to an error for every host, caught by nix_eval_json's blanket try/except,
+# silently sending every host down the FALLBACK_RUNNER path (confirmed live:
+# defiant landed on ubuntu-latest and failed with "a 'aarch64-linux' ... is
+# required, but I am a 'x86_64-linux'"). cfg.pkgs.system is set unconditionally
+# by nixpkgs on every pkgs instance regardless of how system was threaded in,
+# so it doesn't depend on that option wiring.
 HOST_INFO_EXPR = """
   cfg: {
-    system = cfg.config.nixpkgs.hostPlatform.system;
+    system = cfg.pkgs.system;
     drvPath = builtins.unsafeDiscardStringContext cfg.config.system.build.toplevel.drvPath;
   }
 """
@@ -107,7 +118,12 @@ def checkout(sha: str, root: Path) -> bool:
 
 
 def nix_eval_json(attr: str, apply: str, root: Path):
-    """Run `nix eval --json <attr> --apply <apply>`. None if it fails."""
+    """Run `nix eval --json <attr> --apply <apply>`. None if it fails.
+
+    Logs the actual nix stderr on failure — silently returning None here
+    once already cost real time to diagnose (a broken attribute path in
+    HOST_INFO_EXPR failed every host's eval without a visible reason).
+    """
     result = subprocess.run(
         ["nix", "eval", "--json", attr, "--apply", apply],
         capture_output=True,
@@ -115,10 +131,12 @@ def nix_eval_json(attr: str, apply: str, root: Path):
         cwd=str(root),
     )
     if result.returncode != 0:
+        log(f"nix eval {attr} failed: {result.stderr.strip()}")
         return None
     try:
         return json.loads(result.stdout)
     except json.JSONDecodeError:
+        log(f"nix eval {attr} produced non-JSON output: {result.stdout.strip()!r}")
         return None
 
 

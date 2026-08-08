@@ -248,12 +248,16 @@ not at base (a newly added machine) has nothing to compare against and is
 always built.
 
 The runner is derived the same way. For each host the script evaluates
-`config.nixpkgs.hostPlatform.system` and its `drvPath` in a single `nix eval`,
-then maps the system to the runner that builds it natively: `x86_64-linux` to
-`ubuntu-latest`, `aarch64-linux` to `ubuntu-24.04-arm`. A second aarch64
-machine gets an arm64 runner automatically; no host name appears in the
-mapping. A system with no mapping falls back to `ubuntu-latest`, so it fails
-loudly in the build rather than vanishing from the matrix.
+`pkgs.system` (not `config.nixpkgs.hostPlatform.system` — that NixOS *option*
+isn't populated by this repo's `mkNixosSystem`, which threads `system` through
+`nixosSystem`'s top-level argument instead; `pkgs.system` is set
+unconditionally regardless of how `system` was passed in) and the host's
+`drvPath` in a single `nix eval`, then maps the system to the runner that
+builds it natively: `x86_64-linux` to `ubuntu-latest`, `aarch64-linux` to
+`ubuntu-24.04-arm`. A second aarch64 machine gets an arm64 runner
+automatically; no host name appears in the mapping. A system with no mapping
+falls back to `ubuntu-latest`, so it fails loudly in the build rather than
+vanishing from the matrix.
 
 The comparison is on the derivation itself, not on changed file paths, so
 there is no host-to-path map that can go stale. It fails safe: if the base
