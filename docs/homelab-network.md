@@ -1,11 +1,43 @@
 # Homelab Networking
 
-Reverse proxy and DNS composition for `defiant` — the routing backbone every
-other homelab service registers into. The appliance/device layer that sits
-behind it (Home Assistant, Zigbee, Z-Wave, Matter, MQTT, ADS-B) is
-[docs/smart-home.md](smart-home.md). `custom.dns` also runs a second,
-independent instance on `excelsior` — see § Second DNS Instance (excelsior)
-below.
+Reverse proxy and DNS composition for the homelab server — the routing
+backbone every other homelab service registers into. The appliance/device
+layer that sits behind it (Home Assistant, Zigbee, Z-Wave, Matter, MQTT,
+ADS-B) is [docs/smart-home.md](smart-home.md). `custom.dns` also runs a
+second, independent instance on `excelsior` — see § Second DNS Instance
+(excelsior) below.
+
+## Migration: defiant → reliant
+
+`defiant` (Raspberry Pi 4) is being retired in favor of `reliant` (Gigabyte
+Brix x86_64 mini PC, `192.168.20.15`), per `docs/provisioning.md` § Two
+Phases. This is a two-step move:
+
+- **Phase 2 (done, this doc's current state)**: `reliant` runs its own,
+  fully parallel `custom.dns` + `custom.traefik` instance on its own LAN IP.
+  `defiant`'s instances keep running untouched — nothing was removed from
+  `hosts/defiant/configuration.nix`. The two hosts do not share state or
+  config; they're independent stacks that happen to be configured the same
+  way, the same relationship `excelsior`'s dns2 instance already has to
+  `defiant`.
+- **Cutover (not yet done)**: reassign the `192.168.20.10` DHCP reservation
+  from `defiant` to `reliant`, then remove `custom.dns`/`custom.traefik` (and
+  the rest of the homelab/smart-home stack) from `hosts/defiant/`. Out of
+  scope for this change; tracked separately.
+
+Until cutover, `reliant`'s `custom.dns.subdomains` only lists what its own
+Traefik instance actually backs (`dns1`, the manual `dns2` cross-host route)
+— it does not carry `defiant`'s `home`/`adsb`/`zigbee` entries, since those
+service modules aren't enabled on `reliant` yet (that's `smart-home`'s
+migration, still to come). Both hosts' `custom.dns.adminSubdomain = "dns1"`
+and `custom.dns.lanSubnet = "192.168.0.0/16"` overrides (see below) are
+carried identically.
+
+`reliant`'s ACME/DNS-01 credential is a **new**, host-scoped secret
+(`reliant/cloudflare-api-token`, distinct from `defiant/cloudflare-api-token`
+— see `docs/secrets.md` § Secret Inventory) — not yet created. See
+`hosts/reliant/secrets.nix` and `hosts/reliant/README.md` § Services for the
+outstanding secrets-warden hand-off.
 
 The full option-to-module table is
 [docs/architecture.md § Custom Options § Homelab services](architecture.md#homelab-services) —
@@ -92,18 +124,16 @@ separate `custom.dns` on `excelsior`. Neither shares config or state with the
 other — router/DHCP should hand out both reserved IPs as primary/secondary
 DNS for real redundancy; that's a router-side step, not managed by this repo.
 
-Both admin UIs are reachable without an SSH tunnel, proxied through
-`defiant`'s single Traefik instance (Traefik never runs a second copy on
-`excelsior`):
+Both admin UIs are reachable without an SSH tunnel, proxied through Traefik:
 
-- `dns1.coppertop.ca` → `defiant`'s own AdGuard UI, self-registered by
+- `dns1.coppertop.ca` → the host's own AdGuard UI, self-registered by
   `modules/dns.nix` the normal way (§ Traefik Route Registration above), with
   `custom.dns.adminSubdomain = "dns1";` overriding the module's `"dns"`
   default now that a second instance exists to disambiguate from.
 - `dns2.coppertop.ca` → `excelsior`'s AdGuard UI. This **cannot** use the
   module's self-registration, which only ever targets `127.0.0.1` — Traefik
-  runs on a different host than the service it's proxying. Instead,
-  `hosts/defiant/configuration.nix` defines this router by hand, pointing
+  runs on a different host than the service it's proxying. Instead, the
+  Traefik host's `configuration.nix` defines this router by hand, pointing
   `lib/traefik-route.nix`'s pattern at `excelsior`'s real LAN IP:
 
   ```nix
@@ -117,12 +147,21 @@ Both admin UIs are reachable without an SSH tunnel, proxied through
   };
   ```
 
-  This merges fine alongside every module-contributed route on `defiant`
+  This merges fine alongside every module-contributed route on that host
   since `dynamicConfigOptions` is a TOML freeform type.
 
-`excelsior`'s AdGuard admin port needs no extra firewall work for this to
-reach it from `defiant`: `services.adguardhome.host` defaults to `0.0.0.0`,
-and `modules/dns.nix` already sets `openFirewall = true`.
+`excelsior`'s AdGuard admin port needs no extra firewall work for this to be
+reachable: `services.adguardhome.host` defaults to `0.0.0.0`, and
+`modules/dns.nix` already sets `openFirewall = true`.
+
+During the `defiant` → `reliant` migration (§ Migration above), **both**
+`defiant` and `reliant` carry this manual `dns2` router and run their own
+Traefik instance in parallel — each independently proxies its own `dns1` and
+the same `excelsior` `dns2` target. That's a temporary, intentional
+duplication: at cutover, `defiant`'s copy of `custom.traefik`/`custom.dns`
+(including this manual router) is removed, leaving `reliant` as the only
+Traefik instance, matching the eventual "Traefik never runs a second copy"
+invariant this section otherwise assumes.
 
 ## Adding A New Homelab Service
 

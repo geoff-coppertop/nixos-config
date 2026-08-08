@@ -1,13 +1,43 @@
 # reliant
 
-**Phase 1 only.** This host is defined and ready for physical installation,
-but carries no homelab or smart-home service module yet. It is intended to
-eventually replace `defiant` as the homelab server; that migration is Phase 2
-— one or more separate PRs owned by `homelab-network` and `smart-home` (see
+This host is replacing `defiant` as the homelab server, in two migration
+phases owned by `homelab-network` and `smart-home` respectively (see
 [docs/homelab-network.md](../../docs/homelab-network.md) and
-[docs/smart-home.md](../../docs/smart-home.md)) — and must not merge before
-this Phase 1 PR has merged and the machine is confirmed up per
-[docs/provisioning.md § Step 7](../../docs/provisioning.md#step-7--post-install-checklist).
+[docs/smart-home.md](../../docs/smart-home.md)):
+
+- **Phase 2 (`homelab-network`, done)**: `custom.dns` and `custom.traefik` are
+  enabled here, running in parallel with `defiant`'s own untouched instances
+  — see § Services below.
+- **smart-home's migration (not started)**: Home Assistant, Zigbee, Z-Wave,
+  Matter, MQTT, ADS-B all still run on `defiant` only.
+- **Cutover (not started)**: reassigning the `192.168.20.10` DHCP reservation
+  from `defiant` to `reliant`, and removing the homelab stack from
+  `hosts/defiant/`. Out of scope until both migrations above are done.
+
+## Services
+
+`custom.dns` (unbound + AdGuard Home) and `custom.traefik` run on this host's
+own reserved LAN IP, `192.168.20.15` — a fully separate, parallel stack from
+`defiant`'s, not yet the DNS/DHCP primary (that's the cutover step above).
+See [docs/homelab-network.md](../../docs/homelab-network.md) for the full
+design; host-specific facts:
+
+- `dns1.coppertop.ca` → this host's own AdGuard Home admin UI.
+- `dns2.coppertop.ca` → `excelsior`'s AdGuard Home admin UI, proxied
+  cross-host (the same manual router `defiant` also still carries — see
+  docs/homelab-network.md § Second DNS Instance (excelsior)).
+- **Outstanding secrets-warden hand-off**: `custom.traefik.acme.environmentFile`
+  points at `/run/agenix/reliant/cloudflare-api-token`, declared in
+  `hosts/reliant/secrets.nix`, but neither the encrypted file
+  (`secrets/reliant/cloudflare-api-token.age`, contents
+  `CF_DNS_API_TOKEN=<Cloudflare Zone:DNS:Edit token>`) nor its recipient
+  entry in `secrets/secrets.nix` (`reliant` + `offlineAdmin`) exist yet.
+  Activation will fail until both are created — see
+  [docs/secrets.md § Creating Or Rotating a Secret](../../docs/secrets.md#creating-or-rotating-a-secret).
+- Not yet done, and blocking a real deploy of this PR's config: pinning this
+  host's Traefik cert issuance requires the secret above; until then
+  `nixos-rebuild switch` for this host's `custom.traefik` will fail at
+  activation (ACME can't authenticate to Cloudflare).
 
 Provisioning steps are the generic `disko` flow in
 [docs/provisioning.md § Provision Types](../../docs/provisioning.md#provision-types)
@@ -17,7 +47,7 @@ onward (same as `enterprise-d`/`excelsior`).
 
 | File | Purpose |
 | --- | --- |
-| `configuration.nix` | Boot, hardware, networking, `custom.users` — Phase 1 scope only |
+| `configuration.nix` | Boot, hardware, networking, `custom.users`, `custom.backups`, and (since Phase 2) `custom.dns`/`custom.traefik` |
 | `hardware.nix` | systemd-boot, EFI, Intel microcode, generic firmware (template, not a hardware scan — see Hardware And Access below) |
 | `power.nix` | Explicit no-hibernate/no-suspend statement for this always-on headless host |
 | `disko.nix` | GPT layout: ESP, swap, plain ext4 root (no btrfs/snapper — see the comment in the file for why) |
@@ -45,12 +75,12 @@ onward (same as `enterprise-d`/`excelsior`).
   omits.
 - Reserved LAN IP `192.168.20.15`, set as a DHCP reservation in Unifi —
   distinct from `defiant`'s own reservation (`192.168.20.10`, which stays
-  with `defiant` until the Phase 2 cutover). Not yet consumed by any
-  `custom.*` option — no DNS or other service module is enabled in this
-  Phase 1 PR.
+  with `defiant` until the eventual cutover step). Consumed by
+  `custom.dns.lanIp` — see § Services above.
 - Headless. `profiles/desktop` is deliberately **not** imported — there is no
-  display server. `profiles/dev` is also not imported — Phase 2 will decide
-  whether it's needed once the actual service set (migrated from `defiant`)
+  display server. `profiles/dev` is also not imported — smart-home's own
+  migration will decide whether it's needed once the appliance service set
+  (still on `defiant`)
   is known.
 - SSH key only: `PasswordAuthentication`, `KbdInteractiveAuthentication`, and
   `PermitRootLogin` are all off.
@@ -58,8 +88,10 @@ onward (same as `enterprise-d`/`excelsior`).
   `excelsior`: the authorized-key check is the real access gate, and a sudo
   password on top of it only blocks unattended `nixos-rebuild --target-host`
   deploys.
-- `reliant` alone isn't resolvable until DNS is wired up in Phase 2 — use the
-  mDNS `.local` name:
+- `reliant` alone isn't resolvable via the LAN's primary DNS until the
+  cutover step reassigns the `192.168.20.10` reservation to it — `reliant`
+  now runs its own resolver (§ Services above), but clients aren't pointed at
+  it yet. Use the mDNS `.local` name until then:
 
   ```bash
   nixos-rebuild switch --flake .#reliant --target-host thomasga@reliant.local --sudo
