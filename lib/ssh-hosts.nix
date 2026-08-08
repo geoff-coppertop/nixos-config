@@ -31,4 +31,11 @@
     user = "thomasga";
     userPublicKeys = {thomasga = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHuovWfG89BTyZhSeMd4av3Eizu8ynNvuxpq7j8+5ldS thomasga@excelsior";};
   };
+  reliant = {
+    aliases = ["reliant"];
+    hostName = "reliant";
+    publicKey = null;
+    user = "thomasga";
+    userPublicKeys = {thomasga = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOmsSJjqOzYrowRUv5tz6xX6EYj5Gt7F2ml4Y8NKI7EW thomasga@reliant";};
+  };
 }
