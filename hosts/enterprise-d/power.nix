@@ -85,6 +85,63 @@
       onFailure = ["hibernate-trigger-fallback.service"];
       serviceConfig = {
         Type = "oneshot";
+        # Best-effort preflight, never fails the unit itself (always exits 0):
+        # if the kernel currently refuses to hibernate at all
+        # (hibernation_available() in kernel/power/hibernate.c is false —
+        # /sys/power/state won't list "disk"), log everything that decision
+        # depends on under one tag, so whatever the cause turns out to be is
+        # diagnosable from the journal instead of another live investigation.
+        # One specific cause — a process holding a memfd_secret() mapping,
+        # which blocks hibernation system-wide for as long as it runs — is
+        # both common (backgrounded Electron/Chromium apps opportunistically
+        # use it) and simple to fix, so that one case gets auto-remediated by
+        # closing the process; anything else just gets logged and surfaced.
+        ExecStartPre = pkgs.writeShellScript "hibernate-preflight" ''
+          diag() {
+            ${pkgs.util-linux}/bin/logger -t hibernate-trigger-diag "$1"
+          }
+          notify() {
+            uid=$(${pkgs.coreutils}/bin/id -u thomasga 2>/dev/null) || return 0
+            [ -S "/run/user/$uid/bus" ] || return 0
+            ${pkgs.util-linux}/bin/runuser -u thomasga -- \
+              ${pkgs.coreutils}/bin/env "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/bus" \
+              ${pkgs.libnotify}/bin/notify-send -a "System Hibernate" -u critical "Hibernate" "$1" 2>/dev/null || true
+          }
+
+          ${pkgs.gnugrep}/bin/grep -qw disk /sys/power/state && exit 0
+
+          diag "hibernate blocked: /sys/power/state=$(${pkgs.coreutils}/bin/cat /sys/power/state); resume=$(${pkgs.coreutils}/bin/cat /sys/power/resume 2>/dev/null || echo unreadable); swap=$(${pkgs.util-linux}/bin/swapon --show --noheadings 2>/dev/null | ${pkgs.coreutils}/bin/tr '\n' ';'); inhibitors=$(${pkgs.systemd}/bin/systemd-inhibit --list --no-legend 2>/dev/null | ${pkgs.coreutils}/bin/tr '\n' ';'); lockdown=$(${pkgs.coreutils}/bin/cat /sys/kernel/security/lockdown 2>/dev/null || echo none)"
+
+          # memfd_secret() holders block hibernation globally
+          # (secretmem_active() in mm/secretmem.c) until they exit — closing
+          # the holder is a real fix, not a workaround, so do it and retry.
+          killed=""
+          for maps in /proc/*/maps; do
+            pid="''${maps#/proc/}"
+            pid="''${pid%/maps}"
+            ${pkgs.gnugrep}/bin/grep -q secretmem "$maps" 2>/dev/null || continue
+            cmdline=$(${pkgs.coreutils}/bin/tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null | ${pkgs.coreutils}/bin/cut -c1-80)
+            diag "closing pid $pid (holds a memfd_secret mapping): $cmdline"
+            kill -TERM "$pid" 2>/dev/null
+            killed="$killed $pid"
+          done
+
+          if [ -n "$killed" ]; then
+            ${pkgs.coreutils}/bin/sleep 2
+            for pid in $killed; do
+              kill -0 "$pid" 2>/dev/null && kill -KILL "$pid" 2>/dev/null
+            done
+          fi
+
+          if ${pkgs.gnugrep}/bin/grep -qw disk /sys/power/state; then
+            [ -n "$killed" ] && diag "disk available again after closing pid(s):$killed"
+            notify "Closed an app so the system could hibernate. Details: journalctl -t hibernate-trigger-diag"
+          else
+            notify "Hibernate is blocked and couldn't be resolved automatically. Details: journalctl -t hibernate-trigger-diag"
+          fi
+
+          exit 0
+        '';
         # -i (ignore-inhibitors): the app suspend-inhibitor that the watchdog
         # forces past with `suspend -i` is still held on the RTC-wake resume, so a
         # plain `systemctl hibernate` is refused and the machine just stays awake.
