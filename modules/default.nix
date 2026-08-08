@@ -17,6 +17,7 @@
     ./matter.nix
     ./mqtt.nix
     ./network-drives.nix
+    ./nix-gc.nix
     ./secure-boot.nix
     ./snapper.nix
     ./tpm-luks.nix

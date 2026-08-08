@@ -127,10 +127,17 @@ looks the way it does. Changing them back reintroduces a real failure.
   `boot.loader.generic-extlinux-compatible.configurationLimit` had no override
   (module default 20) while old boot generations accumulated unbounded,
   causing a `nix-copy-closure` deploy to fail with "No space left on device".
-  Now capped at 10, matching `enterprise-d`/`excelsior`'s `systemd-boot`
-  `configurationLimit` and `profiles/common/base.nix`'s Nix profile
-  `keepGenerations = 10`. Check `df -h /` before a large deploy regardless —
-  see [docs/provisioning.md § SD-Card Hosts](../../docs/provisioning.md#sd-card-hosts-defiant).
+  Capped at 10 first (matching `enterprise-d`/`excelsior`'s `systemd-boot`
+  `configurationLimit`), but a full `nix-collect-garbage -d` at that cap —
+  which also drops all old generations, not just excess ones — still only got
+  the 30G card down to a ~23-24G floor. Both `configurationLimit` and this
+  host's `custom.nix.gc.keepGenerations` override (a per-host override of
+  `profiles/common/base.nix`'s `custom.nix.gc.keepGenerations` option, shared
+  default 10) are now dropped to 3, and `nix.settings.min-free`/`max-free`
+  (2GiB/5GiB, scoped to this host only) trigger GC proactively mid-build or
+  mid-deploy instead of failing outright. Check `df -h /` before a large
+  deploy regardless — see
+  [docs/provisioning.md § SD-Card Hosts](../../docs/provisioning.md#sd-card-hosts-defiant).
 
 ## Backup Jobs
 
