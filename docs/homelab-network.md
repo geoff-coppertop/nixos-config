@@ -34,8 +34,8 @@ appliance service modules backing those three are enabled in the same PR
 and `custom.dns.lanSubnet = "192.168.0.0/16"` overrides (see below) are
 carried identically.
 
-`reliant`'s ACME/DNS-01 credential **reuses** `defiant`'s existing
-`defiant/cloudflare-api-token` secret rather than a new one — it's just an
+`reliant`'s ACME/DNS-01 credential **reuses** the existing
+`traefik/cloudflare-api-token` secret rather than a new one — it's just an
 API credential, not tied to either host's identity. `reliant` isn't yet a
 recipient of it. See `hosts/reliant/secrets.nix` and
 `hosts/reliant/README.md` § Services for the outstanding secrets-warden

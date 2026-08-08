@@ -31,7 +31,7 @@ design; host-specific facts:
   cross-host (the same manual router `defiant` also still carries — see
   docs/homelab-network.md § Second DNS Instance (excelsior)).
 - `custom.traefik.acme.environmentFile` points at
-  `/run/agenix/defiant/cloudflare-api-token` — **reused** from `defiant`'s
+  `/run/agenix/traefik/cloudflare-api-token` — **reused** from `defiant`'s
   existing secret (it's just an API credential, not tied to either host's
   identity), not a new one. See § Secrets below for what's still pending.
 
@@ -142,17 +142,19 @@ here, not a continuation of `defiant`'s live backups. See
 
 `hosts/reliant/secrets.nix` declares, beyond the Phase 1 SSH/NAS entries, five
 secrets — **all of them reused from `defiant`'s existing `.age` files**, none
-newly created:
+newly created. Four are named for what they hold or which hardware they're
+tied to, not for `defiant` (see
+[docs/secrets.md § Shared hardware and domain secrets](../../docs/secrets.md#shared-hardware-and-domain-secrets)):
 
-- `defiant/cloudflare-api-token` — just an API credential, not tied to either
+- `traefik/cloudflare-api-token` — just an API credential, not tied to either
   host's identity.
-- `defiant/zigbee-network-key` — matched to the physical coordinator's own
-  NVRAM, not the host; reusing it is what lets already-paired Zigbee devices
-  keep working without a re-pair once the coordinator moves.
-- `defiant/location` — home-address coordinates, not host- or
+- `zigbee/network-key` — matched to the physical coordinator's own NVRAM,
+  not the host; reusing it is what lets already-paired Zigbee devices keep
+  working without a re-pair once the coordinator moves.
+- `location/coordinates` — home-address coordinates, not host- or
   radio-specific.
-- `defiant/zwave-secrets` — matched to the physical controller's own NVM,
-  same reasoning as the Zigbee key: reusing it avoids forcing an unnecessary
+- `zwave/secrets` — matched to the physical controller's own NVM, same
+  reasoning as the Zigbee key: reusing it avoids forcing an unnecessary
   re-pair of every Z-Wave device once the controller moves.
 - `hass/restic-password`, `zigbee2mqtt/restic-password`,
   `zwave-js/restic-password` — restic-password secrets are job-keyed, not

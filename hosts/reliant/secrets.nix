@@ -11,17 +11,19 @@ _: {
       owner = "thomasga";
     };
 
-    # ── Phase 2: shared with defiant's existing secrets ──────────────────
-    # All four of these reuse defiant's existing encrypted files rather than
-    # creating new ones — reliant is added as an extra recipient in
-    # secrets/secrets.nix (secrets-warden hand-off: widen the recipient
-    # list, then `nix run .#secret-rekey`), plaintext content unchanged.
-    # None of these are decryptable by reliant yet — that rekey hasn't run.
+    # ── Phase 2: shared hardware/domain secrets, reused from defiant ─────
+    # All four of these are named for what they hold or which physical
+    # hardware they're tied to, not for either host (docs/secrets.md §
+    # Shared hardware and domain secrets) — reliant is added as an extra
+    # recipient in secrets/secrets.nix (secrets-warden hand-off: widen the
+    # recipient list, then `nix run .#secret-rekey`), plaintext content
+    # unchanged. None of these are decryptable by reliant yet — that rekey
+    # hasn't run.
 
     # Cloudflare DNS-01 API token: just an API credential, not tied to
     # either host's identity — no reason to mint a second one.
-    "defiant/cloudflare-api-token" = {
-      file = ../../secrets/defiant/cloudflare-api-token.age;
+    "traefik/cloudflare-api-token" = {
+      file = ../../secrets/traefik/cloudflare-api-token.age;
       owner = "traefik";
     };
 
@@ -29,22 +31,22 @@ _: {
     # the network key is matched to the coordinator's own NVRAM state, not
     # the host, so reusing it (rather than generating a new one) is what
     # lets already-paired Zigbee devices keep working without a re-pair.
-    "defiant/zigbee-network-key" = {
-      file = ../../secrets/defiant/zigbee-network-key.age;
+    "zigbee/network-key" = {
+      file = ../../secrets/zigbee/network-key.age;
       owner = "zigbee2mqtt";
     };
 
     # Same home-address coordinates as defiant's — not host- or
     # radio-specific, safe to share outright.
-    "defiant/location".file = ../../secrets/defiant/location.age;
+    "location/coordinates".file = ../../secrets/location/coordinates.age;
 
     # Same physical Z-Wave controller as defiant's, once it moves — like the
     # Zigbee key above, Z-Wave securityKeys are matched to the controller's
     # own NVM state, not the host. Reusing them (instead of generating fresh
     # ones) is what avoids forcing an unnecessary re-pair of every Z-Wave
     # device once the controller relocates.
-    "defiant/zwave-secrets" = {
-      file = ../../secrets/defiant/zwave-secrets.age;
+    "zwave/secrets" = {
+      file = ../../secrets/zwave/secrets.age;
       owner = "zwave-js";
     };
 

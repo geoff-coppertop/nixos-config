@@ -212,7 +212,7 @@ connects to it with the `zwave_js` component, which does not ship in the
 `zwave-js-server` does **not** generate `securityKeys` itself. Leaving the
 default placeholder crash-loops the service indefinitely. Generate real keys
 before first deploy — see
-[docs/secrets.md § defiant service secrets](secrets.md#defiant-service-secrets).
+[docs/secrets.md § Shared hardware and domain secrets](secrets.md#shared-hardware-and-domain-secrets).
 
 The module's default port is 3000, which collides with AdGuard Home's admin UI on
 any host running both. Set `port = 3001` (or anything free) in that case.

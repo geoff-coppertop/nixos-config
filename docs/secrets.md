@@ -190,22 +190,28 @@ WIFI_AGT_HOME_PASSWORD=your-passphrase-here
 | `wifi/agt-iot.age` | `WIFI_AGT_IOT_PASSWORD` | `agt-iot` |
 | `wifi/agt-work.age` | `WIFI_AGT_WORK_PASSWORD` | `agt-work` |
 
-### defiant service secrets
+### Shared hardware and domain secrets
+
+Named for what they hold or which physical hardware they're tied to, not for
+`defiant` — the Zigbee/Z-Wave keys are matched to the coordinator/controller's
+own NVRAM/NVM state, and the Cloudflare token and location aren't
+host-specific at all, so none of them are renamed if that hardware or
+responsibility ever moves to a different host.
 
 All four are shared with `reliant` — none are rotated or duplicated for it,
-since each is tied to physical hardware state (the Zigbee/Z-Wave
-radios' own NVRAM/NVM) or isn't host-specific at all (the Cloudflare token,
-the receiver location), not to `defiant`'s identity. `reliant` is simply
-added as an extra recipient.
+since each is tied to physical hardware state (the Zigbee/Z-Wave radios' own
+NVRAM/NVM) or isn't host-specific at all (the Cloudflare token, the receiver
+location), not to `defiant`'s identity. `reliant` is simply added as an extra
+recipient.
 
 | Secret | Contents | Host recipients |
 | --- | --- | --- |
-| `defiant/cloudflare-api-token.age` | `CF_DNS_API_TOKEN=<Cloudflare Zone:DNS:Edit token>` | `defiant`, `reliant` |
-| `defiant/location.age` | ADS-B receiver location, as `VAR=value` lines | `defiant`, `reliant` |
-| `defiant/zigbee-network-key.age` | A bracketed byte array, e.g. `[12,34,...,255]` | `defiant`, `reliant` |
-| `defiant/zwave-secrets.age` | JSON with one `securityKeys` object | `defiant`, `reliant` |
+| `traefik/cloudflare-api-token.age` | `CF_DNS_API_TOKEN=<Cloudflare Zone:DNS:Edit token>` | `defiant`, `reliant` |
+| `location/coordinates.age` | ADS-B receiver location, as `VAR=value` lines | `defiant`, `reliant` |
+| `zigbee/network-key.age` | A bracketed byte array, e.g. `[12,34,...,255]` | `defiant`, `reliant` |
+| `zwave/secrets.age` | JSON with one `securityKeys` object | `defiant`, `reliant` |
 
-`defiant/zwave-secrets.age` must look exactly like this:
+`zwave/secrets.age` must look exactly like this:
 
 ```json
 {

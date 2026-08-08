@@ -5,8 +5,8 @@ _: {
       owner = "thomasga";
     };
 
-    "defiant/cloudflare-api-token" = {
-      file = ../../secrets/defiant/cloudflare-api-token.age;
+    "traefik/cloudflare-api-token" = {
+      file = ../../secrets/traefik/cloudflare-api-token.age;
       owner = "traefik";
     };
 
@@ -20,18 +20,18 @@ _: {
     "zwave-js/restic-password".file = ../../secrets/zwave-js/restic-password.age;
     "adguardhome/restic-password".file = ../../secrets/adguardhome/restic-password.age;
 
-    "defiant/zigbee-network-key" = {
-      file = ../../secrets/defiant/zigbee-network-key.age;
+    "zigbee/network-key" = {
+      file = ../../secrets/zigbee/network-key.age;
       owner = "zigbee2mqtt";
     };
 
     # LOCATION_LAT/LOCATION_LON, consumed via EnvironmentFile — read by
     # systemd itself (root) before the consuming service drops privileges,
-    # so no owner override is needed the way zigbee-network-key's is.
-    "defiant/location".file = ../../secrets/defiant/location.age;
+    # so no owner override is needed the way zigbee/network-key's is.
+    "location/coordinates".file = ../../secrets/location/coordinates.age;
 
-    "defiant/zwave-secrets" = {
-      file = ../../secrets/defiant/zwave-secrets.age;
+    "zwave/secrets" = {
+      file = ../../secrets/zwave/secrets.age;
       owner = "zwave-js";
     };
   };

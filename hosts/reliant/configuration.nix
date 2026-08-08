@@ -93,8 +93,8 @@ in {
       # already-paired Zigbee devices keep working without a re-pair. See
       # the PR description for the secrets-warden action this depends on
       # (adding reliant as a recipient of the existing
-      # secrets/defiant/zigbee-network-key.age, not creating a new one).
-      networkKeyFile = "/run/agenix/defiant/zigbee-network-key";
+      # secrets/zigbee/network-key.age, not creating a new one).
+      networkKeyFile = "/run/agenix/zigbee/network-key";
     };
 
     zwave = {
@@ -106,7 +106,7 @@ in {
       # own NVM state, not the host, so reusing defiant's existing keys
       # (rather than generating new ones) avoids forcing an unnecessary
       # re-pair of every Z-Wave device once the controller moves.
-      secretsConfigFile = "/run/agenix/defiant/zwave-secrets";
+      secretsConfigFile = "/run/agenix/zwave/secrets";
       # 3000 (the module default) collides with AdGuard Home's admin UI,
       # enabled above — same collision documented for defiant in
       # hosts/defiant/README.md § Known Gotchas.
@@ -118,7 +118,7 @@ in {
       # Same physical home-address coordinates as defiant's — location data
       # isn't host- or radio-specific, so this reuses the same secret
       # content (reliant added as a recipient), not a freshly generated one.
-      locationEnvFile = "/run/agenix/defiant/location";
+      locationEnvFile = "/run/agenix/location/coordinates";
     };
 
     # Matches enterprise-d's precedent, not excelsior's (excelsior lacking
@@ -195,7 +195,7 @@ in {
         # Reused from defiant's existing secret — just an API credential,
         # not tied to either host's identity, so no reason to mint a
         # second one. See hosts/reliant/secrets.nix.
-        environmentFile = "/run/agenix/defiant/cloudflare-api-token";
+        environmentFile = "/run/agenix/traefik/cloudflare-api-token";
         domain = "coppertop.ca";
       };
     };

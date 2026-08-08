@@ -26,9 +26,10 @@ in {
   "wifi/agt-work.age".publicKeys = [enterprise-d offlineAdmin];
   "thomasga/ssh-id-ed25519-holodeck-01.age".publicKeys = [holodeck-01 offlineAdmin];
   "thomasga/ssh-id-ed25519-defiant.age".publicKeys = [defiant offlineAdmin];
-  # reliant reuses defiant's existing secret below rather than a new one —
-  # just an API credential, not tied to either host's identity.
-  "defiant/cloudflare-api-token.age".publicKeys = [defiant reliant offlineAdmin];
+  # Just an API credential, not tied to either host's identity — named for
+  # what consumes it (Traefik's ACME DNS-01), not the host, so any future
+  # host running Traefik can be added as a recipient without a rename.
+  "traefik/cloudflare-api-token.age".publicKeys = [defiant reliant offlineAdmin];
   "defiant/nas-smb-credentials.age".publicKeys = [defiant offlineAdmin];
   # Job-keyed, not machine-keyed, same reasoning as thomasga's above — the
   # restic repo path already disambiguates by hostname.
@@ -36,19 +37,21 @@ in {
   "zigbee2mqtt/restic-password.age".publicKeys = [defiant reliant offlineAdmin];
   "zwave-js/restic-password.age".publicKeys = [defiant reliant offlineAdmin];
   "adguardhome/restic-password.age".publicKeys = [defiant offlineAdmin];
-  # reliant reuses defiant's existing key below rather than a new one —
-  # matched to the physical Zigbee coordinator's own NVRAM state, not the
-  # host, so reusing it is what lets already-paired devices keep working
-  # without a re-pair once the coordinator moves.
-  "defiant/zigbee-network-key.age".publicKeys = [defiant reliant offlineAdmin];
+  # Matched to the physical Zigbee coordinator's own NVRAM state, not the
+  # host — named for the hardware, not defiant, so it keeps working without
+  # a rename if the coordinator moves. reliant reuses this rather than a new
+  # secret, which is what lets already-paired devices keep working without
+  # a re-pair once the coordinator physically moves to it.
+  "zigbee/network-key.age".publicKeys = [defiant reliant offlineAdmin];
   # Shared receiver/station location (lat/lon) — used by adsb today,
-  # expected to be reused by a future weather station module too. Also not
+  # expected to be reused by a future weather station module too. Not
   # host- or radio-specific, so reliant reuses this rather than a new one.
-  "defiant/location.age".publicKeys = [defiant reliant offlineAdmin];
-  # reliant reuses defiant's existing keys below rather than a new one —
-  # matched to the physical Z-Wave controller's own NVM state, not the
-  # host, same reasoning as the Zigbee key above.
-  "defiant/zwave-secrets.age".publicKeys = [defiant reliant offlineAdmin];
+  "location/coordinates.age".publicKeys = [defiant reliant offlineAdmin];
+  # Matched to the physical Z-Wave controller's own NVM state, not the
+  # host — same reasoning as zigbee/network-key.age above. reliant reuses
+  # this to avoid forcing an unnecessary re-pair of every Z-Wave device
+  # once the controller physically moves to it.
+  "zwave/secrets.age".publicKeys = [defiant reliant offlineAdmin];
   "thomasga/ssh-id-ed25519-excelsior.age".publicKeys = [excelsior offlineAdmin];
   "thomasga/ssh-id-ed25519-reliant.age".publicKeys = [reliant offlineAdmin];
 }
