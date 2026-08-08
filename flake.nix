@@ -192,6 +192,17 @@
           disko.nixosModules.disko
         ];
       };
+
+      # Phase 1 only (docs/provisioning.md § Two Phases) — no home-manager
+      # user attached yet, so no matching homeConfigurations entry either;
+      # see hosts/reliant/default.nix.
+      "reliant" = mkNixosSystem {
+        system = "x86_64-linux";
+        extraModules = [
+          ./hosts/reliant
+          disko.nixosModules.disko
+        ];
+      };
     };
 
     homeConfigurations = {
