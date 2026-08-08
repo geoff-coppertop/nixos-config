@@ -26,17 +26,29 @@ in {
   "wifi/agt-work.age".publicKeys = [enterprise-d offlineAdmin];
   "thomasga/ssh-id-ed25519-holodeck-01.age".publicKeys = [holodeck-01 offlineAdmin];
   "thomasga/ssh-id-ed25519-defiant.age".publicKeys = [defiant offlineAdmin];
-  "defiant/cloudflare-api-token.age".publicKeys = [defiant offlineAdmin];
+  # reliant reuses defiant's existing secret below rather than a new one —
+  # just an API credential, not tied to either host's identity.
+  "defiant/cloudflare-api-token.age".publicKeys = [defiant reliant offlineAdmin];
   "defiant/nas-smb-credentials.age".publicKeys = [defiant offlineAdmin];
-  "hass/restic-password.age".publicKeys = [defiant offlineAdmin];
-  "zigbee2mqtt/restic-password.age".publicKeys = [defiant offlineAdmin];
-  "zwave-js/restic-password.age".publicKeys = [defiant offlineAdmin];
+  # Job-keyed, not machine-keyed, same reasoning as thomasga's above — the
+  # restic repo path already disambiguates by hostname.
+  "hass/restic-password.age".publicKeys = [defiant reliant offlineAdmin];
+  "zigbee2mqtt/restic-password.age".publicKeys = [defiant reliant offlineAdmin];
+  "zwave-js/restic-password.age".publicKeys = [defiant reliant offlineAdmin];
   "adguardhome/restic-password.age".publicKeys = [defiant offlineAdmin];
-  "defiant/zigbee-network-key.age".publicKeys = [defiant offlineAdmin];
+  # reliant reuses defiant's existing key below rather than a new one —
+  # matched to the physical Zigbee coordinator's own NVRAM state, not the
+  # host, so reusing it is what lets already-paired devices keep working
+  # without a re-pair once the coordinator moves.
+  "defiant/zigbee-network-key.age".publicKeys = [defiant reliant offlineAdmin];
   # Shared receiver/station location (lat/lon) — used by adsb today,
-  # expected to be reused by a future weather station module too.
-  "defiant/location.age".publicKeys = [defiant offlineAdmin];
-  "defiant/zwave-secrets.age".publicKeys = [defiant offlineAdmin];
+  # expected to be reused by a future weather station module too. Also not
+  # host- or radio-specific, so reliant reuses this rather than a new one.
+  "defiant/location.age".publicKeys = [defiant reliant offlineAdmin];
+  # reliant reuses defiant's existing keys below rather than a new one —
+  # matched to the physical Z-Wave controller's own NVM state, not the
+  # host, same reasoning as the Zigbee key above.
+  "defiant/zwave-secrets.age".publicKeys = [defiant reliant offlineAdmin];
   "thomasga/ssh-id-ed25519-excelsior.age".publicKeys = [excelsior offlineAdmin];
   "thomasga/ssh-id-ed25519-reliant.age".publicKeys = [reliant offlineAdmin];
 }
