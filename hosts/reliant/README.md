@@ -1,18 +1,22 @@
 # reliant
 
-This host is replacing `defiant` as the homelab server, in two migration
-phases owned by `homelab-network` and `smart-home` respectively (see
-[docs/homelab-network.md](../../docs/homelab-network.md) and
-[docs/smart-home.md](../../docs/smart-home.md)):
+**Phase 1 (machine provisioning) is confirmed up but not yet merged to
+`master`** — this branch was created from the still-open Phase 1 branch, per
+[docs/provisioning.md § Two Phases](../../docs/provisioning.md#two-phases).
 
-- **Phase 2 (`homelab-network`, done)**: `custom.dns` and `custom.traefik` are
-  enabled here, running in parallel with `defiant`'s own untouched instances
-  — see § Services below.
-- **smart-home's migration (not started)**: Home Assistant, Zigbee, Z-Wave,
-  Matter, MQTT, ADS-B all still run on `defiant` only.
-- **Cutover (not started)**: reassigning the `192.168.20.10` DHCP reservation
-  from `defiant` to `reliant`, and removing the homelab stack from
-  `hosts/defiant/`. Out of scope until both migrations above are done.
+This host is replacing `defiant` as the homelab server. Both halves of the
+migration — `custom.dns`/`custom.traefik` (owned by `homelab-network`, see
+[docs/homelab-network.md](../../docs/homelab-network.md)) and the appliance
+layer: Home Assistant, MQTT, Matter, Zigbee, Z-Wave, ADS-B (owned by
+`smart-home`, see [docs/smart-home.md](../../docs/smart-home.md)) — landed as
+one combined PR, since both target this same new host as a single coordinated
+migration rather than two independent changes. **Nothing here is live yet**:
+the Zigbee and Z-Wave USB radios are still physically plugged into `defiant`,
+several secrets this config depends on aren't created yet (see § Secrets
+below), and this host isn't the DNS/DHCP primary. `defiant` keeps running
+every one of these services untouched until the radios physically move and a
+later cutover step reassigns the `192.168.20.10` DHCP reservation and removes
+the homelab stack from `hosts/defiant/`.
 
 ## Services
 
@@ -26,18 +30,10 @@ design; host-specific facts:
 - `dns2.coppertop.ca` → `excelsior`'s AdGuard Home admin UI, proxied
   cross-host (the same manual router `defiant` also still carries — see
   docs/homelab-network.md § Second DNS Instance (excelsior)).
-- **Outstanding secrets-warden hand-off**: `custom.traefik.acme.environmentFile`
-  points at `/run/agenix/reliant/cloudflare-api-token`, declared in
-  `hosts/reliant/secrets.nix`, but neither the encrypted file
-  (`secrets/reliant/cloudflare-api-token.age`, contents
-  `CF_DNS_API_TOKEN=<Cloudflare Zone:DNS:Edit token>`) nor its recipient
-  entry in `secrets/secrets.nix` (`reliant` + `offlineAdmin`) exist yet.
-  Activation will fail until both are created — see
-  [docs/secrets.md § Creating Or Rotating a Secret](../../docs/secrets.md#creating-or-rotating-a-secret).
-- Not yet done, and blocking a real deploy of this PR's config: pinning this
-  host's Traefik cert issuance requires the secret above; until then
-  `nixos-rebuild switch` for this host's `custom.traefik` will fail at
-  activation (ACME can't authenticate to Cloudflare).
+- `custom.traefik.acme.environmentFile` points at
+  `/run/agenix/defiant/cloudflare-api-token` — **reused** from `defiant`'s
+  existing secret (it's just an API credential, not tied to either host's
+  identity), not a new one. See § Secrets below for what's still pending.
 
 Provisioning steps are the generic `disko` flow in
 [docs/provisioning.md § Provision Types](../../docs/provisioning.md#provision-types)
@@ -47,12 +43,13 @@ onward (same as `enterprise-d`/`excelsior`).
 
 | File | Purpose |
 | --- | --- |
-| `configuration.nix` | Boot, hardware, networking, `custom.users`, `custom.backups`, and (since Phase 2) `custom.dns`/`custom.traefik` |
+| `configuration.nix` | Boot, hardware, networking, `custom.users`, `custom.backups`, and (Phase 2) `custom.dns`/`custom.traefik`/`custom.home-assistant`/`mqtt`/`matter`/`zigbee`/`zwave`/`adsb`, all migrated from `defiant` |
 | `hardware.nix` | systemd-boot, EFI, Intel microcode, generic firmware (template, not a hardware scan — see Hardware And Access below) |
 | `power.nix` | Explicit no-hibernate/no-suspend statement for this always-on headless host |
 | `disko.nix` | GPT layout: ESP, swap, plain ext4 root (no btrfs/snapper — see the comment in the file for why) |
 | `default.nix` | Imports `configuration.nix` only — no home-manager user attached yet |
-| `secrets.nix` | `age.secrets` declarations for this host (near-empty until Step 2 enrollment) |
+| `secrets.nix` | `age.secrets` declarations for this host, including the Phase 2 smart-home entries — see § Secrets below |
+| `home-assistant/` | Declarative HA automations, one file per concern — a copy of `hosts/defiant/home-assistant/` |
 | `provision-type` | `disko` |
 
 ## Hardware And Access
@@ -78,10 +75,15 @@ onward (same as `enterprise-d`/`excelsior`).
   with `defiant` until the eventual cutover step). Consumed by
   `custom.dns.lanIp` — see § Services above.
 - Headless. `profiles/desktop` is deliberately **not** imported — there is no
-  display server. `profiles/dev` is also not imported — smart-home's own
-  migration will decide whether it's needed once the appliance service set
-  (still on `defiant`)
-  is known.
+  display server. `profiles/dev` is also not imported — the appliance
+  service set migrated in this PR (Home Assistant, Zigbee2MQTT, Z-Wave JS,
+  etc.) doesn't need it.
+- Zigbee coordinator (`/dev/ttyUSB0`, vendor ID `0658`) and Z-Wave controller
+  (`/dev/ttyACM0`, vendor ID `10c4`) are passed through by the same
+  `udev.extraRules` entry `defiant` uses, into the `dialout` group;
+  `thomasga` is in that group here too. **Not yet physically true** — both
+  dongles are still plugged into `defiant`; this rule is only ready for when
+  they're moved.
 - SSH key only: `PasswordAuthentication`, `KbdInteractiveAuthentication`, and
   `PermitRootLogin` are all off.
 - `security.sudo.wheelNeedsPassword = false`, same reasoning as `defiant` and
@@ -121,11 +123,50 @@ onward (same as `enterprise-d`/`excelsior`).
 
 `custom.backups` is enabled, matching `enterprise-d`'s precedent (not
 `excelsior`'s — that host lacking backups is an existing gap, not a pattern
-to copy). Reuses `enterprise-d`'s job-keyed `thomasga` restic-password and
-NAS-SMB-credentials secrets: both are keyed to the backup job name, not the
-machine, and the restic repo path already includes the hostname, so sharing
-these secrets across hosts doesn't collide their backup data — see
+to copy). The `thomasga` (home directory) job reuses `enterprise-d`'s
+job-keyed `thomasga` restic-password and NAS-SMB-credentials secrets: both
+are keyed to the backup job name, not the machine, and the restic repo path
+already includes the hostname, so sharing these secrets across hosts doesn't
+collide their backup data — see
 [docs/secrets.md § Secret Inventory](../../docs/secrets.md#secret-inventory).
+
+Phase 2 adds three more entries — `hass`, `zigbee2mqtt`, `zwave-js` — mirroring
+`defiant`'s own backup jobs for the same services. Unlike `thomasga`'s job-keyed
+sharing above, these each get their **own new** `restic-password` secret,
+deliberately not shared with `defiant`'s: this is a separate, freshly
+initialized restic repository per job once the appliance services actually run
+here, not a continuation of `defiant`'s live backups. See
+[docs/smart-home.md § Migration: defiant → reliant](../../docs/smart-home.md#migration-defiant--reliant).
+
+## Secrets
+
+`hosts/reliant/secrets.nix` declares, beyond the Phase 1 SSH/NAS entries, five
+secrets — **all of them reused from `defiant`'s existing `.age` files**, none
+newly created:
+
+- `defiant/cloudflare-api-token` — just an API credential, not tied to either
+  host's identity.
+- `defiant/zigbee-network-key` — matched to the physical coordinator's own
+  NVRAM, not the host; reusing it is what lets already-paired Zigbee devices
+  keep working without a re-pair once the coordinator moves.
+- `defiant/location` — home-address coordinates, not host- or
+  radio-specific.
+- `defiant/zwave-secrets` — matched to the physical controller's own NVM,
+  same reasoning as the Zigbee key: reusing it avoids forcing an unnecessary
+  re-pair of every Z-Wave device once the controller moves.
+- `hass/restic-password`, `zigbee2mqtt/restic-password`,
+  `zwave-js/restic-password` — restic-password secrets are job-keyed, not
+  machine-keyed (docs/secrets.md § Secret Inventory), and the restic repo
+  path already includes the hostname, so sharing the password doesn't
+  collide the two hosts' backup data — same pattern as `thomasga`'s job
+  above.
+
+`reliant` isn't yet a recipient of any of these — until `secrets-warden`
+widens the recipient lists in `secrets/secrets.nix` and rekeys,
+`hosts/reliant/configuration.nix` will not evaluate (Nix path literals require
+the referenced file to exist). That is expected at this point in the
+migration, not a bug — see
+[docs/smart-home.md § Migration: defiant → reliant](../../docs/smart-home.md#migration-defiant--reliant).
 
 ## Provisioning
 
@@ -133,14 +174,15 @@ See [docs/provisioning.md](../../docs/provisioning.md) (the generic `disko`
 flow, Steps 1–7) for the full enroll → install → first-boot process.
 Host-specific notes:
 
-- Step 1 (this PR) is done: `hosts/reliant/` is defined and registered in
+- Step 1 (Phase 1 PR) is done: `hosts/reliant/` is defined and registered in
   `flake.nix` as `nixosConfigurations."reliant"`.
 - Step 2 (enrollment) is done: `tools/enroll.py reliant` generated the age
   identity and SSH login key. `hosts/reliant/secrets.nix` was pre-created
-  with an empty `age.secrets` block by this PR, so enroll.py's own
+  with an empty `age.secrets` block by the Phase 1 PR, so enroll.py's own
   auto-wiring was skipped (it only writes that file when it doesn't already
   exist) — the `thomasga/ssh-id-ed25519-reliant` entry was added by hand
-  after the fact.
+  after the fact. This PR's own secrets are a separate, still-pending
+  hand-off — see § Secrets above.
 - The LUKS passphrase prompt in `install.py` is vestigial for this host —
   disko has no LUKS here, the value is unused.
 - The machine has been physically installed and first-booted. The SSH host

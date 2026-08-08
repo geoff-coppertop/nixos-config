@@ -1,8 +1,8 @@
 # Smart Home
 
-The appliance and device layer on `defiant`: Home Assistant, the radio networks
-that feed it (Zigbee, Z-Wave, Matter), MQTT, and the standalone ADS-B receiver.
-The reverse-proxy/DNS backbone these services register into is
+The appliance and device layer: Home Assistant, the radio networks that feed it
+(Zigbee, Z-Wave, Matter), MQTT, and the standalone ADS-B receiver. The
+reverse-proxy/DNS backbone these services register into is
 [docs/homelab-network.md](homelab-network.md), not this doc — but `modules/home-assistant.nix`,
 `modules/zigbee.nix`, and `modules/adsb.nix` each call `mkTraefikRoute`
 themselves to register their own route, the same way `modules/dns.nix` does for
@@ -12,6 +12,54 @@ for the mechanics.
 
 The full option-to-module table is
 [docs/architecture.md § Custom Options § Homelab services](architecture.md#homelab-services).
+
+## Migration: defiant → reliant
+
+This layer is mid-migration from `defiant` (Raspberry Pi 4, being retired) to
+`reliant` (Gigabyte Brix mini PC) — see
+[docs/provisioning.md § Two Phases](provisioning.md#two-phases). As of this
+writing:
+
+- `hosts/defiant/configuration.nix` still runs every service in this doc
+  unchanged, and stays that way until the physical radios move. **Do not**
+  treat `reliant`'s config as live; it is not proxied, not backed by working
+  secrets yet, and both radios are still physically plugged into `defiant`.
+- `hosts/reliant/configuration.nix` carries the identical `custom.home-assistant`,
+  `custom.mqtt`, `custom.matter`, `custom.zigbee`, `custom.zwave`, and
+  `custom.adsb` blocks (same `extraComponents`, same `port = 3001` override,
+  same udev rules), so it activates correctly the moment the Zigbee (`/dev/ttyUSB0`,
+  vendor `0658`) and Z-Wave (`/dev/ttyACM0`, vendor `10c4`) USB dongles are
+  physically moved from `defiant` to `reliant` and `thomasga`'s `dialout`
+  group membership carries over.
+- `hosts/reliant/home-assistant/` is a byte-for-byte copy of
+  `hosts/defiant/home-assistant/` (comments updated to reference `reliant`) —
+  the same Home Assistant instance is expected to move via backup restore, not
+  be rebuilt from scratch, so the entity IDs these automations reference should
+  still be correct. Re-verify them against the running instance after the
+  first activation on `reliant` regardless (see
+  [Verify entity IDs](#declarative-automations) below) — a restore can still
+  reassign an entity ID if a device is re-paired instead of migrated cleanly.
+- The Zigbee network key (`custom.zigbee.networkKeyFile`), the Z-Wave
+  `securityKeys` (`custom.zwave.secretsConfigFile`), and the ADS-B receiver
+  location (`custom.adsb.locationEnvFile`) are all **reused** from
+  `defiant`'s existing secrets, not regenerated — each is a secrets-warden
+  addition of `reliant` as a recipient of the *same* `.age` file, not new
+  secret content. Both radio keys must not change: the physical
+  coordinator/controller's own NVRAM/NVM already holds each network's key,
+  and a mismatched key here would either make `zigbee2mqtt` treat it as a
+  new, wrong network, or force an unnecessary re-pair of every Z-Wave
+  device, rather than the devices just working after the move.
+- The three new backup jobs' `restic-password` secrets (`hass`,
+  `zigbee2mqtt`, `zwave-js`) also **reuse** `defiant`'s existing job-keyed
+  secrets, per docs/secrets.md's own statement that these are job-keyed, not
+  machine-keyed — the restic repo path already includes the hostname, so
+  sharing the password doesn't collide the two hosts' backup data.
+- `custom.zwave.port = 3001` carries over to `reliant` too — 3000 collides
+  with AdGuard Home's admin UI, enabled on `reliant` in this same PR.
+- Until secrets-warden widens the recipient lists on these five secrets in
+  `secrets/secrets.nix` and rekeys, `reliant`'s config will not evaluate —
+  Nix path literals require the referenced file to exist on disk. This is
+  expected at this stage of the migration, not a bug.
 
 ## Home Assistant
 

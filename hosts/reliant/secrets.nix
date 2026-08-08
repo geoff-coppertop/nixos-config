@@ -11,15 +11,55 @@ _: {
       owner = "thomasga";
     };
 
-    # Host-scoped, not job-keyed, matching defiant/cloudflare-api-token —
-    # Cloudflare DNS-01 tokens in this repo are per-host, not shared. Not
-    # yet created: secrets/reliant/cloudflare-api-token.age does not exist
-    # and secrets/secrets.nix has no recipient entry for it yet. Both are
-    # secrets-warden's hand-off (see docs/secrets.md § Creating Or Rotating
-    # a Secret); this activation will fail until that lands.
-    "reliant/cloudflare-api-token" = {
-      file = ../../secrets/reliant/cloudflare-api-token.age;
+    # ── Phase 2: shared with defiant's existing secrets ──────────────────
+    # All four of these reuse defiant's existing encrypted files rather than
+    # creating new ones — reliant is added as an extra recipient in
+    # secrets/secrets.nix (secrets-warden hand-off: widen the recipient
+    # list, then `nix run .#secret-rekey`), plaintext content unchanged.
+    # None of these are decryptable by reliant yet — that rekey hasn't run.
+
+    # Cloudflare DNS-01 API token: just an API credential, not tied to
+    # either host's identity — no reason to mint a second one.
+    "defiant/cloudflare-api-token" = {
+      file = ../../secrets/defiant/cloudflare-api-token.age;
       owner = "traefik";
     };
+
+    # Same physical Zigbee coordinator as defiant's, once the dongle moves —
+    # the network key is matched to the coordinator's own NVRAM state, not
+    # the host, so reusing it (rather than generating a new one) is what
+    # lets already-paired Zigbee devices keep working without a re-pair.
+    "defiant/zigbee-network-key" = {
+      file = ../../secrets/defiant/zigbee-network-key.age;
+      owner = "zigbee2mqtt";
+    };
+
+    # Same home-address coordinates as defiant's — not host- or
+    # radio-specific, safe to share outright.
+    "defiant/location".file = ../../secrets/defiant/location.age;
+
+    # Same physical Z-Wave controller as defiant's, once it moves — like the
+    # Zigbee key above, Z-Wave securityKeys are matched to the controller's
+    # own NVM state, not the host. Reusing them (instead of generating fresh
+    # ones) is what avoids forcing an unnecessary re-pair of every Z-Wave
+    # device once the controller relocates.
+    "defiant/zwave-secrets" = {
+      file = ../../secrets/defiant/zwave-secrets.age;
+      owner = "zwave-js";
+    };
+
+    # restic-password secrets are job-keyed, not machine-keyed
+    # (docs/secrets.md § Secret Inventory) — reusing defiant's existing
+    # hass/zigbee2mqtt/zwave-js entries is the same pattern already used for
+    # thomasga's home-dir backup job above. The restic repo path already
+    # includes the hostname, so sharing the password doesn't collide the
+    # two hosts' backup data. Attribute names match custom.backups.users'
+    # entry names exactly, resolving to the module's default passwordFile
+    # path with no override needed in configuration.nix.
+    "hass/restic-password".file = ../../secrets/hass/restic-password.age;
+    "zigbee2mqtt/restic-password".file =
+      ../../secrets/zigbee2mqtt/restic-password.age;
+    "zwave-js/restic-password".file =
+      ../../secrets/zwave-js/restic-password.age;
   };
 }

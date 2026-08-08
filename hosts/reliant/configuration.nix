@@ -1,8 +1,11 @@
-# Phase 2 (homelab-network) is now under way — custom.dns and custom.traefik
-# are enabled below, running in parallel with defiant's own instances (see
-# docs/homelab-network.md). smart-home's appliance layer (Home Assistant,
-# Zigbee, Z-Wave, Matter, MQTT, ADS-B) is still entirely on defiant and is a
-# separate, later PR — see docs/provisioning.md § Two Phases.
+# Phase 2 — bringing reliant's homelab stack online, migrated from defiant:
+# custom.dns, custom.traefik (homelab-network), and custom.home-assistant,
+# custom.mqtt, custom.matter, custom.zigbee, custom.zwave, custom.adsb
+# (smart-home). Combined into a single PR since both halves target this same
+# new host as one coordinated migration — see docs/provisioning.md § Two
+# Phases. defiant keeps running every one of these services untouched; this
+# is not a cutover. reliant is ready to activate its own instances the
+# moment the Zigbee/Z-Wave USB radios are physically relocated to it.
 _: let
   nas = import ../../lib/nas.nix;
   thomasga = import ../../users/thomasga/account.nix;
@@ -18,23 +21,105 @@ in {
     ./hardware.nix
     ./power.nix
     ./disko.nix
+    ./home-assistant
 
     ../../profiles/common
     # NOT: profiles/desktop — no display server
-    # NOT: profiles/dev — no devcontainer tooling; Phase 2 decides whether
-    # this host needs it once its actual service set (migrated from
-    # defiant) is known
+    # NOT: profiles/dev — no devcontainer tooling; the appliance service set
+    # brought over in Phase 2 (Home Assistant, Zigbee2MQTT, Z-Wave JS, etc.)
+    # doesn't need it — revisit if a future addition does.
 
     ../../modules
   ];
+
+  # ── Homelab services ──────────────────────────────────────────────────────
+  services = {
+    # Pass-through USB serial devices for Z-Wave and Zigbee dongles — carried
+    # over verbatim from hosts/defiant/configuration.nix ahead of the radios'
+    # physical move. Same vendor IDs, same dialout-group target;
+    # thomasga is added to "dialout" below to match.
+    udev.extraRules = ''
+      SUBSYSTEM=="tty", ATTRS{idVendor}=="0658", MODE="0660", GROUP="dialout"
+      SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", MODE="0660", GROUP="dialout"
+    '';
+  };
 
   custom = {
     users.thomasga =
       thomasga
       // {
-        groups = ["wheel"];
+        groups = ["wheel" "dialout"];
         avatar = null;
       };
+
+    home-assistant = {
+      enable = true;
+      # Mirrors hosts/defiant/configuration.nix's extraComponents exactly —
+      # see hosts/defiant/README.md § Known Gotchas and
+      # docs/smart-home.md § Choosing extraComponents for why each of these
+      # is here (mqtt and zwave_js in particular caused real outages on
+      # defiant when missing).
+      extraComponents = [
+        "homekit_controller"
+        "matter"
+        "ssdp"
+        "zwave_js"
+        "mqtt"
+        "conversation"
+        "tts"
+        "google_translate"
+        "met"
+        "camera"
+        "image_processing"
+        "assist_pipeline"
+        "ai_task"
+        "assist_satellite"
+        "ffmpeg"
+      ];
+    };
+
+    mqtt.enable = true;
+
+    matter.enable = true;
+
+    zigbee = {
+      enable = true;
+      # Same physical coordinator as defiant, once moved — confirm with
+      # `ls /dev/tty{ACM,USB}*` on this host after the radio is plugged in.
+      serialPort = "/dev/ttyUSB0";
+      # Same network key content as defiant's — the physical Zigbee
+      # coordinator carries its own network state in its NVRAM, so reusing
+      # the identical key (rather than generating a new one) is what lets
+      # already-paired Zigbee devices keep working without a re-pair. See
+      # the PR description for the secrets-warden action this depends on
+      # (adding reliant as a recipient of the existing
+      # secrets/defiant/zigbee-network-key.age, not creating a new one).
+      networkKeyFile = "/run/agenix/defiant/zigbee-network-key";
+    };
+
+    zwave = {
+      enable = true;
+      # Confirm after the controller is physically moved and plugged in:
+      # ls /dev/tty{ACM,USB}*
+      serialPort = "/dev/ttyACM0";
+      # Same as the Zigbee key above: matched to the physical controller's
+      # own NVM state, not the host, so reusing defiant's existing keys
+      # (rather than generating new ones) avoids forcing an unnecessary
+      # re-pair of every Z-Wave device once the controller moves.
+      secretsConfigFile = "/run/agenix/defiant/zwave-secrets";
+      # 3000 (the module default) collides with AdGuard Home's admin UI,
+      # enabled above — same collision documented for defiant in
+      # hosts/defiant/README.md § Known Gotchas.
+      port = 3001;
+    };
+
+    adsb = {
+      enable = true;
+      # Same physical home-address coordinates as defiant's — location data
+      # isn't host- or radio-specific, so this reuses the same secret
+      # content (reliant added as a recipient), not a freshly generated one.
+      locationEnvFile = "/run/agenix/defiant/location";
+    };
 
     # Matches enterprise-d's precedent, not excelsior's (excelsior lacking
     # backups is an existing gap there, not the pattern to copy). Reuses
@@ -53,6 +138,31 @@ in {
       };
 
       users.thomasga.enable = true;
+
+      # Three more backup jobs for the appliance state migrated above,
+      # reusing defiant's existing job-keyed restic-password secrets (same
+      # reasoning as the thomasga job's nas-smb-credentials/restic-password
+      # above — job-keyed, not machine-keyed, and the repo path already
+      # includes the hostname). Paths mirror hosts/defiant/configuration.nix's
+      # entries; not yet verified against this host's own /var/lib layout
+      # since the services aren't active here yet — confirm with `ls` once
+      # this PR activates, same as defiant's own paths were confirmed after
+      # its first boot.
+      users.hass = {
+        enable = true;
+        paths = ["/var/lib/hass"];
+        excludePatterns = ["/var/lib/hass/.storage/lovelace*" "/var/lib/hass/home-assistant_v2.db"];
+      };
+      users.zigbee2mqtt = {
+        enable = true;
+        paths = ["/var/lib/zigbee2mqtt"];
+        excludePatterns = [];
+      };
+      users.zwave-js = {
+        enable = true;
+        paths = ["/var/lib/zwave-js"];
+        excludePatterns = [];
+      };
     };
 
     dns = {
@@ -65,14 +175,13 @@ in {
       # queries on port 5335 from any of them. See
       # docs/homelab-network.md and hosts/defiant/README.md § Known Gotchas.
       lanSubnet = "192.168.0.0/16";
-      # Only the subdomains this host's own Traefik instance actually backs
-      # right now: its own AdGuard admin UI (dns1) and the cross-host router
-      # to excelsior's AdGuard UI (dns2, defined by hand below). defiant's
-      # home-assistant/adsb/zigbee subdomains stay off this list until
-      # smart-home's own migration PR brings those service modules here —
-      # adding them earlier would create A records with nothing behind them
-      # on this host.
-      subdomains = ["dns1" "dns2"];
+      # Matches defiant's full subdomain list: home-assistant, adsb, and
+      # zigbee (Zigbee2MQTT) all self-register their own Traefik routes when
+      # their custom.* modules are enabled (see modules/home-assistant.nix,
+      # modules/adsb.nix, modules/zigbee.nix), which they now are, above.
+      # dns1 is this host's own AdGuard admin UI; dns2 is the cross-host
+      # router to excelsior's, defined by hand below.
+      subdomains = ["home" "dns1" "dns2" "adsb" "zigbee"];
       # Renamed from the module default "dns", carried from defiant — dns1
       # (this host) and dns2 (excelsior) pair the two AdGuard instances.
       adminSubdomain = "dns1";
@@ -83,12 +192,10 @@ in {
       acme = {
         email = "geoff.coppertop@gmail.com";
         dnsProvider = "cloudflare";
-        # New host-scoped secret, distinct from defiant/cloudflare-api-token
-        # — Cloudflare tokens in this repo are host-scoped, not job-keyed
-        # (see docs/secrets.md § Secret Inventory), so reliant gets its own
-        # rather than reusing defiant's. Not yet created — see
-        # hosts/reliant/secrets.nix.
-        environmentFile = "/run/agenix/reliant/cloudflare-api-token";
+        # Reused from defiant's existing secret — just an API credential,
+        # not tied to either host's identity, so no reason to mint a
+        # second one. See hosts/reliant/secrets.nix.
+        environmentFile = "/run/agenix/defiant/cloudflare-api-token";
         domain = "coppertop.ca";
       };
     };
@@ -132,7 +239,7 @@ in {
   # ── Networking ────────────────────────────────────────────────────────────
   # Reserved LAN IP: 192.168.20.15, set as a DHCP reservation in Unifi —
   # distinct from defiant's own reservation (192.168.20.10, staying with
-  # defiant until the Phase 2 cutover). Consumed by custom.dns.lanIp above
+  # defiant until the final cutover). Consumed by custom.dns.lanIp above
   # (via the `lanIp` let-binding) now that Phase 2 has wired the homelab
   # stack over.
   networking.hostName = "reliant";

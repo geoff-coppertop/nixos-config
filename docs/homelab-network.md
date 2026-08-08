@@ -14,30 +14,32 @@ Brix x86_64 mini PC, `192.168.20.15`), per `docs/provisioning.md` § Two
 Phases. This is a two-step move:
 
 - **Phase 2 (done, this doc's current state)**: `reliant` runs its own,
-  fully parallel `custom.dns` + `custom.traefik` instance on its own LAN IP.
-  `defiant`'s instances keep running untouched — nothing was removed from
-  `hosts/defiant/configuration.nix`. The two hosts do not share state or
-  config; they're independent stacks that happen to be configured the same
-  way, the same relationship `excelsior`'s dns2 instance already has to
-  `defiant`.
+  fully parallel `custom.dns` + `custom.traefik` instance on its own LAN IP,
+  landed in the same PR as `smart-home`'s appliance-layer migration (both
+  target this one host as a single coordinated migration, not two
+  independent changes). `defiant`'s instances keep running untouched —
+  nothing was removed from `hosts/defiant/configuration.nix`. The two hosts
+  do not share state; they're independent stacks that happen to be
+  configured the same way, the same relationship `excelsior`'s dns2 instance
+  already has to `defiant`.
 - **Cutover (not yet done)**: reassign the `192.168.20.10` DHCP reservation
   from `defiant` to `reliant`, then remove `custom.dns`/`custom.traefik` (and
   the rest of the homelab/smart-home stack) from `hosts/defiant/`. Out of
   scope for this change; tracked separately.
 
-Until cutover, `reliant`'s `custom.dns.subdomains` only lists what its own
-Traefik instance actually backs (`dns1`, the manual `dns2` cross-host route)
-— it does not carry `defiant`'s `home`/`adsb`/`zigbee` entries, since those
-service modules aren't enabled on `reliant` yet (that's `smart-home`'s
-migration, still to come). Both hosts' `custom.dns.adminSubdomain = "dns1"`
+`reliant`'s `custom.dns.subdomains` carries `defiant`'s full list —
+`home`/`adsb`/`zigbee` included, not just `dns1`/`dns2` — since the
+appliance service modules backing those three are enabled in the same PR
+(see docs/smart-home.md). Both hosts' `custom.dns.adminSubdomain = "dns1"`
 and `custom.dns.lanSubnet = "192.168.0.0/16"` overrides (see below) are
 carried identically.
 
-`reliant`'s ACME/DNS-01 credential is a **new**, host-scoped secret
-(`reliant/cloudflare-api-token`, distinct from `defiant/cloudflare-api-token`
-— see `docs/secrets.md` § Secret Inventory) — not yet created. See
-`hosts/reliant/secrets.nix` and `hosts/reliant/README.md` § Services for the
-outstanding secrets-warden hand-off.
+`reliant`'s ACME/DNS-01 credential **reuses** `defiant`'s existing
+`defiant/cloudflare-api-token` secret rather than a new one — it's just an
+API credential, not tied to either host's identity. `reliant` isn't yet a
+recipient of it. See `hosts/reliant/secrets.nix` and
+`hosts/reliant/README.md` § Services for the outstanding secrets-warden
+hand-off (widen the recipient list and rekey).
 
 The full option-to-module table is
 [docs/architecture.md § Custom Options § Homelab services](architecture.md#homelab-services) —
