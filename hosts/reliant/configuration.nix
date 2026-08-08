@@ -137,31 +137,32 @@ in {
         share = nas.shares.backups;
       };
 
-      users.thomasga.enable = true;
-
       # Three more backup jobs for the appliance state migrated above,
       # reusing defiant's existing job-keyed restic-password secrets (same
       # reasoning as the thomasga job's nas-smb-credentials/restic-password
-      # above — job-keyed, not machine-keyed, and the repo path already
+      # below — job-keyed, not machine-keyed, and the repo path already
       # includes the hostname). Paths mirror hosts/defiant/configuration.nix's
       # entries; not yet verified against this host's own /var/lib layout
       # since the services aren't active here yet — confirm with `ls` once
       # this PR activates, same as defiant's own paths were confirmed after
       # its first boot.
-      users.hass = {
-        enable = true;
-        paths = ["/var/lib/hass"];
-        excludePatterns = ["/var/lib/hass/.storage/lovelace*" "/var/lib/hass/home-assistant_v2.db"];
-      };
-      users.zigbee2mqtt = {
-        enable = true;
-        paths = ["/var/lib/zigbee2mqtt"];
-        excludePatterns = [];
-      };
-      users.zwave-js = {
-        enable = true;
-        paths = ["/var/lib/zwave-js"];
-        excludePatterns = [];
+      users = {
+        thomasga.enable = true;
+        hass = {
+          enable = true;
+          paths = ["/var/lib/hass"];
+          excludePatterns = ["/var/lib/hass/.storage/lovelace*" "/var/lib/hass/home-assistant_v2.db"];
+        };
+        zigbee2mqtt = {
+          enable = true;
+          paths = ["/var/lib/zigbee2mqtt"];
+          excludePatterns = [];
+        };
+        zwave-js = {
+          enable = true;
+          paths = ["/var/lib/zwave-js"];
+          excludePatterns = [];
+        };
       };
     };
 
