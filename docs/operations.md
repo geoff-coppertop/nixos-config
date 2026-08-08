@@ -238,8 +238,13 @@ there is no host-to-path map that can go stale. It fails safe: if the base
 commit is unreachable (new branch, force-push, shallow history) or an eval
 errors out, the host is built anyway.
 
-The build job runs `enterprise-d`, `holodeck-01`, and `excelsior` on
+The build job runs `enterprise-d`, `holodeck-01`, `excelsior`, and `reliant` on
 `ubuntu-latest` and `defiant` on `ubuntu-24.04-arm`, freeing disk space first.
+
+The host list the script iterates is the `HOSTS` constant in
+`tools/ci_changed_hosts.py`. It is the one hand-maintained list left, and it is
+not derived from `flake.nix` — **a new host must be added there or CI will
+never build it**, silently and without failing.
 
 ### Pull request template
 
