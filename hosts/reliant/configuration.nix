@@ -258,6 +258,13 @@ in {
   # stack over.
   networking.hostName = "reliant";
 
+  # Confirmed live: this host's own custom.backups.nas mount fails without
+  # it ("mount error: could not resolve address for unas-pro: Unknown
+  # error") — the NAS hostname isn't mDNS-resolvable here, it's a static
+  # /etc/hosts alias every host with a NAS mount needs, matching
+  # hosts/defiant/configuration.nix and hosts/enterprise-d/configuration.nix.
+  networking.hosts.${nas.ip} = [nas.host];
+
   # Per-host override of the shared default (10, profiles/common/base.nix) —
   # the 120GB mSATA disk has far less headroom than enterprise-d/excelsior's
   # NVMe/SSDs, and defiant's SD card already showed what an unbounded (or
