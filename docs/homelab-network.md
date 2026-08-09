@@ -22,10 +22,17 @@ Phases. This is a two-step move:
   do not share state; they're independent stacks that happen to be
   configured the same way, the same relationship `excelsior`'s dns2 instance
   already has to `defiant`.
-- **Cutover (not yet done)**: reassign the `192.168.20.10` DHCP reservation
-  from `defiant` to `reliant`, then remove `custom.dns`/`custom.traefik` (and
-  the rest of the homelab/smart-home stack) from `hosts/defiant/`. Out of
-  scope for this change; tracked separately.
+- **Cutover (done, live)**: the LAN's DHCP-advertised DNS server was
+  repointed at `reliant`'s own IP (`192.168.20.15`) directly in Unifi —
+  **not** by reassigning the `192.168.20.10` reservation, the mechanism
+  originally sketched here. `defiant` keeps its `192.168.20.10` reservation
+  and keeps running its own DNS/Traefik/appliance stack untouched; clients
+  now just aren't told to use it. `192.168.20.15` is `reliant`'s permanent
+  LAN IP, not a placeholder pending reassignment — nothing else needs to
+  change for cutover to be complete from the network's point of view.
+  Removing `custom.dns`/`custom.traefik` (and the rest of the
+  homelab/smart-home stack) from `hosts/defiant/` and retiring the Pi is
+  still a separate, later step; tracked separately.
 
 `reliant`'s `custom.dns.subdomains` carries `defiant`'s full list —
 `home`/`adsb`/`zigbee` included, not just `dns1`/`dns2` — since the
@@ -36,10 +43,10 @@ carried identically.
 
 `reliant`'s ACME/DNS-01 credential **reuses** the existing
 `traefik/cloudflare-api-token` secret rather than a new one — it's just an
-API credential, not tied to either host's identity. `reliant` isn't yet a
-recipient of it. See `hosts/reliant/secrets.nix` and
-`hosts/reliant/README.md` § Services for the outstanding secrets-warden
-hand-off (widen the recipient list and rekey).
+API credential, not tied to either host's identity. Confirmed live: cert
+issuance for both `dns1.coppertop.ca` and `zigbee.coppertop.ca` succeeded
+(real Let's Encrypt `*.coppertop.ca` wildcard cert, valid chain) once
+`reliant` was rekeyed as a recipient.
 
 The full option-to-module table is
 [docs/architecture.md § Custom Options § Homelab services](architecture.md#homelab-services) —

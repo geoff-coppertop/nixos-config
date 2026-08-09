@@ -1,30 +1,42 @@
 # reliant
 
-**Phase 1 (machine provisioning) is confirmed up but not yet merged to
-`master`** — this branch was created from the still-open Phase 1 branch, per
-[docs/provisioning.md § Two Phases](../../docs/provisioning.md#two-phases).
-
-This host is replacing `defiant` as the homelab server. Both halves of the
+This host replaces `defiant` as the homelab server. Both halves of the
 migration — `custom.dns`/`custom.traefik` (owned by `homelab-network`, see
 [docs/homelab-network.md](../../docs/homelab-network.md)) and the appliance
 layer: Home Assistant, MQTT, Matter, Zigbee, Z-Wave, ADS-B (owned by
 `smart-home`, see [docs/smart-home.md](../../docs/smart-home.md)) — landed as
 one combined PR, since both target this same new host as a single coordinated
-migration rather than two independent changes. **Nothing here is live yet**:
-the Zigbee and Z-Wave USB radios are still physically plugged into `defiant`,
-several secrets this config depends on aren't created yet (see § Secrets
-below), and this host isn't the DNS/DHCP primary. `defiant` keeps running
-every one of these services untouched until the radios physically move and a
-later cutover step reassigns the `192.168.20.10` DHCP reservation and removes
-the homelab stack from `hosts/defiant/`.
+migration rather than two independent changes.
+
+**Live and confirmed working**: the Zigbee and Z-Wave USB radios are
+physically moved here and paired devices respond (Zigbee network key and
+Z-Wave `securityKeys` reuse worked as intended, no re-pair needed); the ADS-B
+receiver is reading real traffic; all four backup jobs run clean; Home
+Assistant's config was restored from `defiant`'s restic snapshot and is
+controlling real devices; `dns1.coppertop.ca`/`zigbee.coppertop.ca` resolve
+and serve valid `*.coppertop.ca` certs through this host's own Traefik. The
+LAN's DHCP-advertised DNS server has been repointed at this host's own IP
+(`192.168.20.15`) in Unifi — `reliant` is the live DNS primary, done by
+repointing DHCP rather than reassigning `defiant`'s `192.168.20.10`
+reservation (see
+[docs/homelab-network.md § Migration: defiant → reliant](../../docs/homelab-network.md#migration-defiant--reliant)).
+`defiant` keeps running every one of these services untouched in parallel;
+removing the homelab stack from `hosts/defiant/` and retiring the Pi is a
+separate, later step.
+
+**Still open**: AdGuard's filter/allow/deny-list configuration wasn't part
+of the Home Assistant restore and hasn't been migrated — `reliant`'s AdGuard
+is a fresh instance; Matter server is blocked on upstream PR #112 (a
+`modules/matter.nix` bug affecting both hosts, not `reliant`-specific);
+Z-Wave device-level control (beyond the driver being healthy) not yet
+spot-checked.
 
 ## Services
 
 `custom.dns` (unbound + AdGuard Home) and `custom.traefik` run on this host's
-own reserved LAN IP, `192.168.20.15` — a fully separate, parallel stack from
-`defiant`'s, not yet the DNS/DHCP primary (that's the cutover step above).
-See [docs/homelab-network.md](../../docs/homelab-network.md) for the full
-design; host-specific facts:
+own reserved LAN IP, `192.168.20.15` — now the LAN's actual DNS primary (see
+above). See [docs/homelab-network.md](../../docs/homelab-network.md) for the
+full design; host-specific facts:
 
 - `dns1.coppertop.ca` → this host's own AdGuard Home admin UI.
 - `dns2.coppertop.ca` → `excelsior`'s AdGuard Home admin UI, proxied
@@ -33,7 +45,7 @@ design; host-specific facts:
 - `custom.traefik.acme.environmentFile` points at
   `/run/agenix/traefik/cloudflare-api-token` — **reused** from `defiant`'s
   existing secret (it's just an API credential, not tied to either host's
-  identity), not a new one. See § Secrets below for what's still pending.
+  identity), not a new one. Confirmed live: cert issuance succeeded.
 
 Provisioning steps are the generic `disko` flow in
 [docs/provisioning.md § Provision Types](../../docs/provisioning.md#provision-types)
@@ -72,8 +84,9 @@ onward (same as `enterprise-d`/`excelsior`).
   omits.
 - Reserved LAN IP `192.168.20.15`, set as a DHCP reservation in Unifi —
   distinct from `defiant`'s own reservation (`192.168.20.10`, which stays
-  with `defiant` until the eventual cutover step). Consumed by
-  `custom.dns.lanIp` — see § Services above.
+  with `defiant` — cutover repointed Unifi's DHCP-advertised DNS server at
+  this IP directly rather than reassigning `defiant`'s reservation).
+  Consumed by `custom.dns.lanIp` — see § Services above.
 - Headless. `profiles/desktop` is deliberately **not** imported — there is no
   display server. `profiles/dev` is also not imported — the appliance
   service set migrated in this PR (Home Assistant, Zigbee2MQTT, Z-Wave JS,
@@ -81,19 +94,16 @@ onward (same as `enterprise-d`/`excelsior`).
 - Zigbee coordinator (`/dev/ttyUSB0`, vendor ID `0658`) and Z-Wave controller
   (`/dev/ttyACM0`, vendor ID `10c4`) are passed through by the same
   `udev.extraRules` entry `defiant` uses, into the `dialout` group;
-  `thomasga` is in that group here too. **Not yet physically true** — both
-  dongles are still plugged into `defiant`; this rule is only ready for when
-  they're moved.
+  `thomasga` is in that group here too. Confirmed live: both dongles are
+  physically moved here and paired devices respond without a re-pair.
 - SSH key only: `PasswordAuthentication`, `KbdInteractiveAuthentication`, and
   `PermitRootLogin` are all off.
 - `security.sudo.wheelNeedsPassword = false`, same reasoning as `defiant` and
   `excelsior`: the authorized-key check is the real access gate, and a sudo
   password on top of it only blocks unattended `nixos-rebuild --target-host`
   deploys.
-- `reliant` alone isn't resolvable via the LAN's primary DNS until the
-  cutover step reassigns the `192.168.20.10` reservation to it — `reliant`
-  now runs its own resolver (§ Services above), but clients aren't pointed at
-  it yet. Use the mDNS `.local` name until then:
+- The bare `reliant` hostname isn't resolvable — use the mDNS `.local` name
+  for deploys regardless of DNS cutover status:
 
   ```bash
   nixos-rebuild switch --flake .#reliant --target-host thomasga@reliant.local --sudo
@@ -165,12 +175,9 @@ tied to, not for `defiant` (see
   collide the two hosts' backup data — same pattern as `thomasga`'s job
   above.
 
-`reliant` isn't yet a recipient of any of these — until `secrets-warden`
-widens the recipient lists in `secrets/secrets.nix` and rekeys,
-`hosts/reliant/configuration.nix` will not evaluate (Nix path literals require
-the referenced file to exist). That is expected at this point in the
-migration, not a bug — see
-[docs/smart-home.md § Migration: defiant → reliant](../../docs/smart-home.md#migration-defiant--reliant).
+`reliant` is now a rekeyed recipient of all five — confirmed live: the config
+evaluates, all four appliance services (DNS/Traefik, Home Assistant,
+Zigbee2MQTT, Z-Wave JS) and ADS-B are up and using them successfully.
 
 ## Provisioning
 
@@ -185,8 +192,8 @@ Host-specific notes:
   with an empty `age.secrets` block by the Phase 1 PR, so enroll.py's own
   auto-wiring was skipped (it only writes that file when it doesn't already
   exist) — the `thomasga/ssh-id-ed25519-reliant` entry was added by hand
-  after the fact. This PR's own secrets are a separate, still-pending
-  hand-off — see § Secrets above.
+  after the fact. This PR's own secrets were a separate hand-off, now done
+  — see § Secrets above.
 - The LUKS passphrase prompt in `install.py` is vestigial for this host —
   disko has no LUKS here, the value is unused.
 - The machine has been physically installed and first-booted. The SSH host

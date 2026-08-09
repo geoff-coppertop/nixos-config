@@ -15,51 +15,59 @@ The full option-to-module table is
 
 ## Migration: defiant → reliant
 
-This layer is mid-migration from `defiant` (Raspberry Pi 4, being retired) to
+This layer has migrated from `defiant` (Raspberry Pi 4, being retired) to
 `reliant` (Gigabyte Brix mini PC) — see
-[docs/provisioning.md § Two Phases](provisioning.md#two-phases). As of this
-writing:
+[docs/provisioning.md § Two Phases](provisioning.md#two-phases). Confirmed
+live:
 
-- `hosts/defiant/configuration.nix` still runs every service in this doc
-  unchanged, and stays that way until the physical radios move. **Do not**
-  treat `reliant`'s config as live; it is not proxied, not backed by working
-  secrets yet, and both radios are still physically plugged into `defiant`.
-- `hosts/reliant/configuration.nix` carries the identical `custom.home-assistant`,
-  `custom.mqtt`, `custom.matter`, `custom.zigbee`, `custom.zwave`, and
-  `custom.adsb` blocks (same `extraComponents`, same `port = 3001` override,
-  same udev rules), so it activates correctly the moment the Zigbee (`/dev/ttyUSB0`,
-  vendor `0658`) and Z-Wave (`/dev/ttyACM0`, vendor `10c4`) USB dongles are
-  physically moved from `defiant` to `reliant` and `thomasga`'s `dialout`
-  group membership carries over.
-- `hosts/reliant/home-assistant/` is a byte-for-byte copy of
-  `hosts/defiant/home-assistant/` (comments updated to reference `reliant`) —
-  the same Home Assistant instance is expected to move via backup restore, not
-  be rebuilt from scratch, so the entity IDs these automations reference should
-  still be correct. Re-verify them against the running instance after the
-  first activation on `reliant` regardless (see
-  [Verify entity IDs](#declarative-automations) below) — a restore can still
-  reassign an entity ID if a device is re-paired instead of migrated cleanly.
+- The Zigbee (`/dev/ttyUSB0`, vendor `0658`) and Z-Wave (`/dev/ttyACM0`,
+  vendor `10c4`) USB dongles are physically moved to `reliant`, and paired
+  devices respond without a re-pair — the shared network key/`securityKeys`
+  reuse (below) worked as intended.
+- `hosts/reliant/home-assistant/` (a byte-for-byte copy of
+  `hosts/defiant/home-assistant/`, comments updated to reference `reliant`)
+  is running against `defiant`'s actual restored state (via `restic restore`
+  of the `hass` backup job's latest snapshot, not a fresh instance), so the
+  entity IDs these automations reference carried over correctly — confirmed
+  controlling real devices. Areas/floors (`.storage/core.area_registry`,
+  `.storage/core.floor_registry`) aren't excluded from that backup job either,
+  so they carried over too; only recorder history/statistics and the Lovelace
+  dashboard layout did not (excluded from the `hass` backup job by design).
 - The Zigbee network key (`custom.zigbee.networkKeyFile`), the Z-Wave
   `securityKeys` (`custom.zwave.secretsConfigFile`), and the ADS-B receiver
   location (`custom.adsb.locationEnvFile`) are all **reused** from
-  `defiant`'s existing secrets, not regenerated — each is a secrets-warden
-  addition of `reliant` as a recipient of the *same* `.age` file, not new
-  secret content. Both radio keys must not change: the physical
-  coordinator/controller's own NVRAM/NVM already holds each network's key,
-  and a mismatched key here would either make `zigbee2mqtt` treat it as a
-  new, wrong network, or force an unnecessary re-pair of every Z-Wave
-  device, rather than the devices just working after the move.
-- The three new backup jobs' `restic-password` secrets (`hass`,
+  `defiant`'s existing secrets, not regenerated — `reliant` is a rekeyed
+  recipient of the *same* `.age` files, not new secret content. This is what
+  let the radios keep working without a re-pair: the physical
+  coordinator/controller's own NVRAM/NVM already held each network's key, and
+  a mismatched key here would have made `zigbee2mqtt` treat it as a new,
+  wrong network, or forced a Z-Wave re-pair.
+- The three appliance backup jobs' `restic-password` secrets (`hass`,
   `zigbee2mqtt`, `zwave-js`) also **reuse** `defiant`'s existing job-keyed
-  secrets, per docs/secrets.md's own statement that these are job-keyed, not
-  machine-keyed — the restic repo path already includes the hostname, so
-  sharing the password doesn't collide the two hosts' backup data.
+  secrets and are confirmed running clean.
 - `custom.zwave.port = 3001` carries over to `reliant` too — 3000 collides
-  with AdGuard Home's admin UI, enabled on `reliant` in this same PR.
-- Until secrets-warden widens the recipient lists on these five secrets in
-  `secrets/secrets.nix` and rekeys, `reliant`'s config will not evaluate —
-  Nix path literals require the referenced file to exist on disk. This is
-  expected at this stage of the migration, not a bug.
+  with AdGuard Home's admin UI, also enabled on `reliant`.
+- **`custom.backups.users.zwave-js.paths` is `/var/cache/zwave-js`, not
+  `/var/lib/zwave-js`** — confirmed live that the latter never gets created
+  on either host (`modules/zwave.nix` only seeds it via a tmpfiles rule that
+  fires solely when `secretsConfigFile` is still the module's own default
+  placeholder; both hosts override it to an agenix path, so that rule never
+  runs). The real network cache (device values/metadata, keyed by home ID)
+  lives at `/var/cache/zwave-js` via systemd's `CacheDirectory=`, itself a
+  symlink to `private/zwave-js` — same shape as `defiant`'s existing
+  `/var/lib/AdGuardHome` symlink gotcha. `defiant`'s own `zwave-js` backup
+  job has the identical bug and has likely been backing up nothing this
+  whole time; not yet fixed there.
+- The LAN's DHCP-advertised DNS server has been repointed at `reliant`
+  directly (see
+  [docs/homelab-network.md § Migration: defiant → reliant](homelab-network.md#migration-defiant--reliant)),
+  so `reliant` is the live DNS/appliance primary. `defiant` keeps running
+  every one of these services untouched in parallel; removing them from
+  `hosts/defiant/` and retiring the Pi is a separate, later step.
+- Matter server currently doesn't start on `reliant` (or `defiant`) — a
+  shared `modules/matter.nix` bug (upstream `python-matter-server` hangs
+  fetching PAA certs from the DCL), tracked and fixed in PR #112, not
+  specific to this migration.
 
 ## Home Assistant
 
