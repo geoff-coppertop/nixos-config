@@ -241,6 +241,7 @@ design: the text stays in one place and this list exists so the set of active
 workarounds can be found and revisited without re-deriving where they live.
 
 - [`hosts/defiant/README.md` § Known Gotchas](../hosts/defiant/README.md#known-gotchas)
+- [`hosts/reliant/README.md` § Known Gotchas](../hosts/reliant/README.md#known-gotchas)
 - [`hosts/excelsior/README.md` § Known Gotchas](../hosts/excelsior/README.md#known-gotchas)
 - [`hosts/enterprise-d/README.md` § Known Gotchas](../hosts/enterprise-d/README.md#known-gotchas)
 - [`docs/desktop.md` § Known Gotchas](desktop.md#known-gotchas)

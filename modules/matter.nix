@@ -205,8 +205,9 @@ in {
     # UI and commissioning each Matter device with its pairing code — here the
     # Aqara M2 hub, which bridges the U100 locks (and later the office FP1e
     # presence sensor) — are one-time UI steps; enabling the server just
-    # installs the backend HA talks to. Runs on the same host as HA (defiant),
-    # so HA reaches it over localhost.
+    # installs the backend HA talks to. Runs on the same host as HA — today
+    # both `defiant` and `reliant` during their migration, `reliant` alone
+    # once `defiant` retires — so HA always reaches it over localhost.
     services.matter-server.enable = true;
     services.matter-server.package = matterServerPackage;
   };

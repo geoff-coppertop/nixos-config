@@ -64,10 +64,12 @@ live:
   so `reliant` is the live DNS/appliance primary. `defiant` keeps running
   every one of these services untouched in parallel; removing them from
   `hosts/defiant/` and retiring the Pi is a separate, later step.
-- Matter server currently doesn't start on `reliant` (or `defiant`) — a
-  shared `modules/matter.nix` bug (upstream `python-matter-server` hangs
-  fetching PAA certs from the DCL), tracked and fixed in PR #112, not
-  specific to this migration.
+- Matter server didn't start on `reliant` (or `defiant`) — a shared
+  `modules/matter.nix` bug (upstream `python-matter-server` hangs fetching
+  PAA certs from the DCL), not specific to this migration. Fixed; see
+  [§ Matter: pinned PAA root certs, not live DCL
+  fetch](#matter-pinned-paa-root-certs-not-live-dcl-fetch) below and
+  `hosts/reliant/README.md § Known Gotchas`.
 
 ## Home Assistant
 

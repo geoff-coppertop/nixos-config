@@ -123,19 +123,6 @@ looks the way it does. Changing them back reintroduces a real failure.
 - **`ssdp` needs an explicit entry.** It is one of `default_config`'s
   always-loaded discovery integrations, but its dependencies are not part of the
   small nixpkgs `default_config` baseline.
-- **`matter-server` looked "active (running)" while its websocket never
-  opened.** Upstream fetches PAA root certs live from DCL on every
-  `server.start()`; DCL currently serves a certificate that fails strict
-  ASN.1 parsing in `cryptography`, raising an uncaught `ValueError` that the
-  surrounding code doesn't catch (only `ClientError`/`TimeoutError` are).
-  `start()` never finishes, port 5580 never binds, but the process doesn't
-  crash or get restarted — confirmed twice live via `journalctl`, 100%
-  reproducible on every restart. Fixed by pinning static PAA certs into the
-  package build instead of fetching them at runtime — see
-  `modules/matter.nix` and
-  [docs/smart-home.md § Matter](../../docs/smart-home.md#matter-pinned-paa-root-certs-not-live-dcl-fetch).
-  Tracked upstream at
-  [nixpkgs#377136](https://github.com/NixOS/nixpkgs/issues/377136).
 - **The SD card is fixed-size, unlike the systemd-boot hosts' NVMe/SSD.**
   `boot.loader.generic-extlinux-compatible.configurationLimit` had no override
   (module default 20) while old boot generations accumulated unbounded,

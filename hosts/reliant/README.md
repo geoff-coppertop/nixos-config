@@ -26,10 +26,8 @@ separate, later step.
 
 **Still open**: AdGuard's filter/allow/deny-list configuration wasn't part
 of the Home Assistant restore and hasn't been migrated — `reliant`'s AdGuard
-is a fresh instance; Matter server is blocked on upstream PR #112 (a
-`modules/matter.nix` bug affecting both hosts, not `reliant`-specific);
-Z-Wave device-level control (beyond the driver being healthy) not yet
-spot-checked.
+is a fresh instance; Z-Wave device-level control (beyond the driver being
+healthy) not yet spot-checked.
 
 ## Services
 
@@ -128,6 +126,23 @@ onward (same as `enterprise-d`/`excelsior`).
   problem — same motivation as `defiant`'s cap, applied proactively here
   since 120GB is far smaller than `enterprise-d`/`excelsior`'s disks.
   Revisit both once real disk usage after Phase 2 is known.
+
+## Known Gotchas
+
+- **`matter-server` looked "active (running)" while its websocket never
+  opened.** Upstream fetches PAA root certs live from DCL on every
+  `server.start()`; DCL currently serves a certificate that fails strict
+  ASN.1 parsing in `cryptography`, raising an uncaught `ValueError` that the
+  surrounding code doesn't catch (only `ClientError`/`TimeoutError` are).
+  `start()` never finishes, port 5580 never binds, but the process doesn't
+  crash or get restarted — first confirmed on `defiant` (100% reproducible
+  on every restart via `journalctl`), and since `modules/matter.nix` is a
+  plain shared module with no host-specific logic, the same failure applies
+  here. Fixed by pinning static PAA certs into the package build instead of
+  fetching them at runtime — see `modules/matter.nix` and
+  [docs/smart-home.md § Matter](../../docs/smart-home.md#matter-pinned-paa-root-certs-not-live-dcl-fetch).
+  Tracked upstream at
+  [nixpkgs#377136](https://github.com/NixOS/nixpkgs/issues/377136).
 
 ## Backups
 
