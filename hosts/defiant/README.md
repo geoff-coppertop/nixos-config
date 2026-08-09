@@ -29,6 +29,14 @@ The reusable service layer these options configure is documented in
   and `10c4` into the `dialout` group; `thomasga` is in that group here.
 - Headless. `profiles/desktop` is deliberately **not** imported — there is no
   display server.
+- `profiles/dev` is also **not** imported — the SD card is physically maxed
+  out at 29.7G with no unpartitioned headroom, and none of it was actually
+  used here: Connect IQ SDK/JDK (`tools.nix`) is for Garmin watch-app
+  development, and Podman (`containers.nix`) has no consumer on this host
+  (only `excelsior` and `modules/dcs-server.nix` use it anywhere in this
+  repo). The one piece that mattered — `dnsutils`, for debugging unbound
+  directly (see DNS Bypass below) — is now added directly via
+  `environment.systemPackages` in `configuration.nix` instead.
 - SSH key only: `PasswordAuthentication`, `KbdInteractiveAuthentication`, and
   `PermitRootLogin` are all off.
 - `security.sudo.wheelNeedsPassword = false`. The authorized-key check is the
@@ -138,6 +146,25 @@ looks the way it does. Changing them back reintroduces a real failure.
   mid-deploy instead of failing outright. Check `df -h /` before a large
   deploy regardless — see
   [docs/provisioning.md § SD-Card Hosts](../../docs/provisioning.md#sd-card-hosts-defiant).
+- **`profiles/dev` was dropped from `configuration.nix`'s imports**, for the
+  same reason — the SD card has no headroom left, and it pulled in a full JDK
+  plus Podman/podman-compose/Docker compat/slirp4netns that nothing on this
+  host used. `dnsutils` (the one piece genuinely needed, for direct unbound
+  debugging) is added straight to `environment.systemPackages` instead.
+- **HA `extraComponents` was trimmed to `homekit_controller`, `matter`,
+  `ssdp`, `zwave_js`, `mqtt`, `met`** — same reason, and voice assist
+  (`assist_pipeline`/`ai_task`/`assist_satellite`/`conversation`), TTS
+  (`tts`/`google_translate`), and camera/image processing
+  (`camera`/`image_processing`/`ffmpeg`) are all confirmed unused on this
+  host. **Open risk, not yet re-verified live**: `conversation` previously
+  crashed with `ModuleNotFoundError: No module named 'hassil'`, and
+  `default_config`'s setup aborted partway through on that crash, taking
+  `met` down as collateral even though `met`'s own deps were present. If
+  `default_config` still unconditionally depends on `conversation`, removing
+  it can reintroduce that exact failure. After deploying, check
+  `journalctl -u home-assistant` and the frontend for an "Invalid config"
+  notification on `met` specifically — if it broke, re-add `"conversation"`
+  to `extraComponents`.
 
 ## Backup Jobs
 

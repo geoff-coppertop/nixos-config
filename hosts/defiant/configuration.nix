@@ -1,4 +1,8 @@
-{modulesPath, ...}: let
+{
+  modulesPath,
+  pkgs,
+  ...
+}: let
   nas = import ../../lib/nas.nix;
   thomasga = import ../../users/thomasga/account.nix;
   # Defiant's reserved LAN IP — set via Unifi DHCP reservation; fill in after Phase 1
@@ -10,7 +14,6 @@ in {
     "${modulesPath}/installer/sd-card/sd-image-aarch64.nix"
 
     ../../profiles/common
-    ../../profiles/dev
 
     ../../modules
     # NOT: profiles/desktop — no display server
@@ -65,6 +68,13 @@ in {
     hostName = "defiant";
     hosts.${nas.ip} = [nas.host];
   };
+
+  # dig/nslookup/host — for debugging DNS directly against a specific
+  # resolver/port (e.g. `dig @127.0.0.1 -p 5335` against unbound on defiant),
+  # which curl/getent can't do. Pulled in directly rather than via
+  # profiles/dev (dropped for disk space — see README) since this is the only
+  # piece of it actually used here.
+  environment.systemPackages = [pkgs.dnsutils];
 
   # ── System services ───────────────────────────────────────────────────────
   services = {
@@ -134,20 +144,34 @@ in {
       # just publish them unheard — zigbee2mqtt has no HA component of
       # its own. Sonos deferred for now (not in scope yet).
       #
-      # conversation/tts/met/camera/image_processing/assist_pipeline/
-      # ai_task/assist_satellite/ffmpeg: confirmed live via the "Invalid
-      # config" notification and journalctl — conversation crashed with
-      # ModuleNotFoundError: No module named 'hassil' (confirmed via
-      # nixpkgs' component-packages.nix: conversation needs hassil +
-      # home-assistant-intents, neither bundled since conversation wasn't
-      # listed here), and default_config's setup appears to abort
-      # partway through on that crash, taking the rest of this list down
-      # with it — met, for instance, previously worked fine on its own.
+      # met: confirmed live weather integration; kept deliberately, this
+      # household wants it working. Previously required listing conversation/
+      # tts/camera/image_processing/assist_pipeline/ai_task/assist_satellite/
+      # ffmpeg/google_translate alongside it (see below) purely to unblock a
+      # crash cascade — none of those are wanted features here, and voice
+      # assist, TTS, and camera/image processing are confirmed unused on
+      # this host. Trimmed 2026-08 to shrink the closure; the SD card is
+      # fixed-size and physically maxed out (see README § Known Gotchas).
       #
-      # google_translate: confirmed live, a separate "Failed to set up"
-      # error for its own config entry — it's a distinct TTS platform
-      # integration (nixpkgs' component-packages.nix maps it to the gtts
-      # package), not covered by adding the core "tts" component above.
+      # OPEN RISK, NOT YET RE-VERIFIED LIVE: the crash this list originally
+      # worked around was `conversation` failing with ModuleNotFoundError:
+      # No module named 'hassil' (missing Python deps nixpkgs only bundles
+      # when `conversation` is listed in extraComponents), and
+      # default_config's setup aborting partway through on that crash, which
+      # took the previously-working `met` down as collateral. extraComponents
+      # only controls which Python packages nixpkgs compiles into the HA
+      # closure — it does NOT control what default_config's own YAML
+      # directive attempts to set up. If this HA version's default_config
+      # still unconditionally depends on conversation (true in recent
+      # upstream releases, where Assist became part of the bundled default),
+      # removing conversation's entry here can reintroduce the exact same
+      # ModuleNotFoundError and take met down again, even though nothing
+      # here uses conversation directly. This was not confirmed against
+      # nixpkgs' component-packages.nix or a live deploy before this trim —
+      # after deploying, check `journalctl -u home-assistant` and the
+      # frontend's "Invalid config" notification for met specifically; if it
+      # broke, re-add "conversation" to this list (accepting its Python deps
+      # back into the closure) even though voice assist itself stays unused.
       #
       # ssdp: confirmed live via the "Invalid config" notification — one of
       # default_config's own always-loaded discovery integrations (alongside
@@ -169,16 +193,7 @@ in {
         "ssdp"
         "zwave_js"
         "mqtt"
-        "conversation"
-        "tts"
-        "google_translate"
         "met"
-        "camera"
-        "image_processing"
-        "assist_pipeline"
-        "ai_task"
-        "assist_satellite"
-        "ffmpeg"
       ];
     };
 
