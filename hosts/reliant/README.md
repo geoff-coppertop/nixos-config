@@ -131,11 +131,13 @@ collide their backup data — see
 [docs/secrets.md § Secret Inventory](../../docs/secrets.md#secret-inventory).
 
 Phase 2 adds three more entries — `hass`, `zigbee2mqtt`, `zwave-js` — mirroring
-`defiant`'s own backup jobs for the same services. Unlike `thomasga`'s job-keyed
-sharing above, these each get their **own new** `restic-password` secret,
-deliberately not shared with `defiant`'s: this is a separate, freshly
-initialized restic repository per job once the appliance services actually run
-here, not a continuation of `defiant`'s live backups. See
+`defiant`'s own backup jobs for the same services. Same job-keyed sharing as
+`thomasga` above: each reuses `defiant`'s existing `restic-password` secret
+rather than a new one, since the repo path already disambiguates by hostname.
+`zwave-js`'s backup path is `/var/cache/zwave-js`, not `/var/lib/zwave-js` —
+confirmed live that the latter is never created on either host (see the
+comment in `hosts/reliant/configuration.nix`); `defiant`'s own `zwave-js`
+backup job has the same bug and has likely been backing up nothing. See
 [docs/smart-home.md § Migration: defiant → reliant](../../docs/smart-home.md#migration-defiant--reliant).
 
 ## Secrets

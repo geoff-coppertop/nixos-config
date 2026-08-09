@@ -141,11 +141,8 @@ in {
       # reusing defiant's existing job-keyed restic-password secrets (same
       # reasoning as the thomasga job's nas-smb-credentials/restic-password
       # below — job-keyed, not machine-keyed, and the repo path already
-      # includes the hostname). Paths mirror hosts/defiant/configuration.nix's
-      # entries; not yet verified against this host's own /var/lib layout
-      # since the services aren't active here yet — confirm with `ls` once
-      # this PR activates, same as defiant's own paths were confirmed after
-      # its first boot.
+      # includes the hostname). hass/zigbee2mqtt paths confirmed live on
+      # this host's first boot.
       users = {
         thomasga.enable = true;
         hass = {
@@ -158,9 +155,25 @@ in {
           paths = ["/var/lib/zigbee2mqtt"];
           excludePatterns = [];
         };
+        # NOT /var/lib/zwave-js — that path never gets created. modules/zwave.nix
+        # only seeds /var/lib/zwave-js via a tmpfiles rule when secretsConfigFile
+        # is still the module's own default placeholder; both defiant and reliant
+        # override it to an agenix path, so that rule never fires and the
+        # directory has never existed on either host. zwave-js-server's real
+        # network cache (device values/metadata, keyed by home ID) lives at
+        # /var/cache/zwave-js instead, via systemd's CacheDirectory= — confirmed
+        # live on reliant's first boot (a real ID-prefixed .jsonl/.metadata.jsonl/
+        # .values.jsonl set, not an empty directory). /var/cache/zwave-js is
+        # itself a symlink to private/zwave-js, same shape as defiant's
+        # /var/lib/AdGuardHome symlink gotcha (hosts/defiant/README.md § Known
+        # Gotchas) — restic follows a symlink passed as an explicit top-level
+        # path, so this works the same way that one does. defiant's own
+        # zwave-js backup job has the same /var/lib/zwave-js bug and has likely
+        # been silently backing up nothing this whole time; out of scope to fix
+        # here since this PR doesn't touch defiant's config.
         zwave-js = {
           enable = true;
-          paths = ["/var/lib/zwave-js"];
+          paths = ["/var/cache/zwave-js"];
           excludePatterns = [];
         };
       };
