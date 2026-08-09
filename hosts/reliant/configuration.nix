@@ -176,6 +176,16 @@ in {
           paths = ["/var/cache/zwave-js"];
           excludePatterns = [];
         };
+        # Reuses defiant's existing job-keyed restic-password secret, same
+        # pattern as the three above. Capitalized — matches defiant's
+        # confirmed-live path: /var/lib/AdGuardHome is a symlink to
+        # private/AdGuardHome; the lowercase path doesn't exist at all
+        # (case-sensitive filesystem).
+        adguardhome = {
+          enable = true;
+          paths = ["/var/lib/AdGuardHome"];
+          excludePatterns = [];
+        };
       };
     };
 

@@ -140,10 +140,11 @@ already includes the hostname, so sharing these secrets across hosts doesn't
 collide their backup data — see
 [docs/secrets.md § Secret Inventory](../../docs/secrets.md#secret-inventory).
 
-Phase 2 adds three more entries — `hass`, `zigbee2mqtt`, `zwave-js` — mirroring
-`defiant`'s own backup jobs for the same services. Same job-keyed sharing as
-`thomasga` above: each reuses `defiant`'s existing `restic-password` secret
-rather than a new one, since the repo path already disambiguates by hostname.
+Phase 2 adds four more entries — `hass`, `zigbee2mqtt`, `zwave-js`,
+`adguardhome` — mirroring `defiant`'s own backup jobs for the same services.
+Same job-keyed sharing as `thomasga` above: each reuses `defiant`'s existing
+`restic-password` secret rather than a new one, since the repo path already
+disambiguates by hostname. All four confirmed running clean.
 `zwave-js`'s backup path is `/var/cache/zwave-js`, not `/var/lib/zwave-js` —
 confirmed live that the latter is never created on either host (see the
 comment in `hosts/reliant/configuration.nix`); `defiant`'s own `zwave-js`
@@ -152,7 +153,7 @@ backup job has the same bug and has likely been backing up nothing. See
 
 ## Secrets
 
-`hosts/reliant/secrets.nix` declares, beyond the Phase 1 SSH/NAS entries, five
+`hosts/reliant/secrets.nix` declares, beyond the Phase 1 SSH/NAS entries, six
 secrets — **all of them reused from `defiant`'s existing `.age` files**, none
 newly created. Four are named for what they hold or which hardware they're
 tied to, not for `defiant` (see
@@ -161,19 +162,18 @@ tied to, not for `defiant` (see
 - `traefik/cloudflare-api-token` — just an API credential, not tied to either
   host's identity.
 - `zigbee/network-key` — matched to the physical coordinator's own NVRAM,
-  not the host; reusing it is what lets already-paired Zigbee devices keep
-  working without a re-pair once the coordinator moves.
+  not the host; reusing it is what let already-paired Zigbee devices keep
+  working without a re-pair once the coordinator moved (confirmed live).
 - `location/coordinates` — home-address coordinates, not host- or
   radio-specific.
 - `zwave/secrets` — matched to the physical controller's own NVM, same
-  reasoning as the Zigbee key: reusing it avoids forcing an unnecessary
-  re-pair of every Z-Wave device once the controller moves.
+  reasoning as the Zigbee key.
 - `hass/restic-password`, `zigbee2mqtt/restic-password`,
-  `zwave-js/restic-password` — restic-password secrets are job-keyed, not
-  machine-keyed (docs/secrets.md § Secret Inventory), and the restic repo
-  path already includes the hostname, so sharing the password doesn't
-  collide the two hosts' backup data — same pattern as `thomasga`'s job
-  above.
+  `zwave-js/restic-password`, `adguardhome/restic-password` — restic-password
+  secrets are job-keyed, not machine-keyed (docs/secrets.md § Secret
+  Inventory), and the restic repo path already includes the hostname, so
+  sharing the password doesn't collide the two hosts' backup data — same
+  pattern as `thomasga`'s job above.
 
 `reliant` is now a rekeyed recipient of all five — confirmed live: the config
 evaluates, all four appliance services (DNS/Traefik, Home Assistant,

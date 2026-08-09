@@ -14,11 +14,9 @@ _: {
     # ── Phase 2: shared hardware/domain secrets, reused from defiant ─────
     # All four of these are named for what they hold or which physical
     # hardware they're tied to, not for either host (docs/secrets.md §
-    # Shared hardware and domain secrets) — reliant is added as an extra
-    # recipient in secrets/secrets.nix (secrets-warden hand-off: widen the
-    # recipient list, then `nix run .#secret-rekey`), plaintext content
-    # unchanged. None of these are decryptable by reliant yet — that rekey
-    # hasn't run.
+    # Shared hardware and domain secrets) — reliant is a rekeyed recipient,
+    # plaintext content unchanged. Confirmed live: all four services using
+    # them are up and working.
 
     # Cloudflare DNS-01 API token: just an API credential, not tied to
     # either host's identity — no reason to mint a second one.
@@ -63,5 +61,7 @@ _: {
       ../../secrets/zigbee2mqtt/restic-password.age;
     "zwave-js/restic-password".file =
       ../../secrets/zwave-js/restic-password.age;
+    "adguardhome/restic-password".file =
+      ../../secrets/adguardhome/restic-password.age;
   };
 }

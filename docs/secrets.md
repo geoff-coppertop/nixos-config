@@ -157,7 +157,7 @@ restic repository. `passwordFile` defaults to
 | `secrets/hass/restic-password.age` | `hass` | `defiant`, `reliant` |
 | `secrets/zigbee2mqtt/restic-password.age` | `zigbee2mqtt` | `defiant`, `reliant` |
 | `secrets/zwave-js/restic-password.age` | `zwave-js` | `defiant`, `reliant` |
-| `secrets/adguardhome/restic-password.age` | `adguardhome` | `defiant` |
+| `secrets/adguardhome/restic-password.age` | `adguardhome` | `defiant`, `reliant` |
 
 Because a job-keyed secret is shared, more than one host can be a recipient of
 the same file — the restic repository path embeds the hostname

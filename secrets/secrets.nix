@@ -36,7 +36,7 @@ in {
   "hass/restic-password.age".publicKeys = [defiant reliant offlineAdmin];
   "zigbee2mqtt/restic-password.age".publicKeys = [defiant reliant offlineAdmin];
   "zwave-js/restic-password.age".publicKeys = [defiant reliant offlineAdmin];
-  "adguardhome/restic-password.age".publicKeys = [defiant offlineAdmin];
+  "adguardhome/restic-password.age".publicKeys = [defiant reliant offlineAdmin];
   # Matched to the physical Zigbee coordinator's own NVRAM state, not the
   # host — named for the hardware, not defiant, so it keeps working without
   # a rename if the coordinator moves. reliant reuses this rather than a new
