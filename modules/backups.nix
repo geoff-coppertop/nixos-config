@@ -46,11 +46,11 @@
     "credentials=${cfg.nas.credentialsFile}"
     ++ cfg.nas.mountOptions;
 
-  backupArgs = userCfg:
-    concatMapStringsSep " " escapeShellArg userCfg.paths;
-
-  excludeArgs = userCfg:
-    concatMapStringsSep " " (pattern: "--exclude=${escapeShellArg pattern}") userCfg.excludePatterns;
+  # Emit a bash array literal. The values are only ever expanded at runtime on
+  # the host being backed up, never resolved at eval time — see the comment on
+  # the resolution loop in `script` below.
+  shellArray = name: values:
+    "declare -a ${name}=(${concatMapStringsSep " " escapeShellArg values})";
 
   repoPath = userName: "${cfg.nas.mountPoint}/${userName}/${config.networking.hostName}";
 
@@ -127,7 +127,57 @@
           fi
         fi
 
-        restic --repo "$repo" backup ${backupArgs userCfg} ${excludeArgs userCfg}
+        # A systemd `StateDirectory=`/`CacheDirectory=` belonging to a
+        # DynamicUser service is not a directory: systemd creates
+        # /var/lib/private/<name> and leaves /var/lib/<name> as a symlink to
+        # it. restic does not dereference a symlink handed to it as a
+        # top-level backup path — it records the symlink node and never walks
+        # the target — so such an entry produced 0 B snapshots containing only
+        # the bare path components. Canonicalise every configured path here,
+        # at runtime on the host being backed up: the path does not exist on
+        # whatever machine evaluates this configuration, so this cannot be
+        # done at eval time. `readlink -f` is a no-op for an ordinary
+        # directory, so non-symlink entries are unaffected.
+        ${shellArray "configured_paths" userCfg.paths}
+        declare -a resolved_paths=()
+
+        for configured in "''${configured_paths[@]}"; do
+          if ! resolved=$(readlink -f -- "$configured"); then
+            resolved=$configured
+          fi
+          if [ "$resolved" != "$configured" ]; then
+            echo "Backup path $configured resolves to $resolved; backing up the resolved path"
+          fi
+          resolved_paths+=("$resolved")
+        done
+
+        # Exclude patterns are written against the *configured* path, but
+        # restic matches an absolute pattern against the path as it appears in
+        # the snapshot — which is now the resolved one. Keep the configured
+        # form (it is still correct for every non-symlink path, and for a
+        # pattern already written against the resolved path) and additionally
+        # emit a prefix-rewritten form for each path that resolved elsewhere.
+        ${shellArray "exclude_patterns" userCfg.excludePatterns}
+        declare -a exclude_args=()
+
+        for pattern in "''${exclude_patterns[@]}"; do
+          exclude_args+=("--exclude=$pattern")
+          index=0
+          while [ "$index" -lt "''${#configured_paths[@]}" ]; do
+            configured=''${configured_paths[$index]}
+            resolved=''${resolved_paths[$index]}
+            if [ "$resolved" != "$configured" ]; then
+              case "$pattern" in
+                "$configured"/*)
+                  exclude_args+=("--exclude=$resolved''${pattern#"$configured"}")
+                  ;;
+              esac
+            fi
+            index=$((index + 1))
+          done
+        done
+
+        restic --repo "$repo" backup "''${resolved_paths[@]}" "''${exclude_args[@]}"
         restic --repo "$repo" forget \
           --keep-daily ${toString cfg.retention.daily} \
           --keep-weekly ${toString cfg.retention.weekly} \
@@ -232,7 +282,13 @@ in {
           paths = mkOption {
             type = types.listOf types.str;
             default = ["/home/${name}"];
-            description = "Paths to include in the user's backup set.";
+            description = ''
+              Paths to include in the user's backup set. Each is canonicalised
+              with `readlink -f` at runtime before being handed to restic, so a
+              systemd DynamicUser state directory such as `/var/lib/AdGuardHome`
+              (a symlink to `private/AdGuardHome`) is backed up by content
+              rather than as a bare symlink node.
+            '';
           };
 
           passwordFile = mkOption {
@@ -244,7 +300,12 @@ in {
           excludePatterns = mkOption {
             type = types.listOf types.str;
             default = ["/home/${name}/.cache"];
-            description = "restic exclude patterns for this user's backup.";
+            description = ''
+              restic exclude patterns for this user's backup. Write them against
+              the configured `paths`; when a path canonicalises to a different
+              location, matching patterns are additionally re-emitted against the
+              resolved prefix.
+            '';
           };
         };
       }));
