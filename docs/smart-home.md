@@ -64,10 +64,12 @@ live:
   so `reliant` is the live DNS/appliance primary. `defiant` keeps running
   every one of these services untouched in parallel; removing them from
   `hosts/defiant/` and retiring the Pi is a separate, later step.
-- Matter server currently doesn't start on `reliant` (or `defiant`) — a
-  shared `modules/matter.nix` bug (upstream `python-matter-server` hangs
-  fetching PAA certs from the DCL), tracked and fixed in PR #112, not
-  specific to this migration.
+- Matter server didn't start on `reliant` (or `defiant`) — a shared
+  `modules/matter.nix` bug (upstream `python-matter-server` hangs fetching
+  PAA certs from the DCL), not specific to this migration. Fixed; see
+  [§ Matter: pinned PAA root certs, not live DCL
+  fetch](#matter-pinned-paa-root-certs-not-live-dcl-fetch) below and
+  `hosts/reliant/README.md § Known Gotchas`.
 
 ## Home Assistant
 
@@ -241,3 +243,67 @@ boot with `ls /dev/tty{ACM,USB}*` before pinning them in the config.
 Matter-bridged devices such as the Aqara U100 locks. `custom.adsb` runs a
 standalone dump1090 receiver with its own map UI — it does not feed Home
 Assistant and has no automation surface of its own.
+
+### Matter: pinned PAA root certs, not live DCL fetch
+
+Upstream python-matter-server fetches current PAA (Product Attestation
+Authority) root certificates from the Distributed Compliance Ledger (DCL) and
+the `project-chip/connectedhomeip` Git repo on every `server.start()`, before
+it binds its websocket port. As of this writing, DCL serves at least one
+certificate that fails strict ASN.1 parsing in the `cryptography` library;
+that raises an uncaught `ValueError` inside
+`matter_server/server/helpers/paa_certificates.py` (only `ClientError`/
+`TimeoutError` are caught around the fetch call in `server.py`), so
+`start()` never completes. systemd still reports the unit `active (running)`
+— the process doesn't crash, aiorun just logs "Task exception was never
+retrieved" and idles — so this fails silently unless you check the journal
+for the traceback. Tracked upstream at
+[nixpkgs#377136](https://github.com/NixOS/nixpkgs/issues/377136); as of the
+nixpkgs revision this flake currently pins, no workaround has landed there.
+
+`modules/matter.nix` works around this by overriding
+`services.matter-server.package`: it patches `fetch_certificates()` itself in
+`matter_server/server/helpers/paa_certificates.py` to install a static,
+pinned set of production PAA root certs instead of fetching anything over
+the network. Patching the function directly (rather than its call site
+inside `server.py`'s `start()`, the original approach) means it's a real,
+top-level, importable function — so a standalone test,
+`tests/server/test_paa_certificates_pinned.py`, is added by the same
+`postPatch` and calls the patched function directly to assert it actually
+installs the pinned certs. That test exists because the *only* upstream
+test that exercises `fetch_certificates()` at all is `test_server_start`,
+which has to stay deselected (see `disabledTests` in `modules/matter.nix`)
+for an unrelated reason: it fails in this build sandbox on a zeroconf
+IPv6-multicast socket call, not on anything this patch touches. The pinned
+certs come from `project-chip/connectedhomeip`'s
+`credentials/production/paa-root-certs` directory — the same source
+`fetch_git_certificates()` would otherwise pull from at runtime — fetched at
+build time via `pkgs.fetchgit` with `rootDir` set to that path (a sparse
+checkout, not the full multi-gigabyte SDK tree) and pinned to a commit via
+`pinnedPaaCertsRev`.
+
+**Checking whether this is fixed upstream**: nothing here watches for that
+automatically. Either watch
+[nixpkgs#377136](https://github.com/NixOS/nixpkgs/issues/377136) directly for
+a close/fix-landed comment, check `python-matter-server`'s release notes
+after a `nix flake update` pulls a newer version (the real fix is either it
+catching `ValueError` around cert parsing, not just `ClientError`/
+`TimeoutError`, or `cryptography` relaxing its ASN.1 strictness for this
+class of malformed cert), or periodically retest by temporarily dropping
+`services.matter-server.package` back to the default and seeing if
+`server.start()` completes against the live DCL fetch again.
+
+**Trade-off**: no automatic pickup of PAA certs for newly-onboarded Matter
+vendors. If commissioning a new device fails with a certificate/attestation
+error and the device is legitimate, the pinned set is probably stale. To
+re-pin:
+
+1. Get a current commit: `git ls-remote https://github.com/project-chip/connectedhomeip.git refs/heads/master`.
+2. Update `pinnedPaaCertsRev` in `modules/matter.nix` to that commit (and the
+   date in its comment).
+3. Set `hash = lib.fakeHash;` temporarily, run a build, and copy the real
+   `sha256-...` hash from the mismatch error into `hash`.
+4. Rebuild and redeploy.
+
+Never regenerate or rotate anything Zigbee/Z-Wave-related to "fix" a Matter
+problem — these are unrelated radio networks; see § Radio Networks § Both.
