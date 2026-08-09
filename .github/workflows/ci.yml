@@ -103,8 +103,10 @@ jobs:
         run: exit 1
 
   # Which hosts actually need rebuilding, decided by diffing each host's
-  # toplevel derivation between the base and head commit. fetch-depth: 0 is
-  # required — the script checks out the base commit to evaluate it. See
+  # toplevel derivation between the base and head commit. The host list itself
+  # comes from the flake's nixosConfigurations at the head commit, so a newly
+  # registered host is picked up here with no workflow change. fetch-depth: 0
+  # is required — the script checks out the base commit to evaluate it. See
   # tools/ci_changed_hosts.py for how the decision is made and where it
   # deliberately fails safe.
   changes:
@@ -142,15 +144,17 @@ jobs:
   # splitting into a matrix is the fix that doesn't need revisiting as any
   # host's closure keeps growing.
   #
-  # defiant (aarch64-linux) builds on GitHub's native arm64-hosted runners
+  # aarch64-linux hosts build on GitHub's native arm64-hosted runners
   # (ubuntu-24.04-arm) rather than cross-compiling via QEMU emulation on an
   # x86_64 runner — this repo is public, so those runners are free-tier
   # eligible. Native means no emulation tax, unlike the local cross-build
-  # this repo previously relied on for defiant coverage.
+  # this repo previously relied on for aarch64 coverage.
   #
   # The matrix is not static: the changes job above emits one {host, runner}
-  # entry per host whose toplevel derivation actually moved. An empty list
-  # produces zero matrix jobs, which is what a docs-only change should cost.
+  # entry per host whose toplevel derivation actually moved, with the runner
+  # picked from that host's own hostPlatform.system — nothing here keys off a
+  # host name. An empty list produces zero matrix jobs, which is what a
+  # docs-only change should cost.
   build:
     needs: [flake-check, changes]
     strategy:

@@ -227,25 +227,47 @@ request, each job posting its output as a PR comment before failing:
 | `build` | Matrix over the hosts `changes` selected: `nix build .#nixosConfigurations.<host>.config.system.build.toplevel --no-link` |
 
 `lint` and `flake-check` are unconditional. `build` is not: it depends on
-`changes`, which runs `tools/ci_changed_hosts.py` to evaluate each of the four
-hosts' toplevel `drvPath` at the base commit and again at the head commit of
-the push or PR, and prints a build matrix containing only those hosts whose
-`drvPath` differs. A host whose derivation is byte-identical at both commits
-cannot produce a different build, so it is skipped; a docs-only change moves no
-host's `drvPath` and runs zero build jobs.
+`changes`, which runs `tools/ci_changed_hosts.py` to evaluate each host's
+toplevel `drvPath` at the base commit and again at the head commit of the push
+or PR, and prints a build matrix containing only those hosts whose `drvPath`
+differs. A host whose derivation is byte-identical at both commits cannot
+produce a different build, so it is skipped; a docs-only change moves no host's
+`drvPath` and runs zero build jobs.
+
+Nothing about the host list is hand-maintained. The script reads it out of the
+flake at each commit:
+
+```bash
+nix eval --json .#nixosConfigurations --apply builtins.attrNames
+```
+
+Registering a host in `flake.nix`'s `nixosConfigurations` is therefore the only
+step needed for it to get CI coverage — there is no second list to update, and
+no way to add a host that CI silently never builds. A host present at head but
+not at base (a newly added machine) has nothing to compare against and is
+always built.
+
+The runner is derived the same way. For each host the script evaluates
+`pkgs.system` (not `config.nixpkgs.hostPlatform.system` — that NixOS *option*
+isn't populated by this repo's `mkNixosSystem`, which threads `system` through
+`nixosSystem`'s top-level argument instead; `pkgs.system` is set
+unconditionally regardless of how `system` was passed in) and the host's
+`drvPath` in a single `nix eval`, then maps the system to the runner that
+builds it natively: `x86_64-linux` to `ubuntu-latest`, `aarch64-linux` to
+`ubuntu-24.04-arm`. A second aarch64 machine gets an arm64 runner
+automatically; no host name appears in the mapping. A system with no mapping
+falls back to `ubuntu-latest`, so it fails loudly in the build rather than
+vanishing from the matrix.
 
 The comparison is on the derivation itself, not on changed file paths, so
 there is no host-to-path map that can go stale. It fails safe: if the base
 commit is unreachable (new branch, force-push, shallow history) or an eval
-errors out, the host is built anyway.
+errors out, the host is built anyway. The one hard failure is being unable to
+enumerate `nixosConfigurations` at head — there is no safe list to fall back
+to, so `changes` exits non-zero and CI goes red instead of building nothing.
 
-The build job runs `enterprise-d`, `holodeck-01`, `excelsior`, and `reliant` on
-`ubuntu-latest` and `defiant` on `ubuntu-24.04-arm`, freeing disk space first.
-
-The host list the script iterates is the `HOSTS` constant in
-`tools/ci_changed_hosts.py`. It is the one hand-maintained list left, and it is
-not derived from `flake.nix` — **a new host must be added there or CI will
-never build it**, silently and without failing.
+The build job frees disk space on the runner before building, since a full
+desktop closure can exhaust the default runner disk.
 
 ### Pull request template
 
