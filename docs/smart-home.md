@@ -1,8 +1,8 @@
 # Smart Home
 
-The appliance and device layer on `defiant`: Home Assistant, the radio networks
-that feed it (Zigbee, Z-Wave, Matter), MQTT, and the standalone ADS-B receiver.
-The reverse-proxy/DNS backbone these services register into is
+The appliance and device layer: Home Assistant, the radio networks that feed it
+(Zigbee, Z-Wave, Matter), MQTT, and the standalone ADS-B receiver. The
+reverse-proxy/DNS backbone these services register into is
 [docs/homelab-network.md](homelab-network.md), not this doc — but `modules/home-assistant.nix`,
 `modules/zigbee.nix`, and `modules/adsb.nix` each call `mkTraefikRoute`
 themselves to register their own route, the same way `modules/dns.nix` does for
@@ -12,6 +12,62 @@ for the mechanics.
 
 The full option-to-module table is
 [docs/architecture.md § Custom Options § Homelab services](architecture.md#homelab-services).
+
+## Migration: defiant → reliant
+
+This layer has migrated from `defiant` (Raspberry Pi 4, being retired) to
+`reliant` (Gigabyte Brix mini PC) — see
+[docs/provisioning.md § Two Phases](provisioning.md#two-phases). Confirmed
+live:
+
+- The Zigbee (`/dev/ttyUSB0`, vendor `0658`) and Z-Wave (`/dev/ttyACM0`,
+  vendor `10c4`) USB dongles are physically moved to `reliant`, and paired
+  devices respond without a re-pair — the shared network key/`securityKeys`
+  reuse (below) worked as intended.
+- `hosts/reliant/home-assistant/` (a byte-for-byte copy of
+  `hosts/defiant/home-assistant/`, comments updated to reference `reliant`)
+  is running against `defiant`'s actual restored state (via `restic restore`
+  of the `hass` backup job's latest snapshot, not a fresh instance), so the
+  entity IDs these automations reference carried over correctly — confirmed
+  controlling real devices. Areas/floors (`.storage/core.area_registry`,
+  `.storage/core.floor_registry`) aren't excluded from that backup job either,
+  so they carried over too; only recorder history/statistics and the Lovelace
+  dashboard layout did not (excluded from the `hass` backup job by design).
+- The Zigbee network key (`custom.zigbee.networkKeyFile`), the Z-Wave
+  `securityKeys` (`custom.zwave.secretsConfigFile`), and the ADS-B receiver
+  location (`custom.adsb.locationEnvFile`) are all **reused** from
+  `defiant`'s existing secrets, not regenerated — `reliant` is a rekeyed
+  recipient of the *same* `.age` files, not new secret content. This is what
+  let the radios keep working without a re-pair: the physical
+  coordinator/controller's own NVRAM/NVM already held each network's key, and
+  a mismatched key here would have made `zigbee2mqtt` treat it as a new,
+  wrong network, or forced a Z-Wave re-pair.
+- The three appliance backup jobs' `restic-password` secrets (`hass`,
+  `zigbee2mqtt`, `zwave-js`) also **reuse** `defiant`'s existing job-keyed
+  secrets and are confirmed running clean.
+- `custom.zwave.port = 3001` carries over to `reliant` too — 3000 collides
+  with AdGuard Home's admin UI, also enabled on `reliant`.
+- **`custom.backups.users.zwave-js.paths` is `/var/cache/zwave-js`, not
+  `/var/lib/zwave-js`** — confirmed live that the latter never gets created
+  on either host (`modules/zwave.nix` only seeds it via a tmpfiles rule that
+  fires solely when `secretsConfigFile` is still the module's own default
+  placeholder; both hosts override it to an agenix path, so that rule never
+  runs). The real network cache (device values/metadata, keyed by home ID)
+  lives at `/var/cache/zwave-js` via systemd's `CacheDirectory=`, itself a
+  symlink to `private/zwave-js` — same shape as `defiant`'s existing
+  `/var/lib/AdGuardHome` symlink gotcha. `defiant`'s own `zwave-js` backup
+  job has the identical bug and has likely been backing up nothing this
+  whole time; not yet fixed there.
+- The LAN's DHCP-advertised DNS server has been repointed at `reliant`
+  directly (see
+  [docs/homelab-network.md § Migration: defiant → reliant](homelab-network.md#migration-defiant--reliant)),
+  so `reliant` is the live DNS/appliance primary. `defiant` keeps running
+  every one of these services untouched in parallel; removing them from
+  `hosts/defiant/` and retiring the Pi is a separate, later step.
+- Matter server currently doesn't start on `reliant` (or `defiant`) — a
+  shared `modules/matter.nix` bug (upstream `python-matter-server` hangs
+  fetching PAA certs from the DCL), tracked and fixed in PR #112, not
+  specific to this migration.
 
 ## Home Assistant
 
@@ -164,7 +220,7 @@ connects to it with the `zwave_js` component, which does not ship in the
 `zwave-js-server` does **not** generate `securityKeys` itself. Leaving the
 default placeholder crash-loops the service indefinitely. Generate real keys
 before first deploy — see
-[docs/secrets.md § defiant service secrets](secrets.md#defiant-service-secrets).
+[docs/secrets.md § Shared hardware and domain secrets](secrets.md#shared-hardware-and-domain-secrets).
 
 The module's default port is 3000, which collides with AdGuard Home's admin UI on
 any host running both. Set `port = 3001` (or anything free) in that case.

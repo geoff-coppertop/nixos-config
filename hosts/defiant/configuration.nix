@@ -120,7 +120,7 @@ in {
       acme = {
         email = "geoff.coppertop@gmail.com";
         dnsProvider = "cloudflare";
-        environmentFile = "/run/agenix/defiant/cloudflare-api-token";
+        environmentFile = "/run/agenix/traefik/cloudflare-api-token";
         domain = "coppertop.ca";
       };
     };
@@ -190,7 +190,7 @@ in {
       enable = true;
       # Serial port confirmed after first boot: ls /dev/tty{ACM,USB}*
       serialPort = "/dev/ttyUSB0";
-      networkKeyFile = "/run/agenix/defiant/zigbee-network-key";
+      networkKeyFile = "/run/agenix/zigbee/network-key";
     };
 
     zwave = {
@@ -201,7 +201,7 @@ in {
       # itself — the module default left this at an empty placeholder
       # since Phase 1, crash-looping (439 restarts) the whole time.
       # Generated real random keys instead of extracting nonexistent ones.
-      secretsConfigFile = "/run/agenix/defiant/zwave-secrets";
+      secretsConfigFile = "/run/agenix/zwave/secrets";
       # 3000 (the module default) is already AdGuardHome's admin UI on
       # this host — confirmed live via `ss -tlnp`/`lsof -i :3000` showing
       # AdGuardHome (not zwave-js) actually holding that port, which is
@@ -211,7 +211,7 @@ in {
 
     adsb = {
       enable = true;
-      locationEnvFile = "/run/agenix/defiant/location";
+      locationEnvFile = "/run/agenix/location/coordinates";
     };
 
     backups = {
