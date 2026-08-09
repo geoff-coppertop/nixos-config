@@ -26,7 +26,9 @@ Each enabled entry gets its own systemd service (`nas-backup-<name>`) and timer
    The check is the presence of `<repo>/config` on the mounted share, and an
    `init` that still reports `config file already exists` is treated as success,
    so a re-run over an existing repository is a no-op rather than a failure.
-4. Backs up the configured paths (default: `/home/<name>`, excluding `.cache`).
+4. Canonicalises each configured path with `readlink -f` and backs up the
+   result (default: `/home/<name>`, excluding `.cache`) — see
+   [Symlinked State Directories](#symlinked-state-directories) for why.
 5. Prunes old snapshots according to the retention policy — 7 daily, 4 weekly,
    12 monthly, 3 yearly by default. That progressively reduces granularity over
    time while keeping long-term coverage.
@@ -91,6 +93,46 @@ custom.backups.users = {
 `passwordFile` defaults to `/run/agenix/<name>/restic-password`; override it only
 if the secret does not follow that convention.
 
+## Symlinked State Directories
+
+A service that runs under systemd's `DynamicUser` gets its `StateDirectory=` or
+`CacheDirectory=` as a **symlink**, not a directory: systemd creates the real
+directory at `/var/lib/private/<name>` and leaves `/var/lib/<name>` pointing at
+it. `/var/lib/AdGuardHome` and `/var/cache/zwave-js` are both of this shape;
+`/var/lib/hass` and `/var/lib/zigbee2mqtt` are ordinary directories.
+
+**restic does not dereference a symlink passed to it as a top-level backup
+path.** It records the symlink node and never walks the target. A `paths` entry
+pointing at one of these state directories therefore produced snapshots
+containing only the bare path components (`/var`, `/var/lib`,
+`/var/lib/AdGuardHome`) and nothing underneath — 0 B, indefinitely, with the job
+reporting success. This was confirmed live: every `adguardhome` and `zwave-js`
+snapshot taken before this was fixed was empty.
+
+The backup service therefore resolves each configured path through
+`readlink -f` **at runtime, inside the unit**, and hands restic the resolved
+path. It cannot be done at evaluation time — the path exists only on the host
+being backed up, not on whatever machine builds the configuration. Resolution is
+a no-op for an ordinary directory, so non-symlink entries are unaffected.
+
+Consequences to be aware of:
+
+- **Snapshots record the resolved path.** `restic snapshots` for the
+  `adguardhome` repo shows `/var/lib/private/AdGuardHome`, not
+  `/var/lib/AdGuardHome`. Restores need the resolved path, and because
+  `restic forget` groups by host *and* paths by default, pre-fix snapshots form
+  a separate retention group that ages out on its own. Delete the old empty
+  snapshots by hand if they are in the way.
+- **Exclude patterns still use the configured path.** Write
+  `excludePatterns` against the path as configured. The unit re-emits any
+  pattern prefixed by a path that resolved elsewhere against the resolved
+  prefix as well, so both forms are passed to restic and either spelling
+  matches.
+- **Keep `paths` pointing at the symlink**, not at
+  `/var/lib/private/<name>`. The symlink is the stable, documented interface;
+  the private path is a systemd implementation detail that also carries
+  restrictive permissions.
+
 ## Checking Backup Status
 
 ```bash
@@ -105,7 +147,15 @@ journalctl -u nas-backup-thomasga.service
 
 # List restic snapshots on the NAS
 sudo restic --repo /mnt/nas-backups/thomasga/<hostname> snapshots
+
+# Confirm a job is actually storing data, not an empty tree. A snapshot whose
+# listing stops at the top-level path with nothing under it is the symlink
+# failure described above.
+sudo restic --repo /mnt/nas-backups/adguardhome/<hostname> ls latest | head
 ```
+
+`RESTIC_PASSWORD_FILE=/run/agenix/<name>/restic-password` has to be exported for
+those commands, or restic prompts for the passphrase.
 
 ## Limitations
 
@@ -119,5 +169,6 @@ sudo restic --repo /mnt/nas-backups/thomasga/<hostname> snapshots
   the following run, and `restic --repo <repo> unlock` forces it.
 - Service state paths are case-sensitive and not always what the service name
   suggests — `defiant` backs up `/var/lib/AdGuardHome`, capitalized, because the
-  lowercase path does not exist. Confirm with `ls` on the host before adding an
-  entry.
+  lowercase path does not exist. Confirm with `ls -l` on the host before adding
+  an entry; that also shows whether the path is a symlink, which matters for the
+  reason given in [Symlinked State Directories](#symlinked-state-directories).
