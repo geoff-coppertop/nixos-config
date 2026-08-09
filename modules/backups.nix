@@ -49,8 +49,7 @@
   # Emit a bash array literal. The values are only ever expanded at runtime on
   # the host being backed up, never resolved at eval time — see the comment on
   # the resolution loop in `script` below.
-  shellArray = name: values:
-    "declare -a ${name}=(${concatMapStringsSep " " escapeShellArg values})";
+  shellArray = name: values: "declare -a ${name}=(${concatMapStringsSep " " escapeShellArg values})";
 
   repoPath = userName: "${cfg.nas.mountPoint}/${userName}/${config.networking.hostName}";
 
