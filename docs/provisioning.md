@@ -249,17 +249,30 @@ PR. Phase 2 work can start any time, but a Phase 2 PR must not merge before
 the Phase 1 PR has merged and the machine is confirmed up (this checklist
 passed) — Phase 2 assumes the machine is already up.
 
-Each concern below is a separate PR from the agent that owns it:
+Each concern below is owned by one agent:
 
 - **Machine capability** — opting the host into `profiles/desktop` or
   `profiles/dev`: `machine-provisioner`'s own domain, see
   [docs/workstation.md](workstation.md)
 - **A person's environment on this machine** — attaching home-manager,
   dotfiles, per-user apps: `user-provisioner`, see [docs/users.md](users.md)
-- **Homelab reverse proxy and DNS** (`defiant`) — Traefik, AdGuard, unbound:
+- **Homelab reverse proxy and DNS** — Traefik, AdGuard, unbound:
   `homelab-network`, see [docs/homelab-network.md](homelab-network.md)
-- **Homelab appliance layer** (`defiant`) — Home Assistant, Zigbee, Z-Wave,
-  Matter, MQTT, ADS-B: `smart-home`, see [docs/smart-home.md](smart-home.md)
+- **Homelab appliance layer** — Home Assistant, Zigbee, Z-Wave, Matter, MQTT,
+  ADS-B: `smart-home`, see [docs/smart-home.md](smart-home.md)
+
+Ownership is not the same as PR count. By default, open a separate PR per
+concern — that's what keeps an unrelated, independently timed change
+reviewable on its own. But when several of these concerns target the *same*
+new host as one coordinated migration happening in the same sitting (for
+example, bringing up both the DNS/Traefik and appliance layers on a
+replacement host at once), splitting them into separate PRs buys nothing:
+both are guaranteed to touch the same new files and conflict with each other
+on merge, for no independent-review benefit. In that case, combine them into
+one PR with each owning agent contributing its own section, and say so in the
+PR description. Default to splitting; combine only when the concerns are
+genuinely one coordinated change, not several unrelated ones that happen to
+land around the same time.
 
 If a new host needs a genuinely new kind of module or profile that doesn't
 exist yet, that design question is `architect`'s, per
