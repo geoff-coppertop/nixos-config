@@ -75,6 +75,11 @@ Not yours:
 - Machine-specific git identity stays in `~/.config/git/config-local`, never in
   the shared `dotfiles` repo.
 - One file per concern. Do not append an unrelated app to an existing user module.
+- Any new local asset file under `users/` — an avatar, a wallpaper, a
+  dotfile-style image, or anything else handed to `.source` or interpolated
+  into a builder — must be wrapped with `lib/local-file.nix`, never passed as
+  a bare path literal. See `docs/desktop.md` (Theme, Background, And Desktop
+  Preferences) and `docs/architecture.md` § Local Files As Build Inputs.
 - Never `cd`. Never use heredocs.
 
 ## Definition of done

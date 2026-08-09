@@ -2,9 +2,20 @@
   pkgs,
   agenixCli,
 }: let
-  tools-src = pkgs.runCommand "nixos-config-tools" {src = ../tools;} ''
-    cp -r $src $out
-  '';
+  localFile = import ./local-file.nix;
+
+  # `src = ../tools;` here would coerce to a subpath of the whole-repo store
+  # copy, so this derivation's identity would move on every unrelated commit.
+  # See docs/architecture.md § Local Files As Build Inputs.
+  tools-src =
+    pkgs.runCommand "nixos-config-tools" {
+      src = localFile {
+        path = ../tools;
+        name = "nixos-config-tools-src";
+      };
+    } ''
+      cp -r $src $out
+    '';
 
   provision = pkgs.writeShellApplication {
     name = "provision";

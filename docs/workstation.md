@@ -119,6 +119,13 @@ loaded via `services.udev.packages` — **not** `services.udev.extraRules`. The
 module also creates the `plugdev` group, the rules' `GROUP="plugdev"` fallback,
 and `thomasga` is a member of it via `hosts/enterprise-d/configuration.nix`.
 
+The rules file is embedded into its builder via `lib/local-file.nix`, not a
+bare `${./udev-rules/69-probe-rs.rules}` interpolation — see
+[docs/architecture.md § Local Files As Build Inputs](architecture.md#local-files-as-build-inputs).
+Any new static asset added under `profiles/dev/` or `profiles/desktop/`
+(another udev rule, a config file copied into a builder) needs the same
+treatment.
+
 ### Why `services.udev.packages` and not `extraRules`
 
 This file's own name matters. It is called `69-probe-rs.rules` upstream

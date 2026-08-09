@@ -3,6 +3,13 @@
   pkgs,
   ...
 }: let
+  localFile = import ../../lib/local-file.nix;
+
+  # Same underlying file as users/thomasga/account.nix's `avatar` (consumed by
+  # AccountsService/GDM); reuse its already-wrapped value instead of wrapping
+  # the raw path a second time.
+  account = import ./account.nix;
+
   # Fedora's space-shuttle wallpaper ships as JPEG XL; convert to PNG at build
   # time so we don't rely on runtime .jxl wallpaper support. Consumed by the
   # GNOME background (users/thomasga/gnome.nix) and, when added, by other
@@ -13,7 +20,7 @@
       nativeBuildInputs = [pkgs.libjxl];
     }
     ''
-      djxl ${./files/wallpapers/space-shuttle.jxl} "$out"
+      djxl ${localFile {path = ./files/wallpapers/space-shuttle.jxl;}} "$out"
     '';
 in {
   # DE-independent desktop bits shared by every session. The per-DE home
@@ -22,7 +29,7 @@ in {
   # inside) one of them.
   home = {
     file = {
-      ".face".source = ./files/face.png;
+      ".face".source = account.avatar;
       "Pictures/Wallpapers/space-shuttle.png".source = spaceShuttlePng;
     };
 

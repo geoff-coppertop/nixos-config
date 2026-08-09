@@ -76,6 +76,14 @@ environment's config can point at it without redoing the conversion.
 `users/thomasga/gnome.nix` points both `picture-uri` and `picture-uri-dark` at
 that generated PNG, avoiding any reliance on runtime JPEG XL wallpaper support.
 
+Any new local asset file under `users/` — an avatar, a wallpaper, a static
+image handed to `.source` or interpolated into a builder — must be wrapped
+with `lib/local-file.nix` rather than passed as a bare path literal; see
+[docs/architecture.md § Local Files As Build Inputs](architecture.md#local-files-as-build-inputs)
+for why. `users/thomasga/account.nix`'s `avatar` and
+`users/thomasga/desktop-common.nix`'s wallpaper conversion are the existing
+examples.
+
 System-wide dark mode is `custom.appearance.darkMode`, defined in
 `users/common/appearance.nix`.
 
