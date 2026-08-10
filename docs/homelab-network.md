@@ -101,6 +101,27 @@ accident:
 not on that subnet, or unbound's `access-control` will not cover direct bypass
 queries from its own LAN.
 
+### Troubleshooting: iOS Client Bypassing LAN DNS (Private Relay)
+
+Symptom: an iPhone on the LAN, with correct DHCP-assigned DNS, gets a TLS
+certificate error visiting a `*.coppertop.ca` service and lands on the Unifi
+controller's web console instead of the expected page.
+
+Root cause: iOS's per-Wi-Fi-network "Hide IP Address" setting ("Limit IP
+Address Tracking" on older iOS; tied to iCloud Private Relay) reroutes that
+device's DNS and traffic for that network through Apple's relay
+infrastructure, bypassing the LAN's DNS servers even though the Wi-Fi
+network's DNS settings correctly show them. The device never gets the
+split-horizon answer from unbound (see § Reverse Proxy And DNS above) and
+instead reaches something public — in the observed case, the Unifi gateway's
+own console on port 443.
+
+Fix: on the device, Settings → Wi-Fi → (ⓘ) next to the home network → turn off
+"Hide IP Address"/"Limit IP Address Tracking". This is per-network and
+per-device — it persists once set, but must be applied individually on every
+Apple device that needs to reach `*.coppertop.ca`, since there's no way to
+enforce it network-side.
+
 ## Traefik Route Registration
 
 Service modules register their own routes rather than requiring a central table.
