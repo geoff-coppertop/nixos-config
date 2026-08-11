@@ -12,6 +12,14 @@ host, but deliberately not by `flake.nix`'s module-inertness probe — asserts
 fails to evaluate rather than shipping unprotected. There is no opt-out:
 define a `custom.backups` block for every host.
 
+`custom.backups.backrest` (owned by `homelab-network` — see
+[docs/homelab-network.md](homelab-network.md)) is the fleet-wide restic
+snapshot browser/restore UI, reverse-proxied through the Traefik host
+(currently `reliant`). To add or remove a host from that cross-host proxy,
+edit `lib/backrest-hosts.nix` — it's the single source of truth both
+`custom.dns.subdomains` and `custom.backups.backrest.proxiedRemotes` derive
+from on the Traefik host, so the two lists can't drift out of sync.
+
 Each domain agent adds the entries for its own services (the same way each adds
 its own `custom.dns.subdomains`): `smart-home` owns the `hass`, `zigbee2mqtt`,
 and `zwave-js` entries, `homelab-network` owns `adguardhome`, and
