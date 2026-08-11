@@ -52,6 +52,15 @@
       exec python3 ${tools-src}/secret_rekey.py "$@"
     '';
   };
+
+  checkHaEntities = pkgs.writeShellApplication {
+    name = "check-ha-entities";
+    runtimeInputs = [pkgs.python3 pkgs.openssh pkgs.git pkgs.coreutils];
+    text = ''
+      export PYTHONPATH="${tools-src}:''${PYTHONPATH:-}"
+      exec python3 ${tools-src}/check_ha_entities.py "$@"
+    '';
+  };
 in {
   provision = {
     type = "app";
@@ -75,5 +84,11 @@ in {
     type = "app";
     program = "${secretRekey}/bin/secret-rekey";
     meta.description = "Rekey agenix secrets with new host keys";
+  };
+
+  check-ha-entities = {
+    type = "app";
+    program = "${checkHaEntities}/bin/check-ha-entities";
+    meta.description = "Check declared Home Assistant automation entity IDs against a host's live entity registry";
   };
 }

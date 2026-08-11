@@ -63,7 +63,7 @@ Enter the development shell — required for secret editing and lint tools:
 nix develop
 ```
 
-The flake exposes four apps (defined in `lib/apps.nix`). Use these rather than
+The flake exposes five apps (defined in `lib/apps.nix`). Use these rather than
 invoking `agenix` or the scripts directly:
 
 | Command | Script | What it does |
@@ -72,6 +72,7 @@ invoking `agenix` or the scripts directly:
 | `nix run .#secret-rekey` | `tools/secret_rekey.py` | Re-encrypt every tracked secret after changing recipients |
 | `nix run .#install` | `tools/install.py` | Install a machine: menu, then disko or SD-card flow |
 | `nix run .#provision` | `tools/provision.py` | Lower-level per-provision-type driver used by `install.py` |
+| `nix run .#check-ha-entities -- <host>` | `tools/check_ha_entities.py` | Diff entity IDs referenced by declared Home Assistant automations against the host's live entity registry (over SSH) |
 
 The remaining helpers in `tools/` are run directly:
 

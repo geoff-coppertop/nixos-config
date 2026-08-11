@@ -187,6 +187,57 @@ a wrong ID produces an automation that loads cleanly and silently never fires.
 Check against the running instance (Developer Tools → States, or the entity
 list) rather than guessing.
 
+### Automated entity ID check
+
+`tools/check_ha_entities.py <host>` automates the check above: it greps
+`hosts/<host>/home-assistant/*.nix` for entity_id string literals (both the
+`target.entity_id = [ "lock.front_door" ]` list form and the bare
+`entity_id = "sun.sun";` trigger/condition form), reads the live entity
+registry from the host over SSH
+(`ssh <host> sudo cat /var/lib/hass/.storage/core.entity_registry` —
+`/var/lib/hass` is `services.home-assistant`'s `StateDirectory`, the same
+path already referenced by the `hass` backup job's `excludePatterns` in each
+host's `configuration.nix`), and reports any referenced entity_id that isn't
+in the live registry. It exits non-zero when anything is missing, so it can
+gate a migration or run periodically. Run it:
+
+```bash
+python3 tools/check_ha_entities.py defiant
+python3 tools/check_ha_entities.py reliant
+```
+
+Run it before cutting traffic over in a host migration (confirm the restored
+`.storage` state actually carried every referenced entity, as it did for the
+defiant → reliant migration above), after any device re-pair, and
+periodically thereafter to catch drift — an entity_id can go stale any time a
+device is removed, re-paired, or renamed in the UI.
+
+**Known limitation**: this is a grep over string literals, not a Nix
+evaluator. `presence-lighting.nix`'s `mkPresenceLighting` takes `presence`
+and `lights` as function parameters — the tool still catches these today
+because every call site passes them as literal strings, which is what it
+scans for. If an entity_id were ever sourced from something other than a
+literal at the call site (a value computed from an import, an environment
+variable, string concatenation split across lines, etc.), the tool would
+silently miss it — it does not evaluate Nix expressions, so it cannot follow
+a value back through a variable or function argument to find where it
+originated. Treat a clean run as "every entity_id written as a literal
+string resolves", not as an exhaustive guarantee.
+
+**`sun.sun` is deliberately skipped, not checked**: `core.entity_registry`
+only contains entities backed by a config-entry integration with a
+`unique_id`. `sun.sun` is set up via the bare `sun = {}` YAML platform (see
+§ Home Assistant above), not a config-entry integration, so it never appears
+in the registry even when it's working correctly — confirmed live against
+`reliant`, where it was the sole entity_id ever reported "missing" until the
+tool special-cased it. `check_ha_entities.py`'s `NON_REGISTRY_DOMAINS` set
+lists domains known to work this way and reports them separately
+("skipped") instead of flagging them as drift. If a future automation
+references another registry-less entity (any other bare-YAML-platform
+domain, e.g. a template or group entity without a `unique_id`), add its
+domain to `NON_REGISTRY_DOMAINS` rather than treating the tool's report as
+ground truth for that entity_id.
+
 ### Choosing `extraComponents`
 
 HA's `default_config` baseline in nixpkgs is small, and a missing dependency
