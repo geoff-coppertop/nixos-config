@@ -26,5 +26,6 @@
     ./outside-lights.nix
     ./door-locks.nix
     ./presence-lighting.nix
+    ./sonos-wiim.nix
   ];
 }

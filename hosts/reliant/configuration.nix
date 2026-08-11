@@ -6,7 +6,7 @@
 # Phases. defiant keeps running every one of these services untouched; this
 # is not a cutover. reliant is ready to activate its own instances the
 # moment the Zigbee/Z-Wave USB radios are physically relocated to it.
-_: let
+{pkgs, ...}: let
   nas = import ../../lib/nas.nix;
   thomasga = import ../../users/thomasga/account.nix;
   # reliant's own reserved LAN IP (Unifi DHCP reservation) — distinct from
@@ -42,6 +42,18 @@ in {
       SUBSYSTEM=="tty", ATTRS{idVendor}=="0658", MODE="0660", GROUP="dialout"
       SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", MODE="0660", GROUP="dialout"
     '';
+
+    # wiim: community Home Assistant integration (pkgs/home-assistant-wiim.nix)
+    # for the Wiim receivers in hosts/reliant/home-assistant/sonos-wiim.nix,
+    # replacing core HA's "linkplay" integration (removed from
+    # custom.home-assistant.extraComponents above) -- see the comment there
+    # and hosts/reliant/README.md § Known Gotchas for why. Not part of
+    # nixpkgs' component-packages.nix (it's a third-party
+    # custom_components/HACS package, not core), so it goes through
+    # customComponents instead of extraComponents.
+    home-assistant.customComponents = [
+      (pkgs.callPackage ../../pkgs/home-assistant-wiim.nix {})
+    ];
   };
 
   custom = {
@@ -54,14 +66,30 @@ in {
 
     home-assistant = {
       enable = true;
-      # Mirrors hosts/defiant/configuration.nix's extraComponents exactly —
-      # see hosts/defiant/README.md § Known Gotchas and
+      # Mirrors hosts/defiant/configuration.nix's extraComponents — see
+      # hosts/defiant/README.md § Known Gotchas and
       # docs/smart-home.md § Choosing extraComponents for why each of these
       # is here (mqtt and zwave_js in particular caused real outages on
-      # defiant when missing).
+      # defiant when missing). Not an exact mirror any more: "sonos" and
+      # "linkplay" back hosts/reliant/home-assistant/sonos-wiim.nix, which
+      # targets this host directly rather than defiant (defiant is being
+      # retired — see hosts/reliant/README.md) and so never shipped there.
       extraComponents = [
         "homekit_controller"
         "matter"
+        # sonos: HA's native Sonos integration, discovered via ssdp (already
+        # listed below) — backs the Sonos S1 Amps in
+        # hosts/reliant/home-assistant/sonos-wiim.nix.
+        "sonos"
+        # NOT "linkplay": core HA's linkplay integration fails to set up
+        # against these Wiim Pro units specifically — confirmed live,
+        # getMetaInfo returns the literal string "Failed" instead of JSON
+        # (home-assistant/core#145132 and related open issues), which
+        # aborts the SSDP-discovery config flow before it ever reaches the
+        # UI. The community "wiim" integration
+        # (services.home-assistant.customComponents, in the services block
+        # above) already fixed this exact getMetaInfo handling — see
+        # hosts/reliant/README.md § Known Gotchas.
         "ssdp"
         "zwave_js"
         "mqtt"
@@ -261,19 +289,42 @@ in {
   };
 
   # ── Networking ────────────────────────────────────────────────────────────
-  # Reserved LAN IP: 192.168.20.15, set as a DHCP reservation in Unifi —
-  # distinct from defiant's own reservation (192.168.20.10, staying with
-  # defiant until the final cutover). Consumed by custom.dns.lanIp above
-  # (via the `lanIp` let-binding) now that Phase 2 has wired the homelab
-  # stack over.
-  networking.hostName = "reliant";
+  networking = {
+    # Reserved LAN IP: 192.168.20.15, set as a DHCP reservation in Unifi —
+    # distinct from defiant's own reservation (192.168.20.10, staying with
+    # defiant until the final cutover). Consumed by custom.dns.lanIp above
+    # (via the `lanIp` let-binding) now that Phase 2 has wired the homelab
+    # stack over.
+    hostName = "reliant";
 
-  # Confirmed live: this host's own custom.backups.nas mount fails without
-  # it ("mount error: could not resolve address for unas-pro: Unknown
-  # error") — the NAS hostname isn't mDNS-resolvable here, it's a static
-  # /etc/hosts alias every host with a NAS mount needs, matching
-  # hosts/defiant/configuration.nix and hosts/enterprise-d/configuration.nix.
-  networking.hosts.${nas.ip} = [nas.host];
+    # Confirmed live: this host's own custom.backups.nas mount fails without
+    # it ("mount error: could not resolve address for unas-pro: Unknown
+    # error") — the NAS hostname isn't mDNS-resolvable here, it's a static
+    # /etc/hosts alias every host with a NAS mount needs, matching
+    # hosts/defiant/configuration.nix and hosts/enterprise-d/configuration.nix.
+    hosts.${nas.ip} = [nas.host];
+
+    # Home Assistant's Sonos integration subscribes each speaker directly to
+    # HA's own HTTP server (port 8123) for UPnP event callbacks -- LAN-local
+    # traffic that never goes through Traefik, so modules/home-assistant.nix's
+    # deliberate openFirewall = false (everything else reaches HA only via
+    # Traefik -> 127.0.0.1) leaves it unreachable. Confirmed live on defiant
+    # before this moved here: every paired Sonos speaker logged
+    # "Subscription ... failed, attempting to poll directly" until this rule
+    # was added.
+    #
+    # unbound (modules/dns.nix) has its own access-control option to scope
+    # its LAN-bypass port to a subnet; HA's http integration has no
+    # equivalent allowlist for its main listener, so the restriction has to
+    # happen at the firewall instead of blanket-opening 8123 via
+    # allowedTCPPorts. 192.168.20.0/24 is the same homelab VLAN defiant used
+    # (this host and defiant share it) -- narrower than custom.dns.lanSubnet's
+    # widened 192.168.0.0/16 above, since Sonos doesn't need cross-VLAN reach
+    # the way the DNS bypass does.
+    firewall.extraCommands = ''
+      iptables -I nixos-fw -p tcp -s 192.168.20.0/24 --dport 8123 -j ACCEPT
+    '';
+  };
 
   # Per-host override of the shared default (10, profiles/common/base.nix) —
   # the 120GB mSATA disk has far less headroom than enterprise-d/excelsior's

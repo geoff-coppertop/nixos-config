@@ -132,7 +132,9 @@ in {
       # needed for zigbee2mqtt's bridge discovery messages
       # (zigbee2mqtt/bridge/... topics) to actually create entities, not
       # just publish them unheard — zigbee2mqtt has no HA component of
-      # its own. Sonos deferred for now (not in scope yet).
+      # its own. Sonos/LinkPlay (the Sonos+Wiim automation) moved to
+      # reliant along with the rest of this appliance layer — see
+      # hosts/reliant/configuration.nix and hosts/reliant/README.md.
       #
       # conversation/tts/met/camera/image_processing/assist_pipeline/
       # ai_task/assist_satellite/ffmpeg: confirmed live via the "Invalid
