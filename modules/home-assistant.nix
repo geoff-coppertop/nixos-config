@@ -39,11 +39,27 @@ in {
           # explicitly referenced. Needs zero extra packages (no entry in
           # nixpkgs' component-packages.nix), so no extraComponents change.
           sun = {};
-          http = {
-            trusted_proxies = ["127.0.0.1"];
-            use_x_forwarded_for = true;
-          };
           logger.default = "warning";
+          # NOT http.trusted_proxies/use_x_forwarded_for here (previously
+          # set): confirmed live, newer HA versions deprecate YAML http:
+          # config entirely in favor of UI-managed storage
+          # (Settings > System > Network), auto-importing whatever YAML
+          # value existed once and then repair-warning "remove the http:
+          # block" every boot afterward until it's gone (stops being read
+          # at all from HA 2027.2.0). configWritable = true above means the
+          # already-imported value persists in an existing instance's own
+          # /var/lib/hass/.storage regardless of this file, so removing the
+          # YAML is safe for a host that's already run with it set.
+          #
+          # For a FRESH install (no existing .storage — a from-scratch
+          # defiant rebuild, or any future host), this is a real gap: Traefik
+          # fronts HA on every host with custom.traefik.enable (self-
+          # registered below), so HA needs to trust its X-Forwarded-For
+          # headers to see real client IPs rather than always 127.0.0.1 —
+          # and there is no longer a declarative way to set that. One-time
+          # manual step after first boot: Settings > System > Network >
+          # enable "Use X-Forwarded-For" and add 127.0.0.1 as a trusted
+          # proxy.
         };
       };
     }

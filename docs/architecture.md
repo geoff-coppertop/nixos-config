@@ -219,7 +219,7 @@ The machines currently in this repo are listed in the [root README](../README.md
 | `users/common/` | Shared opt-in user modules: CLI tools, GUI apps, appearance |
 | `lib/` | `apps.nix`, `checks.nix`, `module-inertness.nix` (the `modules-inert` check), `devshell.nix`, `local-file.nix` (see [§ Local Files As Build Inputs](#local-files-as-build-inputs)), `nas.nix`, `nixos-system.nix`, `ssh-hosts.nix`, `traefik-route.nix` |
 | `secrets/` | agenix `.age` files (safe to commit) plus `secrets/secrets.nix` (recipient declarations) |
-| `pkgs/` | Custom package builds: `search-light`, `connect-iq-sdk-manager-cli` (`framework-control` moved upstream to nixpkgs) |
+| `pkgs/` | Custom package builds: `search-light`, `connect-iq-sdk-manager-cli` (`framework-control` moved upstream to nixpkgs), `pywiim` + `home-assistant-wiim` (see [docs/smart-home.md § Wiim](smart-home.md#wiim-community-integration-not-core-linkplay)) |
 | `tools/` | Python provisioning and secret helpers (plus one shell script, `hibernate-test-report.sh`) |
 | `docs/` | This documentation tree |
 

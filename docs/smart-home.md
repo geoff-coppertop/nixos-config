@@ -83,6 +83,28 @@ are part of HA's always-on core bootstrap, `sun` is never set up unless
 referenced, and `sun.sun` does not exist at all without it. It needs no extra
 packages, so it is not an `extraComponents` entry.
 
+### HTTP config: no longer declarative
+
+`modules/home-assistant.nix` used to also set `config.http.trusted_proxies`
+and `config.http.use_x_forwarded_for` — needed because Traefik fronts HA on
+every host with `custom.traefik.enable` (self-registered by this module), so
+HA has to trust Traefik's `X-Forwarded-For` header to see real client IPs
+rather than always `127.0.0.1`. Confirmed live: newer HA versions deprecate
+YAML `http:` config entirely in favor of Settings > System > Network,
+auto-importing whatever YAML value existed once into HA's own
+`.storage` and repair-warning to remove the YAML block on every boot
+afterward until it's gone (stops being read at all from HA `2027.2.0`).
+
+Removed from the module rather than left in: `configWritable = true` means
+the once-imported value already persists in an existing instance's own
+`/var/lib/hass/.storage`, independent of this file, so removing the YAML is
+safe for any host that has already run with it set (`reliant`, confirmed).
+For a **fresh** install with no existing `.storage` (a from-scratch `defiant`
+rebuild, or any future host), there is no longer a declarative way to set
+this — a one-time manual step after first boot is required: Settings >
+System > Network > enable "Use X-Forwarded-For" and add `127.0.0.1` as a
+trusted proxy.
+
 ### Declarative automations
 
 Automations are declared in Nix, **one file per concern**, under
@@ -252,6 +274,38 @@ When an integration misbehaves, check `journalctl` and nixpkgs'
 `extraComponents` rather than assuming `default_config` covers it. Note that some
 integrations are distinct platforms needing their own entry — `google_translate`
 is separate from the core `tts` component, for instance.
+
+### Wiim: community integration, not core `linkplay`
+
+Core HA's `linkplay` integration fails to complete setup against Wiim Pro
+units — confirmed live on `reliant`: its SSDP-discovery validation call,
+`getMetaInfo`, gets back the literal string `"Failed"` instead of JSON, which
+`json.loads()` can't parse (`Expecting value: line 1 column 1 (char 0)`). That
+exception aborts the config flow before it ever creates an integration entry
+or a discovered-device card, so nothing shows up in the UI at all — not a
+missing-dependency gap `extraComponents` can close, and not specific to this
+repo's packaging. Other `httpapi.asp` commands work fine against the same
+device (`getStatusEx` returns full, valid JSON), so it's specifically
+`getMetaInfo` the firmware doesn't answer correctly. Tracked upstream at
+[home-assistant/core#145132](https://github.com/home-assistant/core/issues/145132)
+and related open issues (#123088, #132922, #125770, #125328); no fix has
+landed in `home-assistant/core` as of the nixpkgs revision this flake
+currently pins.
+
+The community-maintained `wiim` integration
+([github.com/mjcumming/wiim](https://github.com/mjcumming/wiim)) already
+handles this device's `getMetaInfo` response correctly. It's a third-party
+`custom_components` (HACS) package, not part of Home Assistant core, so
+nixpkgs' `component-packages.nix` has no entry for it and `extraComponents`
+can't install it. `pkgs/home-assistant-wiim.nix` packages it declaratively via
+`buildHomeAssistantComponent` instead, wired in through
+`services.home-assistant.customComponents` (`hosts/reliant/configuration.nix`)
+rather than `extraComponents` — see that module's `README.md § Known Gotchas`
+entry. Its own dependency, the `pywiim` client library (also not in nixpkgs),
+is packaged separately in `pkgs/pywiim.nix`, built against
+`home-assistant.python.pkgs` specifically (not the general `python3Packages`)
+so its transitive dependencies share Home Assistant's own Python environment
+rather than risking a second, conflicting copy.
 
 ## Radio Networks
 

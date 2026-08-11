@@ -143,6 +143,25 @@ onward (same as `enterprise-d`/`excelsior`).
   [docs/smart-home.md § Matter](../../docs/smart-home.md#matter-pinned-paa-root-certs-not-live-dcl-fetch).
   Tracked upstream at
   [nixpkgs#377136](https://github.com/NixOS/nixpkgs/issues/377136).
+- **Core HA's `linkplay` integration never sets up against the Wiim Pro
+  units** — its `getMetaInfo` discovery call gets the literal string
+  `"Failed"` back instead of JSON, so the config flow dies silently before
+  anything reaches the UI. Replaced with the community `wiim` integration,
+  packaged declaratively via `services.home-assistant.customComponents`
+  instead of `extraComponents` — see
+  [docs/smart-home.md § Wiim](../../docs/smart-home.md#wiim-community-integration-not-core-linkplay).
+  Tracked upstream at
+  [home-assistant/core#145132](https://github.com/home-assistant/core/issues/145132).
+- **"The HTTP YAML configuration is deprecated" repair notice.** Newer HA
+  versions stop reading `config.http.*` from YAML entirely (from `2027.2.0`)
+  in favor of Settings > System > Network; this instance had already
+  auto-imported the previous YAML values (`trusted_proxies`/
+  `use_x_forwarded_for`, needed for Traefik's reverse proxy) into its own
+  `.storage` before the warning appeared. Removed the now-redundant YAML
+  block from `modules/home-assistant.nix` — safe here since the value
+  already persists in storage independent of it, but a **fresh** HA install
+  on any host needs a one-time manual step instead — see
+  [docs/smart-home.md § HTTP config](../../docs/smart-home.md#http-config-no-longer-declarative).
 
 ## Backups
 
