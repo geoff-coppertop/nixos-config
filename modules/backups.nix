@@ -10,8 +10,11 @@
     escapeShellArg
     filterAttrs
     mapAttrs'
+    mapAttrsToList
+    mkDefault
     mkEnableOption
     mkIf
+    mkMerge
     mkOption
     nameValuePair
     optional
@@ -197,6 +200,46 @@
         Unit = "${serviceName userName}.service";
       };
     };
+
+  brcfg = cfg.backrest;
+
+  # Seed config.json on first launch so each enabled user's restic repo is
+  # pre-wired without manual UI setup. repos is empty unless backups are also
+  # enabled (enabledUsers is empty otherwise).
+  seedConfig = pkgs.writeText "backrest-seed.json" (builtins.toJSON {
+    modno = 1;
+    repos =
+      mapAttrsToList (userName: userCfg: {
+        id = "nas-${userName}";
+        uri = repoPath userName;
+        env = ["RESTIC_PASSWORD_FILE=${userCfg.passwordFile}"];
+      })
+      enabledUsers;
+    plans = [];
+    auth.users = [];
+  });
+
+  backrestInit = pkgs.writeShellScript "backrest-init" ''
+    if [ ! -f /var/lib/backrest/config.json ]; then
+      install -m 0600 ${seedConfig} /var/lib/backrest/config.json
+    fi
+  '';
+
+  # Traefik router + service for a proxied remote backrest instance, keyed by
+  # its subdomain so builtins.listToAttrs merges them alongside the local one.
+  mkRemoteRouter = r: {
+    name = r.subdomain;
+    value = {
+      rule = "Host(`${r.subdomain}.${config.custom.traefik.acme.domain}`)";
+      service = r.subdomain;
+      tls = {};
+    };
+  };
+
+  mkRemoteService = r: {
+    name = r.subdomain;
+    value.loadBalancer.servers = [{inherit (r) url;}];
+  };
 in {
   options.custom.backups = {
     enable = mkEnableOption "client-pushed NAS backups";
@@ -309,37 +352,111 @@ in {
         };
       }));
     };
-  };
 
-  config = mkIf cfg.enable {
-    assertions = [
-      {
-        assertion = cfg.nas.host != null;
-        message = "custom.backups.nas.host must be set when NAS backups are enabled.";
-      }
-      {
-        assertion = cfg.nas.share != null;
-        message = "custom.backups.nas.share must be set when NAS backups are enabled.";
-      }
-      {
-        assertion = enabledUsers != {};
-        message = "Enable at least one entry under custom.backups.users when NAS backups are enabled.";
-      }
-      {
-        assertion = cfg.nas.protocol != "cifs" || cfg.nas.credentialsFile != null;
-        message = "custom.backups.nas.credentialsFile must be set for CIFS NAS backups.";
-      }
-    ];
+    backrest = {
+      enable = mkEnableOption "backrest web UI for restic snapshot browsing and restore";
 
-    environment.systemPackages = [pkgs.restic];
+      listenAddress = mkOption {
+        type = types.str;
+        default = "127.0.0.1";
+        description = "Listen address. Set to 0.0.0.0 so the fleet's Traefik host can reach this instance over the LAN.";
+      };
 
-    fileSystems.${cfg.nas.mountPoint} = {
-      device = nasDevice;
-      fsType = nasFsType;
-      options = nasMountOptions;
+      subdomain = mkOption {
+        type = types.str;
+        description = "Traefik subdomain for this host's backrest (without base domain).";
+      };
+
+      proxiedRemotes = mkOption {
+        type = types.listOf (types.submodule {
+          options = {
+            subdomain = mkOption {type = types.str;};
+            url = mkOption {type = types.str;};
+          };
+        });
+        default = [];
+        description = "Remote backrest instances this host's Traefik reverse-proxies. Only used on the Traefik host.";
+      };
     };
-
-    systemd.services = mapAttrs' mkBackupService enabledUsers;
-    systemd.timers = mapAttrs' mkBackupTimer enabledUsers;
   };
+
+  config = mkMerge [
+    (mkIf cfg.enable {
+      assertions = [
+        {
+          assertion = cfg.nas.host != null;
+          message = "custom.backups.nas.host must be set when NAS backups are enabled.";
+        }
+        {
+          assertion = cfg.nas.share != null;
+          message = "custom.backups.nas.share must be set when NAS backups are enabled.";
+        }
+        {
+          assertion = enabledUsers != {};
+          message = "Enable at least one entry under custom.backups.users when NAS backups are enabled.";
+        }
+        {
+          assertion = cfg.nas.protocol != "cifs" || cfg.nas.credentialsFile != null;
+          message = "custom.backups.nas.credentialsFile must be set for CIFS NAS backups.";
+        }
+      ];
+
+      environment.systemPackages = [pkgs.restic];
+
+      fileSystems.${cfg.nas.mountPoint} = {
+        device = nasDevice;
+        fsType = nasFsType;
+        options = nasMountOptions;
+      };
+
+      systemd.services = mapAttrs' mkBackupService enabledUsers;
+      systemd.timers = mapAttrs' mkBackupTimer enabledUsers;
+    })
+
+    (mkIf brcfg.enable {
+      custom.backups.backrest.subdomain = mkDefault "backup-${config.networking.hostName}";
+
+      systemd.services.backrest = {
+        description = "Backrest restic snapshot browser and restore UI";
+        wantedBy = ["multi-user.target"];
+        after = ["network.target"];
+
+        environment = {
+          BACKREST_PORT = "${brcfg.listenAddress}:9898";
+          BACKREST_CONFIG = "/var/lib/backrest/config.json";
+          BACKREST_DATA = "/var/lib/backrest";
+          BACKREST_RESTIC_COMMAND = "${pkgs.restic}/bin/restic";
+        };
+
+        serviceConfig = {
+          Type = "simple";
+          StateDirectory = "backrest";
+          Restart = "on-failure";
+          RestartSec = "5s";
+          ExecStartPre = "${backrestInit}";
+          ExecStart = "${pkgs.backrest}/bin/backrest";
+        };
+      };
+    })
+
+    (mkIf (brcfg.enable && config.custom.traefik.enable) {
+      services.traefik.dynamicConfigOptions.http = {
+        routers =
+          {
+            backrest = {
+              rule = "Host(`${brcfg.subdomain}.${config.custom.traefik.acme.domain}`)";
+              service = "backrest";
+              tls = {};
+            };
+          }
+          // builtins.listToAttrs (map mkRemoteRouter brcfg.proxiedRemotes);
+
+        services =
+          {
+            backrest.loadBalancer.servers = [{url = "http://localhost:9898";}];
+          }
+          // builtins.listToAttrs (map mkRemoteService brcfg.proxiedRemotes);
+      };
+    })
+  ];
 }

@@ -82,6 +82,14 @@ in {
           excludePatterns = [];
         };
       };
+
+      # Headless server, so nothing binds this to Traefik locally; the
+      # fleet's Traefik host (reliant) proxies it cross-VLAN by static IP
+      # instead (see its proxiedRemotes).
+      backrest = {
+        enable = true;
+        listenAddress = "0.0.0.0";
+      };
     };
 
     dcsServer = {
