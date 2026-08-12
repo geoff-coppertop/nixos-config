@@ -175,6 +175,23 @@ username=nas-user
 password=nas-password
 ```
 
+### Backrest admin credentials
+
+`secrets/thomasga/backrest-admin-credentials.age` (recipients: `enterprise-d`,
+`reliant`, `excelsior`, `holodeck-01`) decrypts to:
+
+```text
+username=admin-user
+password=admin-password
+```
+
+Read at `backrest.service` activation on every host with
+`custom.backups.backrest.enable = true`, hashed with bcrypt, and seeded into
+that host's own `config.json` as its one admin login — see
+[docs/backups.md](backups.md). One shared secret across all four instances,
+same sharing pattern (and the same follow-up caveat about splitting into
+per-machine credentials some day) as the NAS SMB credentials below.
+
 ### Wi-Fi passphrases
 
 Each Wi-Fi secret decrypts to exactly one line — the variable name and password,

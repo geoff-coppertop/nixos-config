@@ -47,6 +47,7 @@ in {
       backrest = {
         enable = true;
         listenAddress = "0.0.0.0";
+        adminCredentialsFile = "/run/agenix/thomasga/backrest-admin-credentials";
       };
     };
     btrfs.enable = true;

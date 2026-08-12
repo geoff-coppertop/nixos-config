@@ -22,6 +22,11 @@ in {
   # (lib/nas.nix) so the SMB credential needs no per-host distinction.
   "thomasga/restic-password.age".publicKeys = [enterprise-d reliant excelsior offlineAdmin];
   "thomasga/nas-smb-credentials.age".publicKeys = [enterprise-d reliant excelsior offlineAdmin];
+  # Every host running custom.backups.backrest is a recipient — one shared
+  # admin login across all four instances, same sharing pattern (and same
+  # follow-up caveat about splitting into per-machine credentials some day)
+  # as thomasga/nas-smb-credentials.age above.
+  "thomasga/backrest-admin-credentials.age".publicKeys = [enterprise-d reliant excelsior holodeck-01 offlineAdmin];
   "thomasga/ssh-id-ed25519-enterprise-d.age".publicKeys = [enterprise-d offlineAdmin];
   "thomasga/github-token.age".publicKeys = [enterprise-d offlineAdmin];
   "thomasga/garmin-username.age".publicKeys = [enterprise-d offlineAdmin];

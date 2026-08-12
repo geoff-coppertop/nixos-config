@@ -6,6 +6,8 @@ _: {
     };
     "thomasga/restic-password".file =
       ../../secrets/thomasga/restic-password.age;
+    "thomasga/backrest-admin-credentials".file =
+      ../../secrets/thomasga/backrest-admin-credentials.age;
     "thomasga/ssh-id-ed25519-reliant" = {
       file = ../../secrets/thomasga/ssh-id-ed25519-reliant.age;
       owner = "thomasga";

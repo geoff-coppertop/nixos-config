@@ -220,6 +220,13 @@
   #   repo's config) or `autoInitialize = true` — validate.go rejects a repo
   #   with neither. No `password` field is validated; RESTIC_PASSWORD_FILE
   #   via `env` is sufficient on its own.
+  # auth is deliberately omitted here and merged in at runtime by
+  # backrestInit: the Auth message requires either disabled = true or a
+  # non-empty users list (validate.go rejects auth with no users otherwise —
+  # confirmed live, "auth: auth enabled but no users"), and a real user needs
+  # a bcrypt password hash, which can only be computed at runtime from the
+  # plaintext in adminCredentialsFile. The eval-time seed here never contains
+  # a password in any form.
   seedConfig = pkgs.writeText "backrest-seed.json" (builtins.toJSON {
     version = 6;
     repos =
@@ -231,8 +238,35 @@
       })
       enabledUsers;
     plans = [];
-    auth.users = [];
   });
+
+  # adminCredentialsFile is the same username=/password= format already used
+  # by custom.backups.nas.credentialsFile. The plaintext password is only
+  # ever read here, at runtime on the target host, and hashed immediately —
+  # it never appears in seedConfig (a Nix store path, world-readable) or in
+  # the eval-time closure.
+  #
+  # Field names (`passwordBcrypt`, `disabled`) confirmed against
+  # proto/v1/config.proto's explicit json_name annotations and
+  # internal/config/jsonstore.go's protojson.MarshalOptions (UseProtoNames
+  # unset, so backrest itself writes camelCase) — not guessed.
+  writeSeed = pkgs.writeShellScript "backrest-write-seed" ''
+    set -eu
+    configFile=/var/lib/backrest/config.json
+    credentialsFile=${escapeShellArg brcfg.adminCredentialsFile}
+
+    username=$(${pkgs.gnused}/bin/sed -n 's/^username=//p' "$credentialsFile")
+    password=$(${pkgs.gnused}/bin/sed -n 's/^password=//p' "$credentialsFile")
+    hash=$(printf '%s' "$password" | ${pkgs.mkpasswd}/bin/mkpasswd -m bcrypt --stdin)
+
+    ${pkgs.jq}/bin/jq \
+      --arg name "$username" \
+      --arg hash "$hash" \
+      '.auth = {disabled: false, users: [{name: $name, passwordBcrypt: $hash}]}' \
+      ${seedConfig} >"$configFile.tmp"
+    install -m 0600 "$configFile.tmp" "$configFile"
+    rm -f "$configFile.tmp"
+  '';
 
   # Replace config.json when it's missing, or when backrest has just failed to
   # start against it several times in a row. Trusts backrest's own verdict on
@@ -257,14 +291,14 @@
     configFile=/var/lib/backrest/config.json
 
     if [ ! -f "$configFile" ]; then
-      install -m 0600 ${seedConfig} "$configFile"
+      ${writeSeed}
       exit 0
     fi
 
     restarts=$(${pkgs.systemd}/bin/systemctl show backrest.service -p NRestarts --value)
     if [ "$restarts" -ge 4 ]; then
       echo "backrest.service has failed to start $restarts times in a row; reseeding config.json"
-      install -m 0600 ${seedConfig} "$configFile"
+      ${writeSeed}
     fi
   '';
 
@@ -408,6 +442,17 @@ in {
       subdomain = mkOption {
         type = types.str;
         description = "Traefik subdomain for this host's backrest (without base domain).";
+      };
+
+      adminCredentialsFile = mkOption {
+        type = types.str;
+        description = ''
+          Path to a username=/password= credentials file (the same format as
+          custom.backups.nas.credentialsFile, typically provided by agenix)
+          seeding backrest's one admin login. The plaintext password is read
+          at activation time, hashed with bcrypt, and never written to the
+          Nix store.
+        '';
       };
 
       proxiedRemotes = mkOption {

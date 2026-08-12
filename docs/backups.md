@@ -191,3 +191,13 @@ those commands, or restic prompts for the passphrase.
   fixed — `backrest.service` crash-looped against the stale file across
   several redeploys until it was removed by hand:
   `sudo rm /var/lib/backrest/config.json && sudo systemctl restart backrest`.
+- `custom.backups.backrest.adminCredentialsFile` is required whenever
+  `backrest.enable = true` — backrest's `Auth` message rejects a config with
+  no users unless `disabled = true` is set explicitly, and this module never
+  sets that flag, so a host that enables backrest without also setting
+  `adminCredentialsFile` fails to evaluate. The plaintext password is read at
+  activation time and hashed with bcrypt on the spot; it is never written to
+  the seed `config.json` derivation in the Nix store, only into the runtime
+  file at `/var/lib/backrest/config.json`. See
+  [docs/secrets.md § Backrest admin credentials](secrets.md#backrest-admin-credentials)
+  for the secret's format.

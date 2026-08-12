@@ -228,6 +228,7 @@ in {
       # Each remote binds 0.0.0.0:9898.
       backrest = {
         enable = true;
+        adminCredentialsFile = "/run/agenix/thomasga/backrest-admin-credentials";
         proxiedRemotes = [
           {
             subdomain = "backup-enterprise-d";
