@@ -206,22 +206,65 @@
   # Seed config.json on first launch so each enabled user's restic repo is
   # pre-wired without manual UI setup. repos is empty unless backups are also
   # enabled (enabledUsers is empty otherwise).
+  #
+  # Schema confirmed against backrest 875c9cb (v1.14.1, matching the pinned
+  # nixpkgs package) source, not guessed:
+  # - version must be 6 (proto/v1/config.proto's current schema version,
+  #   internal/config/migrations/migrations.go's CurrentVersion). A config
+  #   with no version field defaults to 0, and internal/config/validate.go
+  #   rejects a version-0 config outright once it has any real data (repos
+  #   here) rather than treating it as freshly-initialized — confirmed live:
+  #   this is exactly what crash-looped backrest.service on excelsior with
+  #   "config version 0 is invalid" before this was fixed.
+  # - each Repo needs either `guid` (64 chars, matching an existing restic
+  #   repo's config) or `autoInitialize = true` — validate.go rejects a repo
+  #   with neither. No `password` field is validated; RESTIC_PASSWORD_FILE
+  #   via `env` is sufficient on its own.
   seedConfig = pkgs.writeText "backrest-seed.json" (builtins.toJSON {
-    modno = 1;
+    version = 6;
     repos =
       mapAttrsToList (userName: userCfg: {
         id = "nas-${userName}";
         uri = repoPath userName;
         env = ["RESTIC_PASSWORD_FILE=${userCfg.passwordFile}"];
+        autoInitialize = true;
       })
       enabledUsers;
     plans = [];
     auth.users = [];
   });
 
+  # Replace config.json when it's missing, or when backrest has just failed to
+  # start against it several times in a row. Trusts backrest's own verdict on
+  # whether the file is loadable rather than this module re-guessing backrest's
+  # validation rules externally (an earlier version of this check tried to
+  # replicate one specific rule — version <= 0 — and would have missed any
+  # other reason backrest might reject a config). Gated on *repeated* failures,
+  # not the first one, so a transient NAS/network hiccup on startup can't be
+  # mistaken for a broken config and clobber real UI-managed state (plans,
+  # schedules) over it. NRestarts is systemd's own consecutive-automatic-
+  # restart counter (systemd.exec(5)) — reset on a fresh `systemctl start`, not
+  # something this needs to track by hand — so this is keyed on what actually
+  # happened, not a guess about what would happen.
+  #
+  # Confirmed live on excelsior and reliant: a plain existence check alone
+  # means a config.json broken by a bad seed (or left behind by an earlier
+  # failed deploy) never self-heals just because the generated seed is later
+  # fixed — both crash-looped against the same stale file across several
+  # redeploys until it was removed by hand.
   backrestInit = pkgs.writeShellScript "backrest-init" ''
-    if [ ! -f /var/lib/backrest/config.json ]; then
-      install -m 0600 ${seedConfig} /var/lib/backrest/config.json
+    set -eu
+    configFile=/var/lib/backrest/config.json
+
+    if [ ! -f "$configFile" ]; then
+      install -m 0600 ${seedConfig} "$configFile"
+      exit 0
+    fi
+
+    restarts=$(${pkgs.systemd}/bin/systemctl show backrest.service -p NRestarts --value)
+    if [ "$restarts" -ge 4 ]; then
+      echo "backrest.service has failed to start $restarts times in a row; reseeding config.json"
+      install -m 0600 ${seedConfig} "$configFile"
     fi
   '';
 
