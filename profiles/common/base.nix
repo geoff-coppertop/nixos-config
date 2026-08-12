@@ -7,6 +7,20 @@
   inherit (lib) optionalAttrs;
   keepGenerations = toString config.custom.nix.gc.keepGenerations;
 in {
+  # Backups are not optional. Every real host imports profiles/common (the
+  # module-inertness probe in flake.nix deliberately does not — it imports
+  # ./modules directly with no custom.* set, so this must live here rather
+  # than in modules/backups.nix or lib/nixos-system.nix, both of which the
+  # probe also passes through). A host that never configures custom.backups
+  # fails to evaluate instead of silently shipping unprotected — the gap
+  # that let excelsior go live without backups in the first place.
+  assertions = [
+    {
+      assertion = config.custom.backups.enable;
+      message = "backups are not optional: set custom.backups.enable = true and configure its nas + at least one users.<name> entry for this host (see docs/backups.md).";
+    }
+  ];
+
   nix = {
     settings = {
       experimental-features = ["nix-command" "flakes"];
