@@ -15,6 +15,14 @@
   # 192.168.20.10 before that cutover — both hosts would otherwise answer
   # split-horizon DNS for the same address while running independently.
   lanIp = "192.168.20.15";
+
+  # Single source of truth for every other host's proxied backrest route —
+  # see lib/backrest-hosts.nix for why this isn't derived from flake.nix
+  # directly. Both custom.dns.subdomains' backup-* entries and
+  # custom.backups.backrest.proxiedRemotes below are generated from this
+  # one list rather than hand-kept in sync.
+  backrestHosts = import ../../lib/backrest-hosts.nix;
+  backrestSubdomain = host: "backup-${host.name}";
 in {
   imports = [
     ./secrets.nix
@@ -218,30 +226,18 @@ in {
 
       # reliant runs Traefik (defiant's is retired — see
       # docs/homelab-network.md § Migration: defiant → reliant), so it fronts
-      # every host's backrest UI: backup-reliant is its own local instance;
-      # the rest are reverse-proxied. enterprise-d and holodeck-01 share
-      # reliant's link and are reached over mDNS .local names (dynamic LAN
-      # IPs, resolvable via avahi in profiles/common/networking.nix).
-      # excelsior sits on a different VLAN (192.168.1.x vs reliant's
-      # 192.168.20.x) where link-local mDNS doesn't reach, so it's addressed
-      # by its reserved static IP — same as the dns2 cross-VLAN route below.
-      # Each remote binds 0.0.0.0:9898.
+      # every host's backrest UI: backup-reliant is its own local instance
+      # (wired by custom.backups.backrest's subdomain default, not here);
+      # the rest come from lib/backrest-hosts.nix — see that file for why
+      # each remote is reachable the way it is (mDNS vs static IP).
       backrest = {
         enable = true;
-        proxiedRemotes = [
-          {
-            subdomain = "backup-enterprise-d";
-            url = "http://enterprise-d.local:9898";
-          }
-          {
-            subdomain = "backup-holodeck-01";
-            url = "http://holodeck-01.local:9898";
-          }
-          {
-            subdomain = "backup-excelsior";
-            url = "http://192.168.1.10:9898";
-          }
-        ];
+        proxiedRemotes =
+          map (host: {
+            subdomain = backrestSubdomain host;
+            inherit (host) url;
+          })
+          backrestHosts;
       };
     };
 
@@ -261,9 +257,12 @@ in {
       # modules/adsb.nix, modules/zigbee.nix), which they now are, above.
       # dns1 is this host's own AdGuard admin UI; dns2 is the cross-host
       # router to excelsior's, defined by hand below. backup-reliant plus
-      # one backup-<name> per custom.backups.backrest.proxiedRemotes entry
-      # above.
-      subdomains = ["home" "dns1" "dns2" "adsb" "zigbee" "backup-reliant" "backup-enterprise-d" "backup-holodeck-01" "backup-excelsior"];
+      # one backup-<name> per lib/backrest-hosts.nix entry — kept in sync
+      # with custom.backups.backrest.proxiedRemotes above by construction,
+      # not by hand.
+      subdomains =
+        ["home" "dns1" "dns2" "adsb" "zigbee" "backup-reliant"]
+        ++ map backrestSubdomain backrestHosts;
       # Renamed from the module default "dns", carried from defiant — dns1
       # (this host) and dns2 (excelsior) pair the two AdGuard instances.
       adminSubdomain = "dns1";
