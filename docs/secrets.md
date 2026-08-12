@@ -167,8 +167,8 @@ repository. Add a host only when that host actually runs the job.
 ### NAS SMB credentials
 
 `secrets/thomasga/nas-smb-credentials.age` (recipients: `enterprise-d`,
-`reliant`) and `secrets/defiant/nas-smb-credentials.age` (recipient: `defiant`)
-decrypt to:
+`reliant`, `excelsior` — see `## Known Gotchas` below) and
+`secrets/defiant/nas-smb-credentials.age` (recipient: `defiant`) decrypt to:
 
 ```text
 username=nas-user
@@ -473,3 +473,14 @@ mechanism, not a trust oracle.
 Disk encryption (LUKS and TPM) is not agenix material and is not this doc's
 concern — see
 [docs/provisioning.md § Disk Encryption And TPM](provisioning.md#disk-encryption-and-tpm).
+
+## Known Gotchas
+
+- `secrets/thomasga/nas-smb-credentials.age` is the `thomasga` user's own
+  personal NAS login, reused as the mount credential for every host's
+  `custom.backups.nas.credentialsFile` (`enterprise-d`, `reliant`,
+  `excelsior`) — a personal credential standing in for what should be a
+  dedicated machine/service account with its own NAS-side access scope.
+  Splitting it out has to start on the NAS itself (create a machine-scoped
+  SMB user there first); minting the corresponding `.age` secret here is
+  the easy half, not the blocker.

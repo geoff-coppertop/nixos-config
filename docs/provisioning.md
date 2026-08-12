@@ -53,7 +53,9 @@ In scope:
   authorized keys; without this nobody can log in over SSH
 - agenix secrets enrollment — age identity, SSH host key pinning
   (`secrets-warden`'s hand-off, Step 2 below)
-- `custom.backups` (`modules/backups.nix`)
+- `custom.backups` (`modules/backups.nix`) — not optional; `profiles/common/base.nix`
+  asserts it's enabled, so a host missing this fails to evaluate rather than
+  just being a review gap (see [docs/backups.md](backups.md))
 
 Out of scope — these are Phase 2, added in later, separate PRs by their owning
 agent:

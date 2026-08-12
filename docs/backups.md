@@ -6,6 +6,12 @@ Client-pushed restic backups to a NAS share, provided by
 The module is imported by `modules/default.nix`, so every host already has
 it — a host only needs to set `custom.backups`.
 
+**Backups are mandatory.** `profiles/common/base.nix` — imported by every real
+host, but deliberately not by `flake.nix`'s module-inertness probe — asserts
+`custom.backups.enable` is true, so a machine that never configures backups
+fails to evaluate rather than shipping unprotected. There is no opt-out:
+define a `custom.backups` block for every host.
+
 Each domain agent adds the entries for its own services (the same way each adds
 its own `custom.dns.subdomains`): `smart-home` owns the `hass`, `zigbee2mqtt`,
 and `zwave-js` entries, `homelab-network` owns `adguardhome`, and

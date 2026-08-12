@@ -15,8 +15,13 @@ let
 in {
   # Job-keyed, not machine-keyed: every host running the "thomasga" backup job
   # is a recipient. The restic repo path already disambiguates by hostname.
-  "thomasga/restic-password.age".publicKeys = [enterprise-d reliant offlineAdmin];
-  "thomasga/nas-smb-credentials.age".publicKeys = [enterprise-d reliant offlineAdmin];
+  # excelsior is a recipient too — its home dir is backed up for consistency
+  # with the rest of the fleet even though it's rarely used directly.
+  # excelsior is also a recipient of both: its home dir is backed up for
+  # consistency with the rest of the fleet, and it mounts the same NAS
+  # (lib/nas.nix) so the SMB credential needs no per-host distinction.
+  "thomasga/restic-password.age".publicKeys = [enterprise-d reliant excelsior offlineAdmin];
+  "thomasga/nas-smb-credentials.age".publicKeys = [enterprise-d reliant excelsior offlineAdmin];
   "thomasga/ssh-id-ed25519-enterprise-d.age".publicKeys = [enterprise-d offlineAdmin];
   "thomasga/github-token.age".publicKeys = [enterprise-d offlineAdmin];
   "thomasga/garmin-username.age".publicKeys = [enterprise-d offlineAdmin];
@@ -36,7 +41,10 @@ in {
   "hass/restic-password.age".publicKeys = [defiant reliant offlineAdmin];
   "zigbee2mqtt/restic-password.age".publicKeys = [defiant reliant offlineAdmin];
   "zwave-js/restic-password.age".publicKeys = [defiant reliant offlineAdmin];
-  "adguardhome/restic-password.age".publicKeys = [defiant reliant offlineAdmin];
+  # excelsior added as a third recipient — it runs its own independent
+  # AdGuard Home instance (the dns2 pair to reliant's), backed up the same
+  # way defiant's and reliant's are.
+  "adguardhome/restic-password.age".publicKeys = [defiant reliant excelsior offlineAdmin];
   # Matched to the physical Zigbee coordinator's own NVRAM state, not the
   # host — named for the hardware, not defiant, so it keeps working without
   # a rename if the coordinator moves. reliant reuses this rather than a new
@@ -54,4 +62,5 @@ in {
   "zwave/secrets.age".publicKeys = [defiant reliant offlineAdmin];
   "thomasga/ssh-id-ed25519-excelsior.age".publicKeys = [excelsior offlineAdmin];
   "thomasga/ssh-id-ed25519-reliant.age".publicKeys = [reliant offlineAdmin];
+  "dcs-server/restic-password.age".publicKeys = [excelsior offlineAdmin];
 }
