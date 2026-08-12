@@ -144,6 +144,12 @@ These must hold without reading any doc first.
   already covers** — e.g. updating a PR's title and description after pushing
   commits that change its scope. Reserve confirmation for things that are
   genuinely ambiguous, risky, or irreversible.
+- **Don't guess an external tool's config or API schema when writing code that
+  depends on it.** Look it up — docs, source, WebFetch/WebSearch — before
+  writing config or code whose shape you're not certain of; ask if it can't be
+  confirmed. A hand-guessed backrest `config.json` schema shipped a service
+  that crash-looped on real hardware (`config version 0 is invalid`) — the
+  real schema was one search away in the project's own source.
 
 ### Shell and commands
 
