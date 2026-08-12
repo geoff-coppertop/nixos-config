@@ -1,4 +1,5 @@
 _: let
+  nas = import ../../lib/nas.nix;
   thomasga = import ../../users/thomasga/account.nix;
 in {
   imports = [
@@ -23,6 +24,65 @@ in {
 
     btrfs.enable = true;
     snapper.enable = true;
+
+    backups = {
+      enable = true;
+
+      nas = {
+        # Reuses the shared thomasga/nas-smb-credentials secret rather than
+        # minting a new one — every host mounts the same NAS (lib/nas.nix),
+        # so there's no reason for per-host SMB credentials. Matches
+        # enterprise-d/reliant's precedent, not a prior version of this
+        # file's own separate excelsior-only secret (that was the gap
+        # reliant's own comment already flagged as not the pattern to copy).
+        credentialsFile = "/run/agenix/thomasga/nas-smb-credentials";
+        inherit (nas) host;
+        share = nas.shares.backups;
+      };
+
+      users = {
+        # Consistency with the rest of the fleet (enterprise-d, holodeck-01,
+        # reliant all back up thomasga's home dir), even though this is a
+        # headless server thomasga rarely touches directly. Reuses the
+        # existing shared thomasga/restic-password secret rather than
+        # minting a new one — same job-keyed pattern as adguardhome below.
+        thomasga.enable = true;
+
+        dcs-server = {
+          enable = true;
+          # Confirmed live on the first deploy: backing up the whole dataDir
+          # (as a fail-safe, before this path was known) produced a 52.7 GiB
+          # snapshot — almost all of it the re-downloadable DCS install and
+          # wine prefix, not anything irreplaceable. The wine container's
+          # actual user is "abc" (LinuxServer.io convention, not "root"), and
+          # DCS names its Saved Games profile "DCS.dcs_serverrelease", not
+          # the generic "DCS.server" this path originally guessed — real
+          # size confirmed live at 184K (config, logs, persistence,
+          # logbook.db; no Missions pushed yet, but future mission files
+          # land inside this same directory and are covered by it).
+          paths = [
+            "/var/lib/dcs-server/.wine/drive_c/users/abc/Saved Games/DCS.dcs_serverrelease"
+            "/var/lib/dcs-srs-server/Presets"
+          ];
+          excludePatterns = [];
+          passwordFile = "/run/agenix/dcs-server/restic-password";
+        };
+
+        # This host's own independent DNS instance (custom.dns below) runs
+        # AdGuard Home — same job every other AdGuard-running host
+        # (defiant, reliant) already backs up. Job-keyed, not machine-keyed
+        # (docs/secrets.md § Secret Inventory): reuses the existing shared
+        # adguardhome/restic-password secret rather than minting a new one,
+        # same reasoning as reliant's hass/zigbee2mqtt/zwave-js jobs. Path
+        # capitalized to match the confirmed-live symlink target on every
+        # other host running AdGuard Home.
+        adguardhome = {
+          enable = true;
+          paths = ["/var/lib/AdGuardHome"];
+          excludePatterns = [];
+        };
+      };
+    };
 
     dcsServer = {
       enable = true;
@@ -80,5 +140,6 @@ in {
   };
 
   networking.hostName = "excelsior";
+  networking.hosts.${nas.ip} = [nas.host];
   system.stateVersion = "25.11";
 }
