@@ -41,6 +41,16 @@ in {
       };
 
       users.thomasga.enable = true;
+
+      # WSL2 NATs inbound behind Windows, so backup-holodeck-01.coppertop.ca
+      # will 502 from the Traefik host until mirrored networking (or a
+      # Windows port-forward) exposes 9898. The UI is still reachable on the
+      # host itself; the cross-host route just can't reach it yet.
+      backrest = {
+        enable = true;
+        listenAddress = "0.0.0.0";
+        adminCredentialsFile = "/run/agenix/thomasga/backrest-admin-credentials";
+      };
     };
   };
 

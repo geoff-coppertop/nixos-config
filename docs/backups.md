@@ -178,3 +178,26 @@ those commands, or restic prompts for the passphrase.
   lowercase path does not exist. Confirm with `ls -l` on the host before adding
   an entry; that also shows whether the path is a symlink, which matters for the
   reason given in [Symlinked State Directories](#symlinked-state-directories).
+- `custom.backups.backrest`'s seed `config.json` only replaces an existing file
+  after `backrest.service` has actually failed to start against it several
+  times in a row (`systemd`'s own `NRestarts` counter, `>= 4`) — trusting
+  backrest's own verdict on whether the file loads, not this module
+  re-guessing backrest's validation rules externally. Gated on *repeated*
+  failures, not the first one, so a transient NAS/network hiccup on startup
+  isn't mistaken for a broken config and doesn't clobber real UI-managed state
+  (plans, schedules). Confirmed live on excelsior and reliant: before this
+  existed, a plain existence check alone meant a `config.json` broken by a
+  pre-fix seed never self-healed just because the generated seed was later
+  fixed — `backrest.service` crash-looped against the stale file across
+  several redeploys until it was removed by hand:
+  `sudo rm /var/lib/backrest/config.json && sudo systemctl restart backrest`.
+- `custom.backups.backrest.adminCredentialsFile` is required whenever
+  `backrest.enable = true` — backrest's `Auth` message rejects a config with
+  no users unless `disabled = true` is set explicitly, and this module never
+  sets that flag, so a host that enables backrest without also setting
+  `adminCredentialsFile` fails to evaluate. The plaintext password is read at
+  activation time and hashed with bcrypt on the spot; it is never written to
+  the seed `config.json` derivation in the Nix store, only into the runtime
+  file at `/var/lib/backrest/config.json`. See
+  [docs/secrets.md § Backrest admin credentials](secrets.md#backrest-admin-credentials)
+  for the secret's format.

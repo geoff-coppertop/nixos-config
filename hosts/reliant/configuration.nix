@@ -215,6 +215,35 @@ in {
           excludePatterns = [];
         };
       };
+
+      # reliant runs Traefik (defiant's is retired — see
+      # docs/homelab-network.md § Migration: defiant → reliant), so it fronts
+      # every host's backrest UI: backup-reliant is its own local instance;
+      # the rest are reverse-proxied. enterprise-d and holodeck-01 share
+      # reliant's link and are reached over mDNS .local names (dynamic LAN
+      # IPs, resolvable via avahi in profiles/common/networking.nix).
+      # excelsior sits on a different VLAN (192.168.1.x vs reliant's
+      # 192.168.20.x) where link-local mDNS doesn't reach, so it's addressed
+      # by its reserved static IP — same as the dns2 cross-VLAN route below.
+      # Each remote binds 0.0.0.0:9898.
+      backrest = {
+        enable = true;
+        adminCredentialsFile = "/run/agenix/thomasga/backrest-admin-credentials";
+        proxiedRemotes = [
+          {
+            subdomain = "backup-enterprise-d";
+            url = "http://enterprise-d.local:9898";
+          }
+          {
+            subdomain = "backup-holodeck-01";
+            url = "http://holodeck-01.local:9898";
+          }
+          {
+            subdomain = "backup-excelsior";
+            url = "http://192.168.1.10:9898";
+          }
+        ];
+      };
     };
 
     dns = {
@@ -232,8 +261,10 @@ in {
       # their custom.* modules are enabled (see modules/home-assistant.nix,
       # modules/adsb.nix, modules/zigbee.nix), which they now are, above.
       # dns1 is this host's own AdGuard admin UI; dns2 is the cross-host
-      # router to excelsior's, defined by hand below.
-      subdomains = ["home" "dns1" "dns2" "adsb" "zigbee"];
+      # router to excelsior's, defined by hand below. backup-reliant plus
+      # one backup-<name> per custom.backups.backrest.proxiedRemotes entry
+      # above.
+      subdomains = ["home" "dns1" "dns2" "adsb" "zigbee" "backup-reliant" "backup-enterprise-d" "backup-holodeck-01" "backup-excelsior"];
       # Renamed from the module default "dns", carried from defiant — dns1
       # (this host) and dns2 (excelsior) pair the two AdGuard instances.
       adminSubdomain = "dns1";

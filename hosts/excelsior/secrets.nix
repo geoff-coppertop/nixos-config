@@ -18,5 +18,6 @@ _: {
     "thomasga/nas-smb-credentials".file = ../../secrets/thomasga/nas-smb-credentials.age;
     "adguardhome/restic-password".file = ../../secrets/adguardhome/restic-password.age;
     "thomasga/restic-password".file = ../../secrets/thomasga/restic-password.age;
+    "thomasga/backrest-admin-credentials".file = ../../secrets/thomasga/backrest-admin-credentials.age;
   };
 }

@@ -10,8 +10,11 @@
     escapeShellArg
     filterAttrs
     mapAttrs'
+    mapAttrsToList
+    mkDefault
     mkEnableOption
     mkIf
+    mkMerge
     mkOption
     nameValuePair
     optional
@@ -197,6 +200,123 @@
         Unit = "${serviceName userName}.service";
       };
     };
+
+  brcfg = cfg.backrest;
+
+  # Seed config.json on first launch so each enabled user's restic repo is
+  # pre-wired without manual UI setup. repos is empty unless backups are also
+  # enabled (enabledUsers is empty otherwise).
+  #
+  # Schema confirmed against backrest 875c9cb (v1.14.1, matching the pinned
+  # nixpkgs package) source, not guessed:
+  # - version must be 6 (proto/v1/config.proto's current schema version,
+  #   internal/config/migrations/migrations.go's CurrentVersion). A config
+  #   with no version field defaults to 0, and internal/config/validate.go
+  #   rejects a version-0 config outright once it has any real data (repos
+  #   here) rather than treating it as freshly-initialized — confirmed live:
+  #   this is exactly what crash-looped backrest.service on excelsior with
+  #   "config version 0 is invalid" before this was fixed.
+  # - each Repo needs either `guid` (64 chars, matching an existing restic
+  #   repo's config) or `autoInitialize = true` — validate.go rejects a repo
+  #   with neither. No `password` field is validated; RESTIC_PASSWORD_FILE
+  #   via `env` is sufficient on its own.
+  # auth is deliberately omitted here and merged in at runtime by
+  # backrestInit: the Auth message requires either disabled = true or a
+  # non-empty users list (validate.go rejects auth with no users otherwise —
+  # confirmed live, "auth: auth enabled but no users"), and a real user needs
+  # a bcrypt password hash, which can only be computed at runtime from the
+  # plaintext in adminCredentialsFile. The eval-time seed here never contains
+  # a password in any form.
+  seedConfig = pkgs.writeText "backrest-seed.json" (builtins.toJSON {
+    version = 6;
+    repos =
+      mapAttrsToList (userName: userCfg: {
+        id = "nas-${userName}";
+        uri = repoPath userName;
+        env = ["RESTIC_PASSWORD_FILE=${userCfg.passwordFile}"];
+        autoInitialize = true;
+      })
+      enabledUsers;
+    plans = [];
+  });
+
+  # adminCredentialsFile is the same username=/password= format already used
+  # by custom.backups.nas.credentialsFile. The plaintext password is only
+  # ever read here, at runtime on the target host, and hashed immediately —
+  # it never appears in seedConfig (a Nix store path, world-readable) or in
+  # the eval-time closure.
+  #
+  # Field names (`passwordBcrypt`, `disabled`) confirmed against
+  # proto/v1/config.proto's explicit json_name annotations and
+  # internal/config/jsonstore.go's protojson.MarshalOptions (UseProtoNames
+  # unset, so backrest itself writes camelCase) — not guessed.
+  writeSeed = pkgs.writeShellScript "backrest-write-seed" ''
+    set -eu
+    configFile=/var/lib/backrest/config.json
+    credentialsFile=${escapeShellArg brcfg.adminCredentialsFile}
+
+    username=$(${pkgs.gnused}/bin/sed -n 's/^username=//p' "$credentialsFile")
+    password=$(${pkgs.gnused}/bin/sed -n 's/^password=//p' "$credentialsFile")
+    hash=$(printf '%s' "$password" | ${pkgs.mkpasswd}/bin/mkpasswd -m bcrypt --stdin)
+
+    ${pkgs.jq}/bin/jq \
+      --arg name "$username" \
+      --arg hash "$hash" \
+      '.auth = {disabled: false, users: [{name: $name, passwordBcrypt: $hash}]}' \
+      ${seedConfig} >"$configFile.tmp"
+    install -m 0600 "$configFile.tmp" "$configFile"
+    rm -f "$configFile.tmp"
+  '';
+
+  # Replace config.json when it's missing, or when backrest has just failed to
+  # start against it several times in a row. Trusts backrest's own verdict on
+  # whether the file is loadable rather than this module re-guessing backrest's
+  # validation rules externally (an earlier version of this check tried to
+  # replicate one specific rule — version <= 0 — and would have missed any
+  # other reason backrest might reject a config). Gated on *repeated* failures,
+  # not the first one, so a transient NAS/network hiccup on startup can't be
+  # mistaken for a broken config and clobber real UI-managed state (plans,
+  # schedules) over it. NRestarts is systemd's own consecutive-automatic-
+  # restart counter (systemd.exec(5)) — reset on a fresh `systemctl start`, not
+  # something this needs to track by hand — so this is keyed on what actually
+  # happened, not a guess about what would happen.
+  #
+  # Confirmed live on excelsior and reliant: a plain existence check alone
+  # means a config.json broken by a bad seed (or left behind by an earlier
+  # failed deploy) never self-heals just because the generated seed is later
+  # fixed — both crash-looped against the same stale file across several
+  # redeploys until it was removed by hand.
+  backrestInit = pkgs.writeShellScript "backrest-init" ''
+    set -eu
+    configFile=/var/lib/backrest/config.json
+
+    if [ ! -f "$configFile" ]; then
+      ${writeSeed}
+      exit 0
+    fi
+
+    restarts=$(${pkgs.systemd}/bin/systemctl show backrest.service -p NRestarts --value)
+    if [ "$restarts" -ge 4 ]; then
+      echo "backrest.service has failed to start $restarts times in a row; reseeding config.json"
+      ${writeSeed}
+    fi
+  '';
+
+  # Traefik router + service for a proxied remote backrest instance, keyed by
+  # its subdomain so builtins.listToAttrs merges them alongside the local one.
+  mkRemoteRouter = r: {
+    name = r.subdomain;
+    value = {
+      rule = "Host(`${r.subdomain}.${config.custom.traefik.acme.domain}`)";
+      service = r.subdomain;
+      tls = {};
+    };
+  };
+
+  mkRemoteService = r: {
+    name = r.subdomain;
+    value.loadBalancer.servers = [{inherit (r) url;}];
+  };
 in {
   options.custom.backups = {
     enable = mkEnableOption "client-pushed NAS backups";
@@ -309,37 +429,122 @@ in {
         };
       }));
     };
-  };
 
-  config = mkIf cfg.enable {
-    assertions = [
-      {
-        assertion = cfg.nas.host != null;
-        message = "custom.backups.nas.host must be set when NAS backups are enabled.";
-      }
-      {
-        assertion = cfg.nas.share != null;
-        message = "custom.backups.nas.share must be set when NAS backups are enabled.";
-      }
-      {
-        assertion = enabledUsers != {};
-        message = "Enable at least one entry under custom.backups.users when NAS backups are enabled.";
-      }
-      {
-        assertion = cfg.nas.protocol != "cifs" || cfg.nas.credentialsFile != null;
-        message = "custom.backups.nas.credentialsFile must be set for CIFS NAS backups.";
-      }
-    ];
+    backrest = {
+      enable = mkEnableOption "backrest web UI for restic snapshot browsing and restore";
 
-    environment.systemPackages = [pkgs.restic];
+      listenAddress = mkOption {
+        type = types.str;
+        default = "127.0.0.1";
+        description = "Listen address. Set to 0.0.0.0 so the fleet's Traefik host can reach this instance over the LAN.";
+      };
 
-    fileSystems.${cfg.nas.mountPoint} = {
-      device = nasDevice;
-      fsType = nasFsType;
-      options = nasMountOptions;
+      subdomain = mkOption {
+        type = types.str;
+        description = "Traefik subdomain for this host's backrest (without base domain).";
+      };
+
+      adminCredentialsFile = mkOption {
+        type = types.str;
+        description = ''
+          Path to a username=/password= credentials file (the same format as
+          custom.backups.nas.credentialsFile, typically provided by agenix)
+          seeding backrest's one admin login. The plaintext password is read
+          at activation time, hashed with bcrypt, and never written to the
+          Nix store.
+        '';
+      };
+
+      proxiedRemotes = mkOption {
+        type = types.listOf (types.submodule {
+          options = {
+            subdomain = mkOption {type = types.str;};
+            url = mkOption {type = types.str;};
+          };
+        });
+        default = [];
+        description = "Remote backrest instances this host's Traefik reverse-proxies. Only used on the Traefik host.";
+      };
     };
-
-    systemd.services = mapAttrs' mkBackupService enabledUsers;
-    systemd.timers = mapAttrs' mkBackupTimer enabledUsers;
   };
+
+  config = mkMerge [
+    (mkIf cfg.enable {
+      assertions = [
+        {
+          assertion = cfg.nas.host != null;
+          message = "custom.backups.nas.host must be set when NAS backups are enabled.";
+        }
+        {
+          assertion = cfg.nas.share != null;
+          message = "custom.backups.nas.share must be set when NAS backups are enabled.";
+        }
+        {
+          assertion = enabledUsers != {};
+          message = "Enable at least one entry under custom.backups.users when NAS backups are enabled.";
+        }
+        {
+          assertion = cfg.nas.protocol != "cifs" || cfg.nas.credentialsFile != null;
+          message = "custom.backups.nas.credentialsFile must be set for CIFS NAS backups.";
+        }
+      ];
+
+      environment.systemPackages = [pkgs.restic];
+
+      fileSystems.${cfg.nas.mountPoint} = {
+        device = nasDevice;
+        fsType = nasFsType;
+        options = nasMountOptions;
+      };
+
+      systemd.services = mapAttrs' mkBackupService enabledUsers;
+      systemd.timers = mapAttrs' mkBackupTimer enabledUsers;
+    })
+
+    (mkIf brcfg.enable {
+      custom.backups.backrest.subdomain = mkDefault "backup-${config.networking.hostName}";
+
+      systemd.services.backrest = {
+        description = "Backrest restic snapshot browser and restore UI";
+        wantedBy = ["multi-user.target"];
+        after = ["network.target"];
+
+        environment = {
+          BACKREST_PORT = "${brcfg.listenAddress}:9898";
+          BACKREST_CONFIG = "/var/lib/backrest/config.json";
+          BACKREST_DATA = "/var/lib/backrest";
+          BACKREST_RESTIC_COMMAND = "${pkgs.restic}/bin/restic";
+        };
+
+        serviceConfig = {
+          Type = "simple";
+          StateDirectory = "backrest";
+          Restart = "on-failure";
+          RestartSec = "5s";
+          ExecStartPre = "${backrestInit}";
+          ExecStart = "${pkgs.backrest}/bin/backrest";
+        };
+      };
+    })
+
+    (mkIf (brcfg.enable && config.custom.traefik.enable) {
+      services.traefik.dynamicConfigOptions.http = {
+        routers =
+          {
+            backrest = {
+              rule = "Host(`${brcfg.subdomain}.${config.custom.traefik.acme.domain}`)";
+              service = "backrest";
+              tls = {};
+            };
+          }
+          // builtins.listToAttrs (map mkRemoteRouter brcfg.proxiedRemotes);
+
+        services =
+          {
+            backrest.loadBalancer.servers = [{url = "http://localhost:9898";}];
+          }
+          // builtins.listToAttrs (map mkRemoteService brcfg.proxiedRemotes);
+      };
+    })
+  ];
 }

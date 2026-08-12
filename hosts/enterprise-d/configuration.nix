@@ -43,6 +43,12 @@ in {
       };
 
       users.thomasga.enable = true;
+
+      backrest = {
+        enable = true;
+        listenAddress = "0.0.0.0";
+        adminCredentialsFile = "/run/agenix/thomasga/backrest-admin-credentials";
+      };
     };
     btrfs.enable = true;
     framework.enable = true;
