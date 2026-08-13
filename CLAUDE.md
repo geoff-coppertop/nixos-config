@@ -11,7 +11,7 @@ policy. Everything is committed; nothing is configured by hand after install.
 | Machine | Type | Arch | Host doc |
 | --- | --- | --- | --- |
 | `enterprise-d` | Framework laptop, full GNOME desktop | `x86_64-linux` | `hosts/enterprise-d/README.md` |
-| `defiant` | Raspberry Pi 4 headless homelab server | `aarch64-linux` | `hosts/defiant/README.md` |
+| `reliant` | Gigabyte Brix mini PC, headless homelab server | `x86_64-linux` | `hosts/reliant/README.md` |
 | `holodeck-01` | NixOS on WSL2, headless | `x86_64-linux` | `hosts/holodeck-01/README.md` |
 | `excelsior` | HP EliteDesk 800 G2 Mini headless game server | `x86_64-linux` | `hosts/excelsior/README.md` |
 
@@ -30,8 +30,8 @@ them in sequence and reconcile the results.
 | Secrets, agenix, SSH keys, Wi-Fi credentials | `secrets-warden` | `docs/secrets.md` |
 | A user — new or existing: home-manager, dotfiles, per-user GUI apps, desktop theme, adding a user | `user-provisioner` | `docs/users.md`, `docs/desktop.md` |
 | Machine capability: which desktop environment, audio, idle/suspend, Podman/devcontainers, Connect IQ SDK, USB debug probes | `machine-provisioner` | `docs/workstation.md` |
-| defiant reverse proxy and DNS: Traefik, AdGuard, unbound | `homelab-network` | `docs/homelab-network.md` |
-| defiant appliance layer: Home Assistant, Zigbee, Z-Wave, Matter, MQTT, ADS-B | `smart-home` | `docs/smart-home.md` |
+| reliant reverse proxy and DNS: Traefik, AdGuard, unbound | `homelab-network` | `docs/homelab-network.md` |
+| reliant appliance layer: Home Assistant, Zigbee, Z-Wave, Matter, MQTT, ADS-B | `smart-home` | `docs/smart-home.md` |
 | Repo toolchain and quality gates: dev shell, `nix run .#` apps, pre-commit, flake checks, CI | `architect` | `docs/operations.md` |
 | Backups: the `custom.backups` module and its doc | `architect` | `docs/backups.md` |
 
@@ -79,7 +79,7 @@ Rules:
 | `docs/users.md` | User model, adding a user, dotfiles patterns, home-manager idioms |
 | `docs/desktop.md` | A person's desktop: per-user GUI app opt-in, theme and wallpaper, draw.io/Obsidian |
 | `docs/workstation.md` | Machine capability: `profiles/desktop/` (DE, audio, idle/suspend) and `profiles/dev/` (Podman, Connect IQ, debug probes) |
-| `docs/homelab-network.md` | Traefik and DNS composition on defiant — the `custom.*` option table itself is in `docs/architecture.md` |
+| `docs/homelab-network.md` | Traefik and DNS composition on reliant — the `custom.*` option table itself is in `docs/architecture.md` |
 | `docs/smart-home.md` | Home Assistant automation rules, `extraComponents`, Zigbee/Z-Wave radio network specifics |
 
 ## Common Commands And Placement Rule

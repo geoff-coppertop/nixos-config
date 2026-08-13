@@ -33,7 +33,7 @@ Usage:
   python3 tools/check_ha_entities.py <host> [--host-dir hosts/<host>]
 
   <host>        SSH target (see lib/ssh-hosts.nix for the pinned aliases,
-                e.g. "defiant", "defiant.local", "reliant", "reliant.local").
+                e.g. "reliant", "reliant.local").
                 Also used as the default hosts/<host>/home-assistant
                 directory name unless --host-dir overrides it.
 
@@ -163,14 +163,14 @@ def main() -> None:
         "host",
         help=(
             "SSH target for the running Home Assistant instance "
-            "(see lib/ssh-hosts.nix), e.g. defiant or reliant."
+            "(see lib/ssh-hosts.nix), e.g. reliant."
         ),
     )
     parser.add_argument(
         "--host-dir",
         help=(
             "Override the hosts/<host>/home-assistant directory to scan "
-            "(default: derived from <host>, e.g. hosts/defiant/home-assistant)."
+            "(default: derived from <host>, e.g. hosts/reliant/home-assistant)."
         ),
     )
     parser.add_argument(

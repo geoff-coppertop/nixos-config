@@ -52,7 +52,7 @@ in {
           # YAML is safe for a host that's already run with it set.
           #
           # For a FRESH install (no existing .storage — a from-scratch
-          # defiant rebuild, or any future host), this is a real gap: Traefik
+          # install on any future host), this is a real gap: Traefik
           # fronts HA on every host with custom.traefik.enable (self-
           # registered below), so HA needs to trust its X-Forwarded-For
           # headers to see real client IPs rather than always 127.0.0.1 —

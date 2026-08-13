@@ -5,7 +5,7 @@ What a workstation-class machine provides: a graphical environment
 modules backing them.
 
 This is machine capability, not personal preference — it is what the host *can
-do*, decided when the machine is defined. `hosts/defiant/configuration.nix` not
+do*, decided when the machine is defined. `hosts/reliant/configuration.nix` not
 importing `profiles/desktop` is that decision in action. A person's own settings on
 top — theme, wallpaper, which optional apps they install — are
 [docs/desktop.md](desktop.md). The layering rule is
@@ -52,7 +52,7 @@ before changing either.
 | `profiles/dev/network-tools.nix` | `dnsutils` — `dig`/`nslookup`/`host` |
 
 `network-tools.nix` exists because `dig` can query a specific resolver and port
-directly (`dig @127.0.0.1 -p 5335` against unbound on `defiant`), which `curl`
+directly (`dig @127.0.0.1 -p 5335` against unbound on `reliant`), which `curl`
 and `getent` cannot do.
 
 ## Containers

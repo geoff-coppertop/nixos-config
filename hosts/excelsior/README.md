@@ -3,7 +3,7 @@
 Headless bare-metal server running a DCS World dedicated server via the
 [Aterfax container](https://github.com/Aterfax/DCS-World-Dedicated-Server-Docker)
 under podman, a separate DCS-SRS voice server container, and a second,
-independent unbound + AdGuard Home DNS instance alongside defiant's.
+independent unbound + AdGuard Home DNS instance alongside reliant's.
 
 The reusable DNS/Traefik service layer is documented in
 [docs/homelab-network.md](../../docs/homelab-network.md). Provisioning steps
@@ -35,7 +35,7 @@ onward (same as enterprise-d).
   tooling needed; `virtualisation.oci-containers` enables podman itself.
 - SSH key only: `PasswordAuthentication`, `KbdInteractiveAuthentication`, and
   `PermitRootLogin` are all off.
-- `security.sudo.wheelNeedsPassword = false`, same reasoning as defiant: the
+- `security.sudo.wheelNeedsPassword = false`, same reasoning as reliant: the
   authorized-key check is the real access gate, and a sudo password on top of
   it only blocks unattended `nixos-rebuild --target-host` deploys.
 - `excelsior` alone isn't resolvable — use the mDNS `.local` name:
@@ -48,7 +48,7 @@ onward (same as enterprise-d).
 
 | Service | URL | Port behind Traefik |
 | --- | --- | --- |
-| AdGuard Home | `https://dns2.coppertop.ca` (proxied cross-host through defiant's Traefik — excelsior runs no Traefik of its own) | 3000 |
+| AdGuard Home | `https://dns2.coppertop.ca` (proxied cross-host through reliant's Traefik — excelsior runs no Traefik of its own) | 3000 |
 
 | Port | Protocol | Purpose | Exposure |
 | --- | --- | --- | --- |
@@ -77,7 +77,7 @@ Then open `http://localhost:3001` (web desktop) and
 | --- | --- |
 | DCS World | Wait for `DCSAUTOINSTALL` to finish (tens of GB), open the launcher in the tunneled web desktop, log in with Eagle Dynamics credentials, tick "save login" + auto-login |
 | DCS-SRS | No manual step — separate `dcs-srs-server` container starts on its own |
-| AdGuard Home | Complete the setup wizard; set upstream DNS to `127.0.0.1:5335` (same as defiant) |
+| AdGuard Home | Complete the setup wizard; set upstream DNS to `127.0.0.1:5335` (same as reliant) |
 
 After DCS login is saved, set `custom.dcsServer.autoStart = true;` and
 rebuild so the DCS server launches with the container.
@@ -118,15 +118,15 @@ dig @excelsior.local -p 5335 example.com
 
 Point a device at `192.168.1.10:5335` in its DNS settings to bypass AdGuard
 permanently. For actual DNS redundancy, the router/DHCP config needs to hand
-out both `192.168.20.10` (defiant) and `192.168.1.10` (excelsior) as DNS
+out both `192.168.20.15` (reliant) and `192.168.1.10` (excelsior) as DNS
 servers — that's a router-side step, not managed by this repo.
 
 ## Known Gotchas
 
 - **`custom.dcsServer.desktopPort` is overridden to 3001.** The module
   default (3000) collides with AdGuard Home's admin UI, which also defaults
-  to 3000 and is what defiant's `dns2.coppertop.ca` Traefik route depends on
-  — same class of conflict defiant hit and fixed for `zwave-js`.
+  to 3000 and is what reliant's `dns2.coppertop.ca` Traefik route depends on
+  — same class of conflict reliant hit and fixed for `zwave-js`.
 - **DCS-SRS is not bundled with the Aterfax DCS image.**
   [Aterfax#74](https://github.com/Aterfax/DCS-World-Dedicated-Server-Docker/issues/74)
   tracks that as unimplemented. `custom.dcsServer.srs.enable` runs the
@@ -134,7 +134,7 @@ servers — that's a router-side step, not managed by this repo.
   podman container instead — no Wine/.NET install needed inside the DCS
   desktop.
 - **`custom.dns.lanSubnet` is overridden to `192.168.0.0/16`.** The module
-  default (`192.168.1.0/24`) and defiant's own override
+  default (`192.168.1.0/24`) and reliant's own override
   (`192.168.20.0/24`) each only cover one of the network's 3 VLANs. Widened
   on both hosts so unbound's `access-control` allows direct bypass queries
   on port 5335 from any of them.

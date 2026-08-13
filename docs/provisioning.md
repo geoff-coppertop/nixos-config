@@ -13,7 +13,7 @@ Each host declares how it is provisioned in `hosts/<machine>/provision-type`:
 | Type | Hosts | Media | Installer |
 | --- | --- | --- | --- |
 | `disko` | `enterprise-d`, `excelsior` | NixOS installer USB | `tools/install.py` runs disko, then `nixos-install` |
-| `sd-card` | `defiant` | SD card | `nix run .#install` builds and flashes the aarch64 SD image |
+| `sd-card` | none currently | SD card | `nix run .#install` builds and flashes the aarch64 SD image |
 | `wsl` | `holodeck-01` | none | Not currently automated — see [hosts/holodeck-01/README.md](../hosts/holodeck-01/README.md) |
 
 `nix run .#install` (`tools/install.py`) presents a machine menu and dispatches
@@ -133,9 +133,10 @@ shred -u ~/.config/agenix/admin.age
 ```
 
 Create any service secrets the machine needs before its first boot — see
-[docs/secrets.md § Secret Inventory](secrets.md#secret-inventory). For `defiant`
-in particular, the Zigbee and Z-Wave security keys **must** exist before the
-first deploy; generating them later forces a re-pair of every device.
+[docs/secrets.md § Secret Inventory](secrets.md#secret-inventory). For a host
+running Zigbee2MQTT or Z-Wave JS in particular, the Zigbee and Z-Wave security
+keys **must** exist before the first deploy; generating them later forces a
+re-pair of every device.
 
 Commit and push before installing — `system.autoUpgrade` and remote deploys both
 read from the GitHub remote.
@@ -333,12 +334,19 @@ If the system does not auto-unlock at boot:
 4. **If Secure Boot or firmware state changed**, the TPM may not unlock
    automatically. Either provide the passphrase or re-enroll TPM after boot.
 
-## SD-Card Hosts (`defiant`)
+## SD-Card Hosts
 
-`defiant` is a headless aarch64 Raspberry Pi 4. Machine-specific facts, service
-URLs, and pairing quirks live in
-[hosts/defiant/README.md](../hosts/defiant/README.md); the service architecture
-is documented in [docs/homelab-network.md](homelab-network.md).
+No current host uses `sd-card` provisioning — the aarch64 homelab server this
+path was built for (`defiant`) has been retired in favor of `reliant`
+(`x86_64-linux`, generic `disko` provisioning). The mechanism below is kept
+documented for a future aarch64 host, since the tooling
+(`tools/provision.py`, `tools/install.py`) is already generic and
+machine-name-parametrized, not tied to any specific host.
+
+Machine-specific facts (service URLs, pairing quirks) for a headless aarch64
+host of this kind would live in that host's own README, following the
+pattern of `hosts/reliant/README.md`; the service architecture is documented
+in [docs/homelab-network.md](homelab-network.md).
 
 ### Build and flash the SD card
 
@@ -346,12 +354,12 @@ After completing step 2 (enrollment, service secrets, rekey, commit, push):
 
 ```bash
 nix run .#install
-# Select: defiant
+# Select: <machine>
 ```
 
 This cross-compiles the SD image (several minutes), decompresses it, prompts for
-and confirms the target device before flashing, then installs `defiant`'s age
-identity (`~/.config/agenix/defiant.age`, generated during enrollment) onto the
+and confirms the target device before flashing, then installs `<machine>`'s age
+identity (`~/.config/agenix/<machine>.age`, generated during enrollment) onto the
 image so it can decrypt its secrets at first boot. It unmounts and powers off the
 device automatically when finished — safe to remove as soon as the tool exits, no
 manual eject needed.
@@ -359,25 +367,26 @@ manual eject needed.
 ### First boot and network setup
 
 1. Connect ethernet, insert the SD card, power on. Wait about two minutes.
-2. In the Unifi console → Clients, find `defiant` by hostname or MAC. Note the IP.
+2. In the Unifi console → Clients, find `<machine>` by hostname or MAC. Note the IP.
 3. Set a DHCP reservation for its MAC address, giving it a fixed LAN IP.
-4. Set that reserved IP as DNS Server 1 in the LAN DHCP settings.
+4. Set that reserved IP as DNS Server 1 in the LAN DHCP settings, if this host
+   is meant to serve DNS.
 5. Collect the SSH host key and pin it:
 
    ```bash
-   ssh-keyscan -t ed25519 <defiant-ip> 2>/dev/null
-   # Verify: ssh thomasga@<defiant-ip> "ssh-keygen -l -f /etc/ssh/ssh_host_ed25519_key.pub"
+   ssh-keyscan -t ed25519 <machine-ip> 2>/dev/null
+   # Verify: ssh thomasga@<machine-ip> "ssh-keygen -l -f /etc/ssh/ssh_host_ed25519_key.pub"
    # Paste the verified key into lib/ssh-hosts.nix as publicKey = "ssh-ed25519 AAAA..."
    ```
 
-6. Update `lanIp` in `hosts/defiant/configuration.nix` with the reserved IP.
+6. Update `lanIp` in `hosts/<machine>/configuration.nix` with the reserved IP.
    Commit and push.
 
 ### First full deploy
 
 ```bash
-nixos-rebuild switch --flake .#defiant \
-  --target-host thomasga@defiant.local \
+nixos-rebuild switch --flake .#<machine> \
+  --target-host thomasga@<machine>.local \
   --sudo
 ```
 
@@ -386,32 +395,28 @@ the deprecated `--use-remote-sudo`. Every headless host sets
 `security.sudo.wheelNeedsPassword = false;` (the SSH key check is the real
 access gate), so no interactive password prompt.
 
-The SD card is fixed-size — unlike `enterprise-d`/`excelsior`'s NVMe/SSD, there
+An SD card is fixed-size — unlike `enterprise-d`/`excelsior`'s NVMe/SSD, there
 is no headroom to grow into. Check free space before a large deploy:
 
 ```bash
-ssh thomasga@defiant.local "df -h /"
+ssh thomasga@<machine>.local "df -h /"
 ```
 
-`hosts/defiant/configuration.nix` caps boot generations at 3
-(`boot.loader.generic-extlinux-compatible.configurationLimit`), kept in sync
-with this host's `custom.nix.gc.keepGenerations = 3` override — a per-host
-override of `profiles/common/base.nix`'s `custom.nix.gc.keepGenerations`
-option (shared default: 10) — old generations no longer accumulate unbounded.
-The drop from 10 to 3 followed a full `nix-collect-garbage -d` (which also
-drops all old generations) only getting the 30G card down to a ~23-24G floor
-at the old cap. `hosts/defiant/configuration.nix` also sets
-`nix.settings.min-free`/`max-free` (2GiB/5GiB), scoped to this host only, so
-a build or deploy triggers proactive GC mid-operation instead of failing
-outright. If `df -h` still shows the root partition nearly full, it's Nix
-store garbage (unreferenced paths, not kept generations): run
-`nix-collect-garbage -d` on the host, or wait for the nightly `nix-gc` timer.
+Cap boot generations (`boot.loader.generic-extlinux-compatible.configurationLimit`)
+and this host's `custom.nix.gc.keepGenerations` override (a per-host override
+of `profiles/common/base.nix`'s option, shared default: 10) well below the
+default on a small card — `defiant`'s own 30G card needed both dropped to 3
+before a full `nix-collect-garbage -d` (which also drops all old generations)
+reliably kept it under its ~23-24G floor; treat that as a per-host example to
+tune from, not a default to copy verbatim. Also consider scoping
+`nix.settings.min-free`/`max-free` to the host so a build or deploy triggers
+proactive GC mid-operation instead of failing outright. If `df -h` still shows
+the root partition nearly full, it's Nix store garbage (unreferenced paths,
+not kept generations): run `nix-collect-garbage -d` on the host, or wait for
+the nightly `nix-gc` timer.
 
-Zigbee2MQTT and Z-Wave JS start up using the keys created during enrollment — no
-further extraction step is needed.
-
-Then complete the per-service setup in
-[hosts/defiant/README.md § First-Time Service Setup](../hosts/defiant/README.md#first-time-service-setup).
+If the host runs Zigbee2MQTT and/or Z-Wave JS, they start up using the keys
+created during enrollment — no further extraction step is needed.
 
 ## WSL Hosts (`holodeck-01`)
 

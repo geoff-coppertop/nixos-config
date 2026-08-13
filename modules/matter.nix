@@ -82,7 +82,7 @@
     # device_controller.start(), where zeroconf's IPV6_MULTICAST_IF socket
     # setup raises "OSError: [Errno 92] Protocol not available" — no real
     # IPv6 multicast networking in the build sandbox on this host
-    # (aarch64/defiant). This package's full test suite otherwise passes on
+    # (aarch64). This package's full test suite otherwise passes on
     # nixpkgs's own Hydra, so this is one observed failure on this build
     # host, not a general "sandboxes can't do multicast" fact. Deselect only
     # this test — doCheck stays on, and paaCertificatesPinnedTest above
@@ -205,9 +205,8 @@ in {
     # UI and commissioning each Matter device with its pairing code — here the
     # Aqara M2 hub, which bridges the U100 locks (and later the office FP1e
     # presence sensor) — are one-time UI steps; enabling the server just
-    # installs the backend HA talks to. Runs on the same host as HA — today
-    # both `defiant` and `reliant` during their migration, `reliant` alone
-    # once `defiant` retires — so HA always reaches it over localhost.
+    # installs the backend HA talks to. Runs on the same host as HA —
+    # `reliant` — so HA always reaches it over localhost.
     services.matter-server.enable = true;
     services.matter-server.package = matterServerPackage;
   };

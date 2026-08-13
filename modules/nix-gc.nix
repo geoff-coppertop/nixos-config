@@ -1,8 +1,8 @@
 # Declares the retention count the nix-gc preStart in profiles/common/base.nix
 # prunes profiles down to. It is host-tunable because storage headroom is a
-# property of the machine, not of garbage collection: defiant boots from a 30G
-# SD card where ten system generations leave no room for a new closure, while
-# the NVMe/SSD hosts have space to spare.
+# property of the machine, not of garbage collection: an SD-card host boots
+# from a small, fixed-size card where ten system generations can leave no
+# room for a new closure, while the NVMe/SSD hosts have space to spare.
 {lib, ...}: {
   options.custom.nix.gc.keepGenerations = lib.mkOption {
     type = lib.types.ints.positive;

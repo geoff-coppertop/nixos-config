@@ -30,7 +30,7 @@ in {
       # accepts unsigned paths from trusted-users (default: root only) —
       # without this, deploying to any host over SSH as a non-root user
       # fails with "lacks a signature by a trusted key". Confirmed live
-      # deploying to defiant as thomasga.
+      # deploying to reliant as thomasga.
       trusted-users = ["root" "@wheel"];
     };
 

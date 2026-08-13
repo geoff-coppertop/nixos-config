@@ -39,7 +39,7 @@ devcontainers, the Connect IQ toolchain, network tools), plus the system
 modules backing them — `modules/debug-probes.nix` and `modules/bin-compat.nix`
 — and the packages those consume, `pkgs/search-light.nix` and
 `pkgs/connect-iq-sdk-manager-cli.nix`. These say *what class of machine this
-is* and what it can do; `hosts/defiant/configuration.nix` not importing
+is* and what it can do; `hosts/reliant/configuration.nix` not importing
 `profiles/desktop` is that decision in action. They are system-layer files by
 the placement rule, not a person's workflow.
 
@@ -104,7 +104,8 @@ You do not:
 - The LUKS passphrase and Secure Boot key material must be stored outside the
   machine before the install proceeds.
 - Zigbee and Z-Wave security keys must exist **before** the first deploy of
-  `defiant`. Creating them later forces a full re-pair of every device.
+  a host running those services. Creating them later forces a full re-pair of
+  every device.
 - Commit and push before installing — `system.autoUpgrade` and remote deploys
   both read from the GitHub remote, not the working tree.
 - Fresh WSL bootstrap is not currently automated. Do not reconstruct removed

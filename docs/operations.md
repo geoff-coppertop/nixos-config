@@ -102,7 +102,6 @@ sudo nixos-rebuild switch --flake .#enterprise-d
 | --- | --- | --- |
 | `enterprise-d` | `sudo nixos-rebuild switch --flake .#enterprise-d` | On `enterprise-d` |
 | `holodeck-01` | `sudo nixos-rebuild switch --flake .#holodeck-01` | Inside the WSL distro |
-| `defiant` | `nixos-rebuild switch --flake .#defiant --target-host thomasga@defiant.local --sudo` | Any machine with SSH and Nix |
 | `excelsior` | `nixos-rebuild switch --flake .#excelsior --target-host thomasga@excelsior.local --sudo` | Any machine with SSH and Nix |
 | `reliant` | `nixos-rebuild switch --flake .#reliant --target-host thomasga@reliant.local --sudo` | Any machine with SSH and Nix |
 | `enterprise-d` (remote) | `nixos-rebuild switch --flake .#enterprise-d --target-host thomasga@enterprise-d --sudo` | Any machine with SSH and Nix |
@@ -186,14 +185,16 @@ sudo nixos-rebuild switch --flake .#enterprise-d
 nix build .#nixosConfigurations.enterprise-d.config.system.build.toplevel
 nix build .#nixosConfigurations.holodeck-01.config.system.build.toplevel
 
-# aarch64 — needs binfmt emulation or a native/remote aarch64 builder
-nix build .#nixosConfigurations.defiant.config.system.build.toplevel
-nix build .#nixosConfigurations.defiant.config.system.build.sdImage
+# aarch64-linux — no host currently uses this architecture. If one is added,
+# it needs binfmt emulation or a native/remote aarch64 builder, e.g.:
+nix build .#nixosConfigurations.<aarch64-host>.config.system.build.toplevel
+nix build .#nixosConfigurations.<aarch64-host>.config.system.build.sdImage
 ```
 
-`enterprise-d` sets `boot.binfmt.emulatedSystems = ["aarch64-linux"]`, so it can
-cross-build `defiant` locally, slowly. CI sidesteps this by building `defiant`
-natively on an `ubuntu-24.04-arm` runner.
+`enterprise-d` sets `boot.binfmt.emulatedSystems = ["aarch64-linux"]`, so it
+can cross-build an aarch64 host locally, slowly. CI sidesteps this by
+building aarch64 hosts natively on an `ubuntu-24.04-arm` runner, when one
+exists in the matrix.
 
 Use `nix flake check --no-build`, never bare `nix flake check`: the latter tries
 to build every `nixosConfiguration` including the aarch64 one, which fails with a

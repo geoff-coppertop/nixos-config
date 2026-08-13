@@ -157,8 +157,8 @@ This is not cosmetic. It silently defeats `tools/ci_changed_hosts.py`, which
 decides what CI builds by comparing each host's toplevel `drvPath` across two
 commits: a host whose closure embeds one of these references shows as changed
 on a commit that touched only some other host. That was empirically confirmed
-with `nix-diff`; `enterprise-d` was rebuilt by a PR that touched only
-`hosts/defiant/*`, via `users/thomasga/account.nix`'s `avatar`.
+with `nix-diff`; `enterprise-d` was rebuilt by a PR that touched only another
+host's `hosts/*`, via `users/thomasga/account.nix`'s `avatar`.
 
 One shape that looks identical but is **not** affected:
 `age.secrets.<name>.file = ../../secrets/x.age;`. In the same real CI run,
@@ -195,7 +195,7 @@ Trek, Star Wars, and Battlestar Galactica:
   official ship designation NCC-1701-D)
 - No character names
 - Physical machines: named after specific vessels or stations (e.g.
-  `enterprise-d`, `galactica`, `defiant`)
+  `enterprise-d`, `galactica`, `reliant`)
 - WSL instances: `holodeck-<NN>` (e.g. `holodeck-01`, `holodeck-02`)
 
 The machines currently in this repo are listed in the [root README](../README.md#machines).
@@ -206,10 +206,9 @@ The machines currently in this repo are listed in the [root README](../README.md
 | --- | --- |
 | `flake.nix` | Single entry point: inputs, dev shell, checks, apps, `nixosConfigurations`, `homeConfigurations` |
 | `hosts/enterprise-d/` | Framework laptop: hardware scan, disko disk layout, power/hibernate policy |
-| `hosts/defiant/` | Raspberry Pi 4 homelab server: SD image, homelab service config, Home Assistant automations |
 | `hosts/holodeck-01/` | NixOS-WSL instance |
 | `hosts/excelsior/` | Headless x86_64 game server: DCS World dedicated server + DCS-SRS, second independent DNS instance |
-| `hosts/reliant/` | Gigabyte Brix mini PC: bare Phase 1 host (disko disk layout, no homelab services yet), intended to eventually replace `defiant` |
+| `hosts/reliant/` | Gigabyte Brix mini PC: homelab server — DNS, Traefik, Home Assistant, and the radio/appliance stack (Zigbee, Z-Wave, Matter, MQTT, ADS-B) |
 | `profiles/common/` | Baseline every host gets: nix settings/GC, `system.autoUpgrade`, timezone/locale, kernel, fonts; plus network discovery (avahi/mDNS), the agenix identity path, SSH known-hosts rendering |
 | `profiles/desktop/` | Desktop environment baseline, audio (pipewire), power/idle policy |
 | `profiles/dev/` | Dev tooling: GitHub CLI, container runtime, network tools |
@@ -240,7 +239,6 @@ Index of every doc that carries a `## Known Gotchas` section. Links only, by
 design: the text stays in one place and this list exists so the set of active
 workarounds can be found and revisited without re-deriving where they live.
 
-- [`hosts/defiant/README.md` § Known Gotchas](../hosts/defiant/README.md#known-gotchas)
 - [`hosts/reliant/README.md` § Known Gotchas](../hosts/reliant/README.md#known-gotchas)
 - [`hosts/excelsior/README.md` § Known Gotchas](../hosts/excelsior/README.md#known-gotchas)
 - [`hosts/enterprise-d/README.md` § Known Gotchas](../hosts/enterprise-d/README.md#known-gotchas)
@@ -295,8 +293,8 @@ test from § Layers applied consistently, with no exceptions today.
 ### Homelab services
 
 `custom.traefik` and the appliance modules (`home-assistant`, `mqtt`, `matter`,
-`zigbee`, `zwave`, `adsb`) are enabled only on `defiant`. `custom.dns` runs on
-**both** `defiant` and `excelsior` as two independent instances — AdGuard Home
+`zigbee`, `zwave`, `adsb`) are enabled only on `reliant`. `custom.dns` runs on
+**both** `reliant` and `excelsior` as two independent instances — AdGuard Home
 has no native clustering, so redundancy means two separate resolvers, not
 shared config. See [docs/homelab-network.md](homelab-network.md).
 
