@@ -39,6 +39,19 @@ in {
           # explicitly referenced. Needs zero extra packages (no entry in
           # nixpkgs' component-packages.nix), so no extraComponents change.
           sun = {};
+          # mobile_app: confirmed live — extraComponents only bundles the
+          # mobile_app Python package into the closure, it does not cause HA
+          # to load it at boot. mobile_app also has no "Add Integration" UI
+          # flow to trigger setup after the fact (unlike most components):
+          # it's driven entirely by the companion app's own registration API
+          # call, which is exactly the call that fails with "The mobile_app
+          # component is not loaded" when this entry is missing. Same gap as
+          # sun above — not part of HA's true always-on core bootstrap
+          # (ssdp/zeroconf), so it's never attempted unless explicitly
+          # referenced here. `mobile_app` still needs to stay in each host's
+          # custom.home-assistant.extraComponents too (that part was correct
+          # already, just not sufficient alone without this YAML entry).
+          mobile_app = {};
           logger.default = "warning";
           # NOT http.trusted_proxies/use_x_forwarded_for here (previously
           # set): confirmed live, newer HA versions deprecate YAML http:

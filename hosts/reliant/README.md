@@ -152,6 +152,15 @@ onward (same as `enterprise-d`/`excelsior`).
   [docs/smart-home.md § Wiim](../../docs/smart-home.md#wiim-community-integration-not-core-linkplay).
   Tracked upstream at
   [home-assistant/core#145132](https://github.com/home-assistant/core/issues/145132).
+- **iOS companion app failed to connect with "The mobile_app component is not
+  loaded."** `"mobile_app"` was already in `extraComponents`, which installs
+  the package but doesn't cause HA to load it, and `mobile_app` has no "Add
+  Integration" UI flow to trigger setup afterward — it's driven entirely by
+  the companion app's own registration call, the very call that was failing.
+  Fixed by adding `mobile_app = {}` to `services.home-assistant.config` in
+  `modules/home-assistant.nix`, same fix shape as the existing `sun` entry —
+  see
+  [docs/smart-home.md § Home Assistant](../../docs/smart-home.md#home-assistant).
 - **"The HTTP YAML configuration is deprecated" repair notice.** Newer HA
   versions stop reading `config.http.*` from YAML entirely (from `2027.2.0`)
   in favor of Settings > System > Network; this instance had already
