@@ -156,14 +156,6 @@ in {
       # zeroconf), but its deps (nixpkgs' component-packages.nix: async-upnp-
       # client, ifaddr) aren't part of the small default_config baseline
       # either, same gap as the rest of this list.
-      #
-      # mobile_app: required for the iOS/Android companion app to connect —
-      # without it the app's error dialog reads "The mobile_app component is
-      # not loaded" (Shared.HomeAssistantAPI.APIError, code 6). Same gap as
-      # the rest of this list: not part of the small default_config
-      # baseline, even though it still shows up in the "Add Integration"
-      # search (that catalog is static frontend data, unrelated to what's
-      # actually installed).
       extraComponents = [
         # homekit_controller: lets HA drive HomeKit accessories (the outside
         # light switches are HomeKit devices, exposed as switch.* entities).
@@ -177,7 +169,6 @@ in {
         # one-time UI steps; this just installs the component's backend.
         "matter"
         "ssdp"
-        "mobile_app"
         "zwave_js"
         "mqtt"
         "conversation"

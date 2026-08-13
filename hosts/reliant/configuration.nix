@@ -91,6 +91,10 @@ in {
         # above) already fixed this exact getMetaInfo handling — see
         # hosts/reliant/README.md § Known Gotchas.
         "ssdp"
+        # mobile_app: required for the iOS/Android companion app to connect —
+        # without it the app's error dialog reads "The mobile_app component is
+        # not loaded" (Shared.HomeAssistantAPI.APIError, code 6).
+        "mobile_app"
         "zwave_js"
         "mqtt"
         "conversation"
