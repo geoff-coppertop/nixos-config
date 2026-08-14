@@ -83,6 +83,15 @@ are part of HA's always-on core bootstrap, `sun` is never set up unless
 referenced, and `sun.sun` does not exist at all without it. It needs no extra
 packages, so it is not an `extraComponents` entry.
 
+`mobile_app = {}` is set explicitly in the module for the same reason as
+`sun`: `extraComponents` only bundles the `mobile_app` Python package into the
+closure, it does not make HA load it at boot, and `mobile_app` has no "Add
+Integration" UI flow to trigger setup afterward — it's driven entirely by the
+companion app's own registration API call, which is the very call that fails
+with "The mobile_app component is not loaded" if this entry is missing. A
+host still needs `"mobile_app"` in its own `extraComponents` too (that
+installs the package); the YAML entry here is what makes HA actually load it.
+
 ### HTTP config: no longer declarative
 
 `modules/home-assistant.nix` used to also set `config.http.trusted_proxies`

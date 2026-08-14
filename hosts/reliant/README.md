@@ -152,6 +152,15 @@ onward (same as `enterprise-d`/`excelsior`).
   [docs/smart-home.md § Wiim](../../docs/smart-home.md#wiim-community-integration-not-core-linkplay).
   Tracked upstream at
   [home-assistant/core#145132](https://github.com/home-assistant/core/issues/145132).
+- **iOS companion app failed to connect with "The mobile_app component is not
+  loaded."** `"mobile_app"` was already in `extraComponents`, which installs
+  the package but doesn't cause HA to load it, and `mobile_app` has no "Add
+  Integration" UI flow to trigger setup afterward — it's driven entirely by
+  the companion app's own registration call, the very call that was failing.
+  Fixed by adding `mobile_app = {}` to `services.home-assistant.config` in
+  `modules/home-assistant.nix`, same fix shape as the existing `sun` entry —
+  see
+  [docs/smart-home.md § Home Assistant](../../docs/smart-home.md#home-assistant).
 - **"The HTTP YAML configuration is deprecated" repair notice.** Newer HA
   versions stop reading `config.http.*` from YAML entirely (from `2027.2.0`)
   in favor of Settings > System > Network; this instance had already
@@ -162,6 +171,15 @@ onward (same as `enterprise-d`/`excelsior`).
   already persists in storage independent of it, but a **fresh** HA install
   on any host needs a one-time manual step instead — see
   [docs/smart-home.md § HTTP config](../../docs/smart-home.md#http-config-no-longer-declarative).
+- **iOS companion app setup silently times out when entering `<ip>:8123`,
+  works with the FQDN (`home.coppertop.ca`).** `modules/home-assistant.nix`
+  sets `services.home-assistant.openFirewall = false` unconditionally, and
+  `configuration.nix`'s `firewall.extraCommands` only opens 8123 from
+  `192.168.20.0/24` for Sonos UPnP callbacks — a client on any other VLAN
+  can't reach 8123 directly. Traefik's 443 is open broadly via
+  `custom.traefik`, so the FQDN (proxied to HA) connects fine; a raw IP:port
+  entry just hangs with no error. Always use `home.coppertop.ca` for
+  companion app / client setup, never `<ip>:8123`.
 
 ## Backups
 
