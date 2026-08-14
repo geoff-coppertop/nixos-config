@@ -171,6 +171,15 @@ onward (same as `enterprise-d`/`excelsior`).
   already persists in storage independent of it, but a **fresh** HA install
   on any host needs a one-time manual step instead — see
   [docs/smart-home.md § HTTP config](../../docs/smart-home.md#http-config-no-longer-declarative).
+- **iOS companion app setup silently times out when entering `<ip>:8123`,
+  works with the FQDN (`home.coppertop.ca`).** `modules/home-assistant.nix`
+  sets `services.home-assistant.openFirewall = false` unconditionally, and
+  `configuration.nix`'s `firewall.extraCommands` only opens 8123 from
+  `192.168.20.0/24` for Sonos UPnP callbacks — a client on any other VLAN
+  can't reach 8123 directly. Traefik's 443 is open broadly via
+  `custom.traefik`, so the FQDN (proxied to HA) connects fine; a raw IP:port
+  entry just hangs with no error. Always use `home.coppertop.ca` for
+  companion app / client setup, never `<ip>:8123`.
 
 ## Backups
 
