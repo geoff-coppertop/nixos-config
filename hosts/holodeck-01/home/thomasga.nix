@@ -1,4 +1,4 @@
 {
   imports = [../../../users/thomasga/headless.nix];
-  custom.ssh.identitySecret = "ssh-id-ed25519-holodeck-01";
+  custom.ssh.identityKeyName = "ssh-id-ed25519-holodeck-01";
 }

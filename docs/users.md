@@ -60,7 +60,7 @@ secret:
 # hosts/<machine>/home/thomasga.nix
 {
   imports = [../../../users/thomasga/desktop.nix];
-  custom.ssh.identitySecret = "ssh-id-ed25519-enterprise-d";
+  custom.ssh.identityKeyName = "ssh-id-ed25519-enterprise-d";
 }
 ```
 
@@ -94,7 +94,7 @@ an account on:
 # hosts/<machine>/home/alice.nix
 {
   imports = [../../../users/alice/desktop.nix]; # or headless.nix
-  custom.ssh.identitySecret = "ssh-id-ed25519-alice-<machine>";
+  custom.ssh.identityKeyName = "ssh-id-ed25519-alice-<machine>";
 }
 ```
 

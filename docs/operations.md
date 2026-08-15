@@ -303,3 +303,9 @@ It asks for two things:
 The default author steps mirror the [validation commands](#validation-commands)
 above and the CI jobs in the table before this section; keep the three in step
 when any of them changes.
+
+`pkgs/simagic-ff.nix` carries a source `rev = "master"` that is an
+unconfirmed guess at its default branch (see
+[hosts/stargazer/README.md](../hosts/stargazer/README.md#build-caveats-before-first-nixos-rebuild)) —
+a future upstream push to `master` will hash-mismatch again; CI's build-job
+failure output reports the correct SRI hash to paste in.

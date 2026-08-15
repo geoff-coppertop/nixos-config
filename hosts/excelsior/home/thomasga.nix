@@ -1,4 +1,4 @@
 {
   imports = [../../../users/thomasga/headless.nix];
-  custom.ssh.identitySecret = "ssh-id-ed25519-excelsior";
+  custom.ssh.identityKeyName = "ssh-id-ed25519-excelsior";
 }

@@ -4,15 +4,15 @@
   pkgs,
   ...
 }: {
-  options.custom.ssh.identitySecret = lib.mkOption {
+  options.custom.ssh.identityKeyName = lib.mkOption {
     type = lib.types.nullOr lib.types.str;
     default = null;
     description = "Name of the agenix secret under /run/agenix/thomasga/ holding the SSH private key. When set, the key is copied to ~/.ssh/id_ed25519 and the public key is derived on each rebuild.";
   };
 
-  config = lib.mkIf (config.custom.ssh.identitySecret != null) {
+  config = lib.mkIf (config.custom.ssh.identityKeyName != null) {
     home.activation.copySshKey = lib.hm.dag.entryAfter ["writeBoundary"] ''
-      keyfile="/run/agenix/thomasga/${config.custom.ssh.identitySecret}"
+      keyfile="/run/agenix/thomasga/${config.custom.ssh.identityKeyName}"
       if [ -f "$keyfile" ]; then
         $DRY_RUN_CMD mkdir -p "$HOME/.ssh"
         $DRY_RUN_CMD chmod 700 "$HOME/.ssh"
