@@ -63,4 +63,9 @@ in {
   "thomasga/ssh-id-ed25519-excelsior.age".publicKeys = [excelsior offlineAdmin];
   "thomasga/ssh-id-ed25519-reliant.age".publicKeys = [reliant offlineAdmin];
   "dcs-server/restic-password.age".publicKeys = [excelsior offlineAdmin];
+  # AQICN API token for the outdoor-AQI REST sensor in
+  # hosts/reliant/home-assistant/climate-dashboard.nix — reliant only, not
+  # shared with defiant like the hass/* secrets above, since reliant is the
+  # only host running this integration.
+  "hass/aqicn-token.age".publicKeys = [reliant offlineAdmin];
 }

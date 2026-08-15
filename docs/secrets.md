@@ -211,6 +211,24 @@ recipient.
 | `zigbee/network-key.age` | A bracketed byte array, e.g. `[12,34,...,255]` | `defiant`, `reliant` |
 | `zwave/secrets.age` | JSON with one `securityKeys` object | `defiant`, `reliant` |
 
+### Home Assistant integration credentials
+
+Unlike the shared hardware/domain secrets above, these are specific to one
+Home Assistant instance and not reused across hosts.
+
+| Secret | Contents | Host recipients |
+| --- | --- | --- |
+| `hass/aqicn-token.age` | The AQICN API token as a single line, no quotes or prefix | `reliant` |
+
+`hass/aqicn-token.age` backs the outdoor-AQI REST sensor in
+`hosts/reliant/home-assistant/climate-dashboard.nix`. Home Assistant's own
+`!secret` mechanism resolves from a `secrets.yaml` file in its config
+directory, which nothing populates by default — the module injects this
+secret into that file at service start, the same pattern
+`modules/zigbee.nix` uses for the Zigbee network key (see that module's
+comments): the raw token never touches the Nix store, only
+`/run/agenix/hass/aqicn-token`.
+
 `zwave/secrets.age` must look exactly like this:
 
 ```json

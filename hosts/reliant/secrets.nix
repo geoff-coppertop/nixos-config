@@ -63,5 +63,14 @@ _: {
       ../../secrets/zwave-js/restic-password.age;
     "adguardhome/restic-password".file =
       ../../secrets/adguardhome/restic-password.age;
+
+    # AQICN API token for the outdoor-AQI REST sensor
+    # (home-assistant/outdoor-aqi.nix) — owned by hass so that service's own
+    # preStart (which runs as hass) can read it directly and write it into
+    # HA's secrets.yaml, no root step needed.
+    "hass/aqicn-token" = {
+      file = ../../secrets/hass/aqicn-token.age;
+      owner = "hass";
+    };
   };
 }
