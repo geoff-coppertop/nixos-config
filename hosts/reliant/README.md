@@ -49,6 +49,26 @@ Provisioning steps are the generic `disko` flow in
 [docs/provisioning.md § Provision Types](../../docs/provisioning.md#provision-types)
 onward (same as `enterprise-d`/`excelsior`).
 
+## Device Pairing Notes
+
+- **ecobee thermostats (2×, HomeKit)** — `home-assistant/ecobee-climate.nix`
+  covers the two zones actually installed today, `climate.main_and_basement`
+  and `climate.upstairs`; a garage thermostat and upstairs AC are planned but
+  not installed, and will land as their own PRs once that hardware exists
+  rather than as unused code now. Unpair from Apple Home first — a HomeKit
+  accessory accepts only one controller. The setup code is on the
+  thermostat: Menu → Settings → HomeKit. After pairing, rename each climate
+  entity to match the file's entity list (or edit that list to match). Set
+  each thermostat's hold action to **Until I change it** so its own schedule
+  never overrides the automations' setpoint — Home Assistant/HomeKit has no
+  way to set this remotely, so it stays a manual per-thermostat step. Switch
+  seasons by toggling `input_boolean.climate_summer_mode` in the HA UI — it
+  applies immediately, no rebuild needed.
+- **Presence (person entities)** — the ecobee automations key off
+  `zone.home`, which needs at least one `person` entity with a device
+  tracker attached. Install the HA companion app on each phone, then HA →
+  Settings → People, attach each phone's device tracker.
+
 ## Machine Files
 
 | File | Purpose |
@@ -59,7 +79,7 @@ onward (same as `enterprise-d`/`excelsior`).
 | `disko.nix` | GPT layout: ESP, swap, plain ext4 root (no btrfs/snapper — see the comment in the file for why) |
 | `default.nix` | Imports `configuration.nix` only — no home-manager user attached yet |
 | `secrets.nix` | `age.secrets` declarations for this host, including the Phase 2 smart-home entries — see § Secrets below |
-| `home-assistant/` | Declarative HA automations, one file per concern — a copy of `hosts/defiant/home-assistant/` |
+| `home-assistant/` | Declarative HA automations, one file per concern — mostly a copy of `hosts/defiant/home-assistant/`, plus `ecobee-climate.nix` (new here, not migrated) |
 | `provision-type` | `disko` |
 
 ## Hardware And Access
