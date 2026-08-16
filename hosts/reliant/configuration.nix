@@ -86,6 +86,12 @@ in {
         # the HA UI depending on protocol) is a one-time UI step; this just
         # installs the component's backend.
         "apple_tv"
+        # hue: backs hosts/reliant/home-assistant/kids-wake-lights.nix's Hue
+        # bulbs. Not part of HA's default_config baseline, and its config
+        # flow needs the `aiohue` package the moment it actually runs (the
+        # integration picker itself lists "Hue" regardless of whether this
+        # is present) — see docs/smart-home.md § Choosing extraComponents.
+        "hue"
         # NOT "linkplay": core HA's linkplay integration fails to set up
         # against these Wiim Pro units specifically — confirmed live,
         # getMetaInfo returns the literal string "Failed" instead of JSON

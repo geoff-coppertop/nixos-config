@@ -210,7 +210,13 @@ Conventions the skeleton encodes:
 
 Where several rooms or devices share one pattern, write a `mk*` function and
 `map` it over a list rather than repeating the block — `presence-lighting.nix`
-does this for per-room presence lighting.
+does this for per-room presence lighting. `kids-wake-lights.nix` extends the
+same pattern with per-room `input_boolean`/`input_datetime` helpers declared
+alongside the automations, so a value like a wake time is adjustable live from
+Settings > Devices & Services > Helpers without touching Nix or rebuilding —
+the automations trigger off the helper entities themselves
+(`platform: time, at: input_datetime.<slug>_wake_weekday`) rather than a
+Nix-baked literal time.
 
 **Verify entity IDs before writing them.** They are assigned by Home Assistant
 at pairing or commissioning time and are not predictable from the device name —
@@ -280,7 +286,14 @@ which had been working fine on its own.
 
 When an integration misbehaves, check `journalctl` and nixpkgs'
 `component-packages.nix` for what the component actually needs, then add it to
-`extraComponents` rather than assuming `default_config` covers it. Note that some
+`extraComponents` rather than assuming `default_config` covers it. `hue`
+(backing `hosts/reliant/home-assistant/kids-wake-lights.nix`) was added this
+way pre-emptively, from reading `component-packages.nix` rather than a live
+failure: it's config-flow/discovery-based like `homekit_controller`/`matter`,
+but unlike those it isn't part of `default_config` and pulls in its own
+`aiohue` dependency, so selecting "Hue" in the Integrations UI without this
+entry would fail importing that dependency the moment the config flow runs,
+even though the UI lists "Hue" as an option regardless. Note that some
 integrations are distinct platforms needing their own entry — `google_translate`
 is separate from the core `tts` component, for instance.
 
