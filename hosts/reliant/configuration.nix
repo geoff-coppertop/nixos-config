@@ -81,6 +81,11 @@ in {
         # listed below) — backs the Sonos S1 Amps in
         # hosts/reliant/home-assistant/sonos-wiim.nix.
         "sonos"
+        # apple_tv: lets HA drive Apple TV media_player/remote entities,
+        # backed by pyatv. Pairing each device's PIN (shown on-screen or in
+        # the HA UI depending on protocol) is a one-time UI step; this just
+        # installs the component's backend.
+        "apple_tv"
         # NOT "linkplay": core HA's linkplay integration fails to set up
         # against these Wiim Pro units specifically — confirmed live,
         # getMetaInfo returns the literal string "Failed" instead of JSON
