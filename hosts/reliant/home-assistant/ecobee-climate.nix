@@ -39,22 +39,41 @@
 # computed from upstairs' value, so neither zone's schedule depends on the
 # other's.
 #
-# Season: input_boolean.climate_summer_mode, toggled by hand (there's no
-# reliable calendar or outdoor-temperature signal on this host to switch
-# automatically, and Alberta's shoulder seasons don't line up with a date
-# range anyway). Flipping it re-evaluates and re-applies the schedule
-# immediately, same as a restart.
+# Season: input_boolean.climate_summer_mode. climate_summer_mode_season_default
+# (below) sets it once at each boundary — on May 1, off October 1 — since
+# Alberta's shoulder seasons don't line up with a fixed date range closely
+# enough to enforce it continuously, and a hand-flip in between (an early
+# heat wave, a late cold snap) should stick rather than get fought back to
+# the calendar's opinion at the next check. Flipping it, by hand or by that
+# automation, re-evaluates and re-applies the schedule immediately, same as
+# a restart.
 #
-# In summer, both zones drop to a low standby heat floor (summerHeatFloor,
-# 17°C) overnight and while away, instead of holding their full daytime
-# comfort target — the point is to let the house cool passively overnight
-# rather than have the furnace fight that by keeping it at 21-23°C. That
-# requires an explicit action, not just skipping the automation: leaving the
-# previous setpoint in place would still let a heat-mode thermostat heat
-# back up to its last (comfort) target overnight. hvac_mode "off" was
-# considered instead of a low floor, but this house does get occasional
-# summer cold spells — an active low floor still protects against those,
-# where "off" wouldn't.
+# In summer, both zones drop to a low standby heat floor at all times, not
+# just overnight/away — real-world testing found the original version (full
+# daytime comfort target even in summer, on the reasoning that a heat-only
+# zone with no AC doesn't need a different daytime target) just heats the
+# house to 21-23°C on a summer day for no reason. Each zone has its own
+# floor (input_number.climate_main_and_basement_summer_floor, initially
+# 20°C; input_number.climate_upstairs_summer_floor, initially 19°C), not a
+# shared value — the first shared value (17°C) also turned out too cold for
+# main/basement once tested live; independent per-zone numbers, not a delta
+# between them. All the set points below (comfort/setback/away/summer
+# floor, per zone) are input_number helpers rather than fixed constants —
+# see liveTemp — so they're adjustable from the dashboard without a
+# redeploy. hvac_mode "off" was considered instead of a low floor, but this
+# house does get occasional summer cold spells — an active low floor still
+# protects against those, where "off" wouldn't. That's also why this is an
+# explicit action, not just skipping the automation: leaving the previous
+# setpoint in place would still let a heat-mode thermostat heat back up to
+# whatever it was holding before.
+#
+# Each zone also reasserts hvac_mode "heat" alongside every setpoint, not
+# just temperature — confirmed live that this file never called
+# set_hvac_mode at all originally, so an external mode change (upstairs was
+# found switched to "off" with no override active and no explanation)
+# could never self-correct. Composes with the override timer below: a
+# manual mode change still starts that zone's 2-hour override, so this only
+# reasserts once it elapses.
 #
 # Restart-resilient in the same spirit as presence-lighting.nix: each zone
 # is one automation re-evaluating a single `choose` block of "what should
@@ -73,18 +92,42 @@
 # branches are deliberately NOT gated by it — an empty house should still
 # save energy even if a hold was left active.
 #
-# Detection relies on trigger.to_state.context.parent_id, not user_id.
-# user_id is only set for a service call issued directly by a logged-in HA
-# user through the frontend/API — confirmed against HA's own core.py and
-# automation/__init__.py, it's null both for this file's own automation
-# calls AND for a state pushed in externally (the ecobee reporting a change
-# made at the unit, in its app, or via HomeKit), so it never actually
-# distinguished the two. parent_id does: HA's automation engine sets it to
-# the triggering run's context ID for every service call an automation
-# makes, while an externally-pushed state update gets a fresh context with
-# no parent at all. So parent_id present means "this file's own automation
-# caused it"; parent_id absent means anything else did — a person at the
-# thermostat, in its app, via HomeKit, or even via the HA frontend.
+# Detection compares the incoming state against a per-zone "last commanded"
+# snapshot (input_text.climate_last_commanded_*, "<hvac_mode>|<temperature>"),
+# not context — two things this file already tried and both failed for the
+# same underlying reason. context.user_id is only set for a service call
+# issued directly by a logged-in HA user through the frontend/API, so it was
+# null both for this file's own calls and for an externally-pushed state.
+# context.parent_id looked right (HA's automation engine does set it to the
+# triggering run's context ID for every service call an automation makes)
+# and tested fine against a real external change — but confirmed against
+# homekit_controller's own climate platform source: its
+# async_set_temperature/async_set_hvac_mode only send the HomeKit command
+# and return; the entity's actual state write happens later, from a
+# separate callback triggered by the thermostat pushing a
+# characteristic-changed notification back, running outside the original
+# service call entirely. That callback's state write gets a fresh context
+# with no parent regardless of who caused the underlying change — so
+# parent_id was none both for a person's change AND for this file's own
+# setTemp calls, once the resulting push-back actually arrived. Confirmed
+# live: right after a deploy that changed the standby floor, both zones'
+# override timers started simultaneously, from mkHeatOnlyZone's own startup
+# trigger re-asserting the new setpoint. Comparing by value instead of
+# context sidesteps the problem entirely: setTemp records what it just
+# commanded before the HomeKit round-trip even starts, so by the time the
+# real state change arrives — from this file or from anywhere else — it's
+# either an exact match (ours) or it isn't (someone else's).
+#
+# notLastCommanded also requires a real prior state (not none/unavailable/
+# unknown) before treating a mismatch as external. Confirmed live: without
+# that guard, restarting HA still started the override immediately and
+# incorrectly — the climate entity's transition from unavailable to its
+# last real state, as homekit_controller reconnects, looks exactly like an
+# unexplained external change (nothing's in last-commanded yet on a fresh
+# boot), and since it isn't guaranteed to lose the race against the
+# schedule's own startup-triggered correction, it could win and lock the
+# schedule out of applying anything correct for the full 2 hours. A restart
+# is the entity coming back online, not a person acting on it.
 {
   services.home-assistant.config = {
     timer = {
@@ -100,10 +143,147 @@
       };
     };
 
+    # No `initial:` here — deliberately. Confirmed against input_boolean's
+    # own source (async_added_to_hass): specifying `initial` bypasses
+    # RestoreEntity entirely, so the value resets to that initial constant
+    # on every single restart, not just first-ever creation. Confirmed
+    # live: this reset climate_summer_mode to "off" on every
+    # nixos-rebuild switch, silently discarding a hand-flip minutes
+    # earlier and undoing exactly the "respected on reload until a season
+    # boundary" behavior this file is supposed to have. Without `initial`,
+    # it restores its last real state on restart and only falls back to
+    # its constructor default (off) the first time this entity ever
+    # exists with no history at all.
     input_boolean.climate_summer_mode = {
       name = "Climate — summer mode";
       icon = "mdi:sun-thermometer";
-      initial = false;
+    };
+
+    # "<hvac_mode>|<temperature>" snapshot of the last setpoint this file
+    # itself commanded for each zone — see the file header for why this
+    # replaced context.parent_id as the override-detection mechanism.
+    #
+    # Deliberately no `initial:` here either — same input_boolean/
+    # input_number bug (see above), confirmed against input_text's own
+    # source too: `initial` sets self._attr_native_value in __init__,
+    # which makes async_added_to_hass's restore attempt a no-op. Confirmed
+    # live: the fromKnown guard on notLastCommanded alone wasn't enough to
+    # stop the override starting on a restart, because even once
+    # notLastCommanded correctly recognized the climate entity's own
+    # from_state as real (not a coming-online transition), the comparison
+    # itself was checking against a snapshot that had just been wiped
+    # back to "" by this same restart — so any real setTemp call the
+    # schedule made right after boot (e.g. because time had crossed a
+    # wake/sleep boundary during downtime) couldn't match anything and
+    # was flagged as external every time. Without `initial`, this
+    # restores its last real value across restarts, same as the actual
+    # thermostat state does.
+    input_text = {
+      climate_last_commanded_main_and_basement = {
+        name = "Climate — last commanded (main/basement)";
+      };
+      climate_last_commanded_upstairs = {
+        name = "Climate — last commanded (upstairs)";
+      };
+    };
+
+    # Live-adjustable set points — the automation below reads these at
+    # evaluation time instead of closing over fixed Nix constants, so a
+    # target can be tuned from the dashboard without a redeploy.
+    #
+    # Deliberately no `initial:` here — confirmed against input_number's
+    # own source (async_added_to_hass): `self._attr_native_value` is set
+    # from `initial` inside `__init__`, before async_added_to_hass ever
+    # runs, and that method's very first check is `if
+    # self._attr_native_value is not None: return` — so specifying
+    # `initial` skips RestoreEntity entirely, identical to
+    # input_boolean's version of this bug (see climate_summer_mode
+    # above), and would reset every slider to these numbers on every
+    # single restart, defeating the entire point of making them
+    # dashboard-adjustable.
+    #
+    # But unlike a boolean, input_number's OWN fallback when there's
+    # nothing to restore is native_min_value (10°C here) — not a sensible
+    # default, and unsafe to even briefly command as a real target. So
+    # first-boot seeding is handled explicitly below (climate_set_points_seeded
+    # + "Climate — seed set points") instead of via `initial`.
+    input_number = {
+      climate_main_and_basement_comfort = {
+        name = "Main/basement — comfort";
+        icon = "mdi:thermometer";
+        unit_of_measurement = "°C";
+        min = 10;
+        max = 28;
+        step = 0.5;
+      };
+      climate_main_and_basement_setback = {
+        name = "Main/basement — setback (winter night)";
+        icon = "mdi:thermometer-low";
+        unit_of_measurement = "°C";
+        min = 10;
+        max = 28;
+        step = 0.5;
+      };
+      climate_main_and_basement_away = {
+        name = "Main/basement — away (winter)";
+        icon = "mdi:thermometer-low";
+        unit_of_measurement = "°C";
+        min = 10;
+        max = 28;
+        step = 0.5;
+      };
+      climate_main_and_basement_summer_floor = {
+        name = "Main/basement — summer floor";
+        icon = "mdi:thermometer-low";
+        unit_of_measurement = "°C";
+        min = 10;
+        max = 28;
+        step = 0.5;
+      };
+      climate_upstairs_comfort = {
+        name = "Upstairs — comfort";
+        icon = "mdi:thermometer";
+        unit_of_measurement = "°C";
+        min = 10;
+        max = 28;
+        step = 0.5;
+      };
+      climate_upstairs_setback = {
+        name = "Upstairs — setback (winter night)";
+        icon = "mdi:thermometer-low";
+        unit_of_measurement = "°C";
+        min = 10;
+        max = 28;
+        step = 0.5;
+      };
+      climate_upstairs_away = {
+        name = "Upstairs — away (winter)";
+        icon = "mdi:thermometer-low";
+        unit_of_measurement = "°C";
+        min = 10;
+        max = 28;
+        step = 0.5;
+      };
+      climate_upstairs_summer_floor = {
+        name = "Upstairs — summer floor";
+        icon = "mdi:thermometer-low";
+        unit_of_measurement = "°C";
+        min = 10;
+        max = 28;
+        step = 0.5;
+      };
+    };
+
+    # Internal marker, not shown on the dashboard: flips on the first time
+    # "Climate — seed set points" (below) has ever run, so that seeding
+    # happens exactly once, ever — not on every restart, which would
+    # reintroduce the same reset-on-reload problem this file just moved
+    # away from for the set points themselves. No `initial:` here either,
+    # for the same reason: this needs to actually persist as "already
+    # seeded" across restarts, not reset to "not seeded" on every one.
+    input_boolean.climate_set_points_seeded = {
+      name = "Climate — set points seeded";
+      icon = "mdi:cog";
     };
 
     "automation manual" = let
@@ -113,23 +293,82 @@
       wakeTime = "05:30:00";
       sleepTime = "22:00:00";
 
-      mainAndBasementComfort = 23; # 2°C above upstairs' comfort — independent constant, not a formula.
-      mainAndBasementSetback = 18; # winter night only.
-      mainAndBasementAway = 16; # winter only.
+      # Reads a set point from its input_number at evaluation time, as a
+      # Jinja template string rather than a Nix number — every consumer
+      # downstream (climate.set_temperature's data.temperature, and the
+      # last-commanded snapshot written alongside it) is itself a plain
+      # string-valued service-call field, which Home Assistant renders as a
+      # template automatically. Both calls render the same input_number at
+      # nearly the same instant, so they agree even though the actual
+      # number now lives in HA state rather than being baked in at build
+      # time.
+      liveTemp = entityId: "{{ states('${entityId}') | float }}";
 
-      upstairsComfort = 21;
-      upstairsSetback = 18; # winter night only.
-      upstairsAway = 16; # winter only.
+      # Records what this file itself just commanded, so overrideStartAutomation
+      # can recognize its own handiwork arriving back as a state change — see
+      # the file header for why context.parent_id can't do this job.
+      setLastCommanded = lastCommandedEntityId: mode: temperature: {
+        service = "input_text.set_value";
+        target.entity_id = lastCommandedEntityId;
+        data.value = "${mode}|${toString temperature}";
+      };
 
-      # Summer standby: an active low heat floor, not "off" — this house
-      # gets occasional summer cold spells, and a floor still protects
-      # against those where turning heat off entirely wouldn't.
-      summerHeatFloor = 17;
+      # lastCommandedEntityId is null for a zone with no override automation
+      # to feed (garage: a frost-protection floor, not a schedule a person
+      # would want to temporarily suspend) — skips the tracking write
+      # entirely rather than creating an input_text nothing ever reads.
+      setTemp = entityId: temperature: lastCommandedEntityId:
+        [
+          {
+            service = "climate.set_temperature";
+            target.entity_id = entityId;
+            # hvac_mode alongside temperature in the same call (climate.
+            # set_temperature accepts both) — these are heat-only zones, so
+            # every re-evaluation reasserts "heat" too, not just the setpoint.
+            # Confirmed live: upstairs was found in hvac_mode "off" with no
+            # override active and no explanation — this file never called
+            # set_hvac_mode at all before, so nothing here could have caused
+            # it, but nothing here could correct it either. Composes with the
+            # existing override detection below: a person switching a
+            # thermostat off is still a mode change, still starts that zone's
+            # 2-hour override timer, so this only reasserts once that elapses.
+            data = {
+              inherit temperature;
+              hvac_mode = "heat";
+            };
+          }
+        ]
+        ++ (
+          if lastCommandedEntityId == null
+          then []
+          else [(setLastCommanded lastCommandedEntityId "heat" temperature)]
+        );
 
-      setTemp = entityId: temperature: {
-        service = "climate.set_temperature";
-        target.entity_id = entityId;
-        data.temperature = temperature;
+      # True when the incoming state doesn't match what this file itself
+      # last commanded for this zone — i.e. genuinely came from outside.
+      # Compares by value (mode + temperature), not by context, since
+      # homekit_controller's state updates never carry a usable context at
+      # all — see the file header.
+      #
+      # Also requires a real prior state, not unavailable/unknown/none:
+      # confirmed live that without this, the override started immediately
+      # on every restart and won the race against the schedule's own
+      # startup trigger — the climate entity's transition from unavailable
+      # to its last real state, as homekit_controller reconnects, looks
+      # exactly like an unexplained external change (nothing's been
+      # recorded in last-commanded yet), and if that fires first, the
+      # override locks the schedule out of ever applying the correct value
+      # for the full 2 hours. A restart is the entity coming back online,
+      # not a person acting.
+      notLastCommanded = lastCommandedEntityId: {
+        condition = "template";
+        value_template = ''
+          {% set parts = states('${lastCommandedEntityId}').split('|') %}
+          {% set expectedMode = parts[0] if parts | length > 0 else ''' %}
+          {% set expectedTemp = parts[1] | float(-999) if parts | length > 1 else -999 %}
+          {% set fromKnown = trigger.from_state is not none and trigger.from_state.state not in ['unavailable', 'unknown'] %}
+          {{ fromKnown and not (trigger.to_state.state == expectedMode and (trigger.to_state.attributes.temperature | float(-998)) == expectedTemp) }}
+        '';
       };
 
       presentCondition = {
@@ -171,41 +410,52 @@
       # Shared trigger set: the daily schedule times, both presence edges
       # (arrival immediate, departure after a 15 minute grace so a quick
       # errand doesn't cycle the setpoint), the season toggle changing,
+      # this zone's set points changing (so a dashboard slider tweak
+      # applies immediately, the same as the season toggle already does —
+      # otherwise it would silently wait for the next schedule trigger),
       # this zone's override timer elapsing, and Home Assistant startup.
-      zoneTriggers = overrideTimerEntityId: [
-        {
-          platform = "time";
-          at = wakeTime;
-        }
-        {
-          platform = "time";
-          at = sleepTime;
-        }
-        {
-          platform = "numeric_state";
-          entity_id = "zone.home";
-          above = 0;
-        }
-        {
-          platform = "numeric_state";
-          entity_id = "zone.home";
-          below = 1;
-          for = "00:15:00";
-        }
-        {
+      zoneTriggers = overrideTimerEntityId: setPointEntityIds:
+        [
+          {
+            platform = "time";
+            at = wakeTime;
+          }
+          {
+            platform = "time";
+            at = sleepTime;
+          }
+          {
+            platform = "numeric_state";
+            entity_id = "zone.home";
+            above = 0;
+          }
+          {
+            platform = "numeric_state";
+            entity_id = "zone.home";
+            below = 1;
+            for = "00:15:00";
+          }
+          {
+            platform = "state";
+            entity_id = "input_boolean.climate_summer_mode";
+          }
+        ]
+        ++ map (entityId: {
           platform = "state";
-          entity_id = "input_boolean.climate_summer_mode";
-        }
-        {
-          platform = "event";
-          event_type = "timer.finished";
-          event_data.entity_id = overrideTimerEntityId;
-        }
-        {
-          platform = "homeassistant";
-          event = "start";
-        }
-      ];
+          entity_id = entityId;
+        })
+        setPointEntityIds
+        ++ [
+          {
+            platform = "event";
+            event_type = "timer.finished";
+            event_data.entity_id = overrideTimerEntityId;
+          }
+          {
+            platform = "homeassistant";
+            event = "start";
+          }
+        ];
 
       # A complete heat-only zone: comfort during the day, setback at night
       # in winter, the standby floor at night/away in summer, away setback
@@ -218,47 +468,59 @@
         alias,
         entityId,
         timerEntityId,
+        lastCommandedEntityId,
+        setPointEntityIds,
         comfortTemp,
         setbackTemp,
         awayTemp,
+        summerFloorTemp,
       }: {
         inherit id alias;
-        description = "Re-evaluate ${entityId}'s desired temperature on every schedule time, presence edge, season change, override expiry, and restart.";
+        description = "Re-evaluate ${entityId}'s desired temperature on every schedule time, presence edge, season change, set point change, override expiry, and restart.";
         mode = "single";
-        trigger = zoneTriggers timerEntityId;
+        trigger = zoneTriggers timerEntityId setPointEntityIds;
         action = [
           {
             choose = [
-              # Comfort: home, daytime, not currently overridden. Season
-              # doesn't change the daytime target for a heat-only zone.
+              # Comfort: home, daytime, winter, not currently overridden.
               {
-                conditions = [presentCondition dayCondition (notOverridden timerEntityId)];
-                sequence = [(setTemp entityId comfortTemp)];
+                conditions = [presentCondition dayCondition winterCondition (notOverridden timerEntityId)];
+                sequence = setTemp entityId comfortTemp lastCommandedEntityId;
               }
               # Setback: home, night, winter, not overridden.
               {
                 conditions = [presentCondition winterCondition (notOverridden timerEntityId)];
-                sequence = [(setTemp entityId setbackTemp)];
+                sequence = setTemp entityId setbackTemp lastCommandedEntityId;
               }
-              # Setback, summer: the standby floor, not just "no action" —
-              # see the file header for why leaving the prior (comfort)
-              # setpoint in place wouldn't actually reduce overnight heating.
+              # Summer, home, not overridden: the standby floor regardless
+              # of day/night. Confirmed live: the original version of this
+              # zone kept the day-comfort branch season-blind (day always
+              # meant comfortTemp, even in summer), on the reasoning that a
+              # heat-only zone with no AC doesn't need a different daytime
+              # target in summer — real-world testing in August showed
+              # that's wrong: nobody wants full comfort-temp heating on a
+              # summer day just because they're home. Summer now collapses
+              # to one target (the floor) at all times while present, same
+              # as it already did while away — not just "no action", since
+              # leaving the prior setpoint in place would still let a
+              # heat-mode thermostat heat back up to whatever it was
+              # holding before.
               {
                 conditions = [presentCondition summerCondition (notOverridden timerEntityId)];
-                sequence = [(setTemp entityId summerHeatFloor)];
+                sequence = setTemp entityId summerFloorTemp lastCommandedEntityId;
               }
               # Away, winter: heat to the away setback regardless of any
               # active override — leaving the house should always save
               # energy.
               {
                 conditions = [notPresentCondition winterCondition];
-                sequence = [(setTemp entityId awayTemp)];
+                sequence = setTemp entityId awayTemp lastCommandedEntityId;
               }
               # Away, summer: the standby floor, same reasoning as the
               # summer setback branch, also regardless of override.
               {
                 conditions = [notPresentCondition summerCondition];
-                sequence = [(setTemp entityId summerHeatFloor)];
+                sequence = setTemp entityId summerFloorTemp lastCommandedEntityId;
               }
             ];
             # Only reached if every present-and-home branch above was
@@ -275,6 +537,7 @@
         alias,
         entityId,
         timerEntityId,
+        lastCommandedEntityId,
       }: {
         inherit id alias;
         description = "A person (not this file's own automations) changed ${entityId}'s target temperature or mode — start/restart its override timer so the schedule leaves it alone for a while.";
@@ -296,29 +559,13 @@
             entity_id = entityId;
           }
         ];
-        condition = [
-          {
-            condition = "template";
-            # parent_id, not user_id — see the file header for why. This is
-            # the check that actually distinguishes this file's own
-            # climate.set_temperature/set_hvac_mode calls from anything
-            # external (thermostat, ecobee app, HomeKit, or the HA
-            # frontend) pushing a state change in.
-            #
-            # trigger.attribute is none only for the plain (no `attribute:`)
-            # trigger above — confirmed against HA's state trigger source,
-            # a bare state trigger's match_all fires on ANY attribute
-            # changing, not just hvac_mode (the entity's actual .state).
-            # Without the from/to .state comparison here, every routine
-            # telemetry push from the ecobee (current_temperature drifting,
-            # humidity, etc. — frequent, and external, so parent_id is none
-            # for those too) passed this condition and restarted the
-            # override timer, so it never went idle. The attribute-scoped
-            # trigger above doesn't need this: HA's own attribute filtering
-            # already only fires it on a real change to "temperature".
-            value_template = "{{ trigger.to_state.context.parent_id is none and (trigger.attribute is not none or trigger.from_state.state != trigger.to_state.state) }}";
-          }
-        ];
+        # notLastCommanded, not context.parent_id — see the file header for
+        # why. This is the check that distinguishes this file's own
+        # climate.set_temperature calls from anything external (thermostat,
+        # ecobee app, HomeKit, or the HA frontend) pushing a state change
+        # in, by comparing the resulting state against what setTemp last
+        # recorded for this zone rather than by context.
+        condition = [(notLastCommanded lastCommandedEntityId)];
         # timer.start on an already-running timer restarts it from the full
         # configured duration, so repeated manual nudges keep extending the
         # override rather than letting an earlier one expire mid-adjustment.
@@ -335,31 +582,163 @@
         alias = "Climate — main/basement schedule";
         entityId = mainAndBasement;
         timerEntityId = "timer.climate_override_main_and_basement";
-        comfortTemp = mainAndBasementComfort;
-        setbackTemp = mainAndBasementSetback;
-        awayTemp = mainAndBasementAway;
+        lastCommandedEntityId = "input_text.climate_last_commanded_main_and_basement";
+        setPointEntityIds = [
+          "input_number.climate_main_and_basement_comfort"
+          "input_number.climate_main_and_basement_setback"
+          "input_number.climate_main_and_basement_away"
+          "input_number.climate_main_and_basement_summer_floor"
+        ];
+        comfortTemp = liveTemp "input_number.climate_main_and_basement_comfort";
+        setbackTemp = liveTemp "input_number.climate_main_and_basement_setback";
+        awayTemp = liveTemp "input_number.climate_main_and_basement_away";
+        summerFloorTemp = liveTemp "input_number.climate_main_and_basement_summer_floor";
       })
       (mkHeatOnlyZone {
         id = "climate_upstairs";
         alias = "Climate — upstairs schedule";
         entityId = upstairs;
         timerEntityId = "timer.climate_override_upstairs";
-        comfortTemp = upstairsComfort;
-        setbackTemp = upstairsSetback;
-        awayTemp = upstairsAway;
+        lastCommandedEntityId = "input_text.climate_last_commanded_upstairs";
+        setPointEntityIds = [
+          "input_number.climate_upstairs_comfort"
+          "input_number.climate_upstairs_setback"
+          "input_number.climate_upstairs_away"
+          "input_number.climate_upstairs_summer_floor"
+        ];
+        comfortTemp = liveTemp "input_number.climate_upstairs_comfort";
+        setbackTemp = liveTemp "input_number.climate_upstairs_setback";
+        awayTemp = liveTemp "input_number.climate_upstairs_away";
+        summerFloorTemp = liveTemp "input_number.climate_upstairs_summer_floor";
       })
       (overrideStartAutomation {
         id = "climate_override_start_main_and_basement";
         alias = "Climate — start manual override (main/basement)";
         entityId = mainAndBasement;
         timerEntityId = "timer.climate_override_main_and_basement";
+        lastCommandedEntityId = "input_text.climate_last_commanded_main_and_basement";
       })
       (overrideStartAutomation {
         id = "climate_override_start_upstairs";
         alias = "Climate — start manual override (upstairs)";
         entityId = upstairs;
         timerEntityId = "timer.climate_override_upstairs";
+        lastCommandedEntityId = "input_text.climate_last_commanded_upstairs";
       })
+      {
+        id = "climate_summer_mode_season_default";
+        alias = "Climate — summer mode seasonal default";
+        description = "Sets input_boolean.climate_summer_mode at each seasonal boundary (on May 1, off October 1) and leaves it alone the rest of the year — a hand-flip in between (e.g. an early heat wave) sticks until the next boundary, same as flipping it any other day.";
+        mode = "single";
+        trigger = [
+          {
+            platform = "time";
+            at = "00:05:00";
+          }
+        ];
+        action = [
+          {
+            choose = [
+              {
+                conditions = [
+                  {
+                    condition = "template";
+                    value_template = "{{ now().month == 5 and now().day == 1 }}";
+                  }
+                ];
+                sequence = [
+                  {
+                    service = "input_boolean.turn_on";
+                    target.entity_id = "input_boolean.climate_summer_mode";
+                  }
+                ];
+              }
+              {
+                conditions = [
+                  {
+                    condition = "template";
+                    value_template = "{{ now().month == 10 and now().day == 1 }}";
+                  }
+                ];
+                sequence = [
+                  {
+                    service = "input_boolean.turn_off";
+                    target.entity_id = "input_boolean.climate_summer_mode";
+                  }
+                ];
+              }
+            ];
+            # Every other day: no action, deliberately — not a bug to
+            # guard against, just the 363 days a year this doesn't apply.
+            default = [];
+          }
+        ];
+      }
+      {
+        id = "climate_seed_set_points";
+        alias = "Climate — seed set points";
+        description = "Runs exactly once, ever: sets the eight set-point input_numbers to their original sensible defaults, then flips climate_set_points_seeded on so this never runs again. Only exists because input_number's own restore-on-restart is incompatible with also specifying an `initial:` (see the input_number block above) — without this, a fresh deployment would start every set point at its unsafe 10°C floor until someone visits the dashboard.";
+        mode = "single";
+        trigger = [
+          {
+            platform = "homeassistant";
+            event = "start";
+          }
+        ];
+        condition = [
+          {
+            condition = "state";
+            entity_id = "input_boolean.climate_set_points_seeded";
+            state = "off";
+          }
+        ];
+        action = [
+          {
+            service = "input_number.set_value";
+            target.entity_id = "input_number.climate_main_and_basement_comfort";
+            data.value = 23;
+          }
+          {
+            service = "input_number.set_value";
+            target.entity_id = "input_number.climate_main_and_basement_setback";
+            data.value = 18;
+          }
+          {
+            service = "input_number.set_value";
+            target.entity_id = "input_number.climate_main_and_basement_away";
+            data.value = 16;
+          }
+          {
+            service = "input_number.set_value";
+            target.entity_id = "input_number.climate_main_and_basement_summer_floor";
+            data.value = 20;
+          }
+          {
+            service = "input_number.set_value";
+            target.entity_id = "input_number.climate_upstairs_comfort";
+            data.value = 21;
+          }
+          {
+            service = "input_number.set_value";
+            target.entity_id = "input_number.climate_upstairs_setback";
+            data.value = 18;
+          }
+          {
+            service = "input_number.set_value";
+            target.entity_id = "input_number.climate_upstairs_away";
+            data.value = 16;
+          }
+          {
+            service = "input_number.set_value";
+            target.entity_id = "input_number.climate_upstairs_summer_floor";
+            data.value = 19;
+          }
+          {
+            service = "input_boolean.turn_on";
+            target.entity_id = "input_boolean.climate_set_points_seeded";
+          }
+        ];
+      }
     ];
   };
 }
