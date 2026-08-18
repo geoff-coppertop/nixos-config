@@ -68,6 +68,14 @@ onward (same as `enterprise-d`/`excelsior`).
   `zone.home`, which needs at least one `person` entity with a device
   tracker attached. Install the HA companion app on each phone, then HA →
   Settings → People, attach each phone's device tracker.
+- **Apple TV (3×)** — in HA → Integrations, add each Apple TV and complete
+  the on-screen/HA PIN pairing. Name each device during pairing as `Apple TV
+  Upstairs Living Room`, `Apple TV Basement Living Room`, and `Apple TV
+  Geoff's Office` (matching their physical locations) so HA derives
+  predictable, clearly scoped entity_ids:
+  `media_player.apple_tv_upstairs_living_room`,
+  `media_player.apple_tv_basement_living_room`, and
+  `media_player.apple_tv_geoff_s_office`.
 
 ## Machine Files
 
