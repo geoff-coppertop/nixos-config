@@ -3,7 +3,7 @@
   lib,
   ...
 }: let
-  inherit (lib) mkEnableOption mkIf mkMerge mkOption types;
+  inherit (lib) mkEnableOption mkIf mkMerge mkOption optionals types;
   mkTraefikRoute = import ../lib/traefik-route.nix;
   cfg = config.custom.dns;
 in {
@@ -122,6 +122,12 @@ in {
         subdomain = cfg.adminSubdomain;
         port = 3000;
         inherit (config.custom.traefik.acme) domain;
+        # Opt-in, not unconditional: excelsior's dns2 instance runs
+        # custom.dns without custom.authelia, and referencing a
+        # nonexistent "authelia" middleware would be a dangling reference
+        # in Traefik's dynamic config. Only defiant's dns1 instance (which
+        # also enables custom.authelia) picks this up.
+        middlewares = optionals config.custom.authelia.enable ["authelia"];
       };
     })
   ]);

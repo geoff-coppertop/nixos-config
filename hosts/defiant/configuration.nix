@@ -7,6 +7,7 @@ in {
   imports = [
     ./secrets.nix
     ./home-assistant
+    ./lldap-accounts.nix
     "${modulesPath}/installer/sd-card/sd-image-aarch64.nix"
 
     ../../profiles/common
@@ -109,7 +110,9 @@ in {
       # dns1 (this host) and dns2 (excelsior, proxied cross-host below) both
       # terminate TLS at defiant's Traefik, so both resolve locally to
       # defiant's own lanIp.
-      subdomains = ["home" "dns1" "dns2" "adsb" "zigbee"];
+      # auth: Authelia's own portal. ad: lldap's admin UI (custom.lldap
+      # self-registers this one, but the name still has to resolve).
+      subdomains = ["home" "dns1" "dns2" "adsb" "zigbee" "auth" "ad"];
       # Renamed from the module default "dns" now that a second independent
       # DNS instance (excelsior) exists — dns1/dns2 naming pairs the two.
       adminSubdomain = "dns1";
@@ -123,6 +126,34 @@ in {
         environmentFile = "/run/agenix/traefik/cloudflare-api-token";
         domain = "coppertop.ca";
       };
+    };
+
+    lldap = {
+      enable = true;
+      baseDn = "dc=coppertop,dc=ca";
+      jwtSecretFile = "/run/agenix/lldap/jwt-secret";
+      initialAdminPasswordFile = "/run/agenix/lldap/initial-admin-password";
+      # adminSubdomain defaults to "ad", already in custom.dns.subdomains above.
+    };
+
+    authelia = {
+      enable = true;
+      ldap = {
+        baseDn = "dc=coppertop,dc=ca";
+        bindPasswordFile = "/run/agenix/authelia/lldap-bind-password";
+      };
+      secrets = {
+        jwtSecretFile = "/run/agenix/authelia/jwt-secret";
+        storageEncryptionKeyFile = "/run/agenix/authelia/storage-encryption-key";
+      };
+      # AdGuard (dns1) picks this up automatically via modules/dns.nix's own
+      # opt-in check. home/zigbee are smart-home-owned modules (see
+      # docs/homelab-network.md's routing boundary) — their routers get the
+      # authelia middleware attached below instead of inside
+      # modules/home-assistant.nix/modules/zigbee.nix, the same pattern the
+      # dns2 manual router already uses for cross-domain data that isn't a
+      # module change.
+      protectedSubdomains = ["dns1" "dns2" "home" "zigbee"];
     };
 
     home-assistant = {
@@ -252,6 +283,21 @@ in {
           paths = ["/var/lib/AdGuardHome"];
           excludePatterns = [];
         };
+        # StateDirectory names from the module sources read for this
+        # change (services.lldap: "lldap"; the authelia instance name
+        # "main" makes its StateDirectory "authelia-main") — not yet
+        # verified against real hardware, same caveat as zigbee2mqtt/
+        # zwave-js above; confirm with `ls` after first deploy.
+        lldap = {
+          enable = true;
+          paths = ["/var/lib/lldap"];
+          excludePatterns = [];
+        };
+        authelia = {
+          enable = true;
+          paths = ["/var/lib/authelia-main"];
+          excludePatterns = [];
+        };
       };
     };
 
@@ -271,8 +317,27 @@ in {
       rule = "Host(`dns2.coppertop.ca`)";
       service = "dns2";
       tls = {};
+      # custom.authelia.protectedSubdomains above lists dns2 too, but that
+      # only covers Authelia's own access_control side of the gate — this
+      # router isn't created by mkTraefikRoute (see the comment above), so
+      # it needs the middleware attached by hand the same way.
+      middlewares = ["authelia"];
     };
     services.dns2.loadBalancer.servers = [{url = "http://192.168.1.10:3000";}];
+
+    # home-assistant.nix and zigbee.nix are smart-home-owned modules (see
+    # docs/homelab-network.md's routing boundary) — rather than edit those
+    # files to add `middlewares = ["authelia"];` to their own mkTraefikRoute
+    # calls, the same forward-auth requirement is layered on here as a data
+    # overlay. Traefik's dynamicConfigOptions.http is a freeform TOML type
+    # that deep-merges attrsets contributed from multiple files (confirmed
+    # against the real NixOS traefik module source: `format.type` uses
+    # pkgs.formats.toml{}'s recursive merge, the same mechanism the dns2
+    # router above already relies on for a different router entirely), so
+    # this only adds the `middlewares` key to routers those modules already
+    # define elsewhere — it does not redefine `rule`/`service`/`tls`.
+    routers.homeassistant.middlewares = ["authelia"];
+    routers.zigbee.middlewares = ["authelia"];
   };
 
   system.stateVersion = "25.11";

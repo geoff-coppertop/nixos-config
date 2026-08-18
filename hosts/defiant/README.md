@@ -40,14 +40,17 @@ The reusable service layer these options configure is documented in
 
 | Service | URL | Port behind Traefik |
 | --- | --- | --- |
-| AdGuard Home (this host) | `https://dns1.coppertop.ca` | 3000 |
-| AdGuard Home (excelsior, proxied cross-host — see its `dns2` router below) | `https://dns2.coppertop.ca` | excelsior `192.168.1.10:3000` |
-| Home Assistant | `https://home.coppertop.ca` | 8123 |
-| Zigbee2MQTT | `https://zigbee.coppertop.ca` | 8082 |
+| AdGuard Home (this host) | `https://dns1.coppertop.ca` (behind Authelia) | 3000 |
+| AdGuard Home (excelsior, proxied cross-host — see its `dns2` router below) | `https://dns2.coppertop.ca` (behind Authelia) | excelsior `192.168.1.10:3000` |
+| Home Assistant | `https://home.coppertop.ca` (behind Authelia, in front of HA's own auth) | 8123 |
+| Zigbee2MQTT | `https://zigbee.coppertop.ca` (behind Authelia) | 8082 |
 | ADS-B map | `https://adsb.coppertop.ca` | 8080 |
+| Authelia (SSO portal) | `https://auth.coppertop.ca` | 9091 |
+| lldap (directory admin UI) | `https://ad.coppertop.ca` (own login, not behind Authelia — see Known Gotchas) | 17170 |
 | Z-Wave JS | `ws://localhost:3001` (not proxied) | 3001 |
 | Matter server | `ws://localhost:5580/ws` (not proxied) | 5580 |
 | MQTT broker | `localhost:1883` (not proxied) | 1883 |
+| lldap (LDAP protocol) | `defiant.local:3890` (not proxied — LDAP isn't HTTP) | 3890 |
 
 `dns1`/`dns2` naming: excelsior runs a second, fully independent unbound +
 AdGuard instance for real DNS redundancy (see
@@ -61,6 +64,8 @@ only ever points at `127.0.0.1`).
 | Service | Action |
 | --- | --- |
 | AdGuard Home | Complete the setup wizard; set upstream DNS to `127.0.0.1:5335` |
+| lldap | Log into `https://ad.coppertop.ca` with the initial admin password (agenix `lldap/initial-admin-password`); household accounts declared in `custom.lldap.users` (see `hosts/defiant/lldap-accounts.nix`) get reconciled in automatically, each sets their own password on first login |
+| Authelia | First login at `https://auth.coppertop.ca` (or any protected subdomain) prompts for TOTP/WebAuthn enrollment — do this once per household member before relying on a protected route |
 | Home Assistant | Restore a backup, or complete onboarding |
 | Zigbee2MQTT | Enable join mode and pair devices (see the notes below) |
 | Z-Wave JS | In HA → Integrations, connect to `ws://localhost:3001`, then include devices |
@@ -120,6 +125,36 @@ looks the way it does. Changing them back reintroduces a real failure.
 - **The AdGuard backup path is capitalized.** `/var/lib/AdGuardHome` is a symlink
   to `private/AdGuardHome`; the lowercase path does not exist on this
   case-sensitive filesystem, so a lowercase entry silently backs up nothing.
+- **`custom.lldap` runs as a static `lldap` user, overriding the module's own
+  `DynamicUser` default.** lldap's `settings.*_file` options (JWT secret,
+  admin password) are read directly by the lldap process itself after it
+  drops privileges, not loaded by systemd-as-root the way Authelia's
+  `LoadCredential`-backed secrets are — a `DynamicUser`'s UID is only
+  allocated at service start, so an agenix secret can't be chowned to it
+  ahead of time. `systemd.services.lldap.serviceConfig.DynamicUser =
+  lib.mkForce false;` plus a real `users.users.lldap` makes the secret
+  ownership deterministic, matching the rest of this repo's agenix
+  `owner = "<service>"` convention.
+- **lldap's admin UI (`ad.coppertop.ca`) and Authelia's own portal
+  (`auth.coppertop.ca`) are deliberately not behind the `authelia` Traefik
+  middleware.** Authelia protecting its own login page is an obvious
+  lockout; Authelia protecting lldap's UI is the same failure one hop
+  removed, since Authelia authenticates *against* lldap — if lldap is ever
+  down, misconfigured, or mid-bootstrap before any accounts exist, there
+  would be no way through Authelia to reach the tool that fixes it. Each
+  relies on its own login (lldap's built-in one; Authelia's password+2FA)
+  plus network scoping instead.
+- **lldap's bootstrap reconciliation (`lldap-bootstrap.service`) is
+  triggered by an activation script on every `nixos-rebuild switch`, not
+  a content-hash `restartTrigger`.** `DO_CLEANUP=true`'s purpose is
+  pruning accounts/group-memberships created out-of-band through lldap's
+  own web UI, which a trigger based only on the generated JSON's content
+  would miss between rebuilds where the JSON itself doesn't change.
+  lldap/lldap#745 reports repeated `bootstrap.sh` runs via the GraphQL API
+  can duplicate group memberships on some versions — not reproduced yet
+  against the pinned lldap version; verify group membership after the
+  first several real reruns before trusting `DO_CLEANUP` fully in the
+  steady state, since upstream's own docs don't flag it as a known issue.
 - **`ssdp` needs an explicit entry.** It is one of `default_config`'s
   always-loaded discovery integrations, but its dependencies are not part of the
   small nixpkgs `default_config` baseline.
@@ -141,7 +176,7 @@ looks the way it does. Changing them back reintroduces a real failure.
 
 ## Backup Jobs
 
-Four entries under `custom.backups.users`, each with its own restic repository
+Six entries under `custom.backups.users`, each with its own restic repository
 and its own `restic-password` secret:
 
 | Entry | Paths |
@@ -150,10 +185,12 @@ and its own `restic-password` secret:
 | `zigbee2mqtt` | `/var/lib/zigbee2mqtt` |
 | `zwave-js` | `/var/lib/zwave-js` |
 | `adguardhome` | `/var/lib/AdGuardHome` |
+| `lldap` | `/var/lib/lldap` (StateDirectory name from `services.lldap`) |
+| `authelia` | `/var/lib/authelia-main` (StateDirectory name for the `main` Authelia instance) |
 
-The `zigbee2mqtt` and `zwave-js` paths are the standard NixOS module state
-directories and have **not** been verified against the running machine yet —
-confirm them with `ls` on the host, the same way the AdGuard path and the serial
-ports were.
+The `zigbee2mqtt`, `zwave-js`, `lldap`, and `authelia` paths are the standard
+NixOS module state directories and have **not** been verified against the
+running machine yet — confirm them with `ls` on the host, the same way the
+AdGuard path and the serial ports were.
 
 See [docs/backups.md](../../docs/backups.md).

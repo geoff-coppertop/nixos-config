@@ -1,6 +1,7 @@
 {
   imports = [
     ./adsb.nix
+    ./authelia.nix
     ./backups.nix
     ./bin-compat.nix
     ./btrfs.nix
@@ -14,6 +15,7 @@
     ./gaming.nix
     ./home-assistant.nix
     ./is-laptop.nix
+    ./lldap.nix
     ./matter.nix
     ./mqtt.nix
     ./network-drives.nix
