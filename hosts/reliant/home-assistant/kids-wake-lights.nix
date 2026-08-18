@@ -29,12 +29,10 @@
 # baseline. Added defensively per docs/smart-home.md § Choosing
 # extraComponents, same reasoning as mqtt/zwave_js there.
 #
-# `lights` below are placeholder entity IDs (light.<slug>_lights) — the Hue
-# bridge isn't paired yet, so the real entity IDs Home Assistant will assign
-# don't exist. Verify with `tools/check_ha_entities.py reliant` after pairing
-# and update the `rooms` list below to match, same caveat as
-# ecobee-climate.nix's placeholder thermostat entity IDs. Nothing here has
-# been run against real hardware yet.
+# `lights` below are the real entity IDs, confirmed against reliant's live
+# entity registry with `tools/check_ha_entities.py reliant` after the Hue
+# bridge was paired. Nothing else here has been run against real hardware
+# yet.
 #
 # Restart-resilient in the same spirit as presence-lighting.nix and
 # ecobee-climate.nix: a `homeassistant` start trigger re-derives which of the
@@ -62,12 +60,12 @@
     {
       room = "Abigail's Room";
       slug = "abigail";
-      lights = "light.abigail_lights";
+      lights = "light.abigail_s_night_light";
     }
     {
       room = "Evelyn's Room";
       slug = "evelyn";
-      lights = "light.evelyn_lights";
+      lights = "light.evelyn_s_night_light";
     }
   ];
 
