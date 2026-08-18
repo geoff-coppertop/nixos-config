@@ -1,8 +1,20 @@
-# Declarative Lovelace dashboard, named "Climate" at the sidebar/view level
-# — but the ecobee-specific card inside it is titled "Thermostats", not
-# "Climate", since this dashboard grew beyond just the HVAC automations
-# (weather and indoor/outdoor air quality cards) and a card called "Climate"
-# would be ambiguous next to a weather card.
+# The single declarative Lovelace dashboard for reliant, sidebar-titled
+# "Home". Confirmed against the nixpkgs home-assistant module source
+# (nixos/modules/services/home-automation/home-assistant.nix, pinned rev in
+# flake.lock): lovelaceConfig/lovelaceConfigFile can only ever generate
+# content for ONE dashboard file (ui-lovelace.yaml) — the module has no
+# mechanism to declare card/view content for a second, independently-titled
+# sidebar dashboard. So unrelated concerns that each want their own page
+# become separate *views* (tabs) inside this one file/dashboard, not
+# separate files each owning their own dashboard — "Climate" and "Bedtime"
+# below, and wherever this grows next. Kept generically titled "Home" (not
+# "Climate") for exactly that reason: it stopped being just a climate
+# dashboard once the ecobee-specific card was joined by weather/air-quality
+# cards, and now a second, unrelated view (Bedtime).
+#
+# The ecobee-specific card inside the Climate view is itself titled
+# "Thermostats", not "Climate" — a card called "Climate" would be ambiguous
+# next to a weather card in the same view.
 #
 # services.home-assistant.lovelaceConfig switches this dashboard into YAML
 # mode, sourced from this Nix attrset instead of HA's own storage — verified
@@ -11,6 +23,12 @@
 # UI-editable ones already exist; it doesn't replace or disable the default
 # "Overview" dashboard. Given its own title below so it doesn't show up in
 # the sidebar as a second, confusingly-identical "Overview".
+#
+# The Bedtime view's cards read hosts/reliant/home-assistant/kids-wake-lights.nix's
+# per-room input_boolean/input_datetime helpers directly (not the light
+# entities themselves) — the point of this view is adjusting the schedule,
+# which is exactly what those helpers are for; the automations already do
+# the actual light control.
 #
 # timer entity rows render their own live countdown client-side from the
 # entity's finishes_at attribute — no template sensor or polling needed to
@@ -31,13 +49,13 @@
     config.lovelace.dashboards.nixos-lovelace = {
       mode = "yaml";
       filename = "ui-lovelace.yaml";
-      title = "Climate";
-      icon = "mdi:thermostat";
+      title = "Home";
+      icon = "mdi:home";
       show_in_sidebar = true;
     };
 
     lovelaceConfig = {
-      title = "Climate";
+      title = "Home";
       views = [
         {
           title = "Climate";
@@ -124,6 +142,57 @@
                 {
                   entity = "sensor.outdoor_aqi";
                   name = "AQI";
+                }
+              ];
+            }
+          ];
+        }
+        {
+          title = "Bedtime";
+          path = "bedtime";
+          icon = "mdi:weather-night";
+          cards = [
+            {
+              type = "entities";
+              title = "Abigail's Room";
+              entities = [
+                {
+                  entity = "input_boolean.abigail_wake_lights_enabled";
+                  name = "Wake lights enabled";
+                }
+                {
+                  entity = "input_datetime.abigail_bedtime";
+                  name = "Bedtime";
+                }
+                {
+                  entity = "input_datetime.abigail_wake_weekday";
+                  name = "Wake time (weekday)";
+                }
+                {
+                  entity = "input_datetime.abigail_wake_weekend";
+                  name = "Wake time (weekend)";
+                }
+              ];
+            }
+            {
+              type = "entities";
+              title = "Evelyn's Room";
+              entities = [
+                {
+                  entity = "input_boolean.evelyn_wake_lights_enabled";
+                  name = "Wake lights enabled";
+                }
+                {
+                  entity = "input_datetime.evelyn_bedtime";
+                  name = "Bedtime";
+                }
+                {
+                  entity = "input_datetime.evelyn_wake_weekday";
+                  name = "Wake time (weekday)";
+                }
+                {
+                  entity = "input_datetime.evelyn_wake_weekend";
+                  name = "Wake time (weekend)";
                 }
               ];
             }

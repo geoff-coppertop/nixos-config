@@ -224,6 +224,22 @@ a wrong ID produces an automation that loads cleanly and silently never fires.
 Check against the running instance (Developer Tools → States, or the entity
 list) rather than guessing.
 
+### Declarative dashboards: one file, many views
+
+`services.home-assistant.lovelaceConfig`/`lovelaceConfigFile` can only ever
+generate content for a single dashboard file (`ui-lovelace.yaml`) — confirmed
+against the nixpkgs `home-assistant` module source
+(`nixos/modules/services/home-automation/home-assistant.nix`).
+`config.lovelace.dashboards.<name>` entries beyond the one this produces
+carry only metadata (title/icon/filename), not card content, so there is no
+way to declare a second, independently-titled sidebar dashboard from Nix.
+
+`hosts/reliant/home-assistant/climate-dashboard.nix` is that one file. Each
+unrelated concern that wants its own page becomes a new `view` (tab) inside
+it — e.g. "Climate" and "Bedtime" — rather than a new file each owning its
+own dashboard. The sidebar entry itself is titled generically ("Home"), not
+after whichever concern happened to be there first.
+
 ### Automated entity ID check
 
 `tools/check_ha_entities.py <host>` automates the check above: it greps

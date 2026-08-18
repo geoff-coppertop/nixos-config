@@ -157,6 +157,12 @@ onward (same as `enterprise-d`/`excelsior`).
 
 ## Known Gotchas
 
+- **Only one declarative Lovelace dashboard is possible.** The nixpkgs
+  `home-assistant` module's `lovelaceConfig`/`lovelaceConfigFile` generate
+  content for a single dashboard file only — a second, independently-titled
+  sidebar dashboard can't be declared from Nix. Unrelated concerns become
+  separate views (tabs) inside the one dashboard instead — see
+  [docs/smart-home.md § Declarative dashboards](../../docs/smart-home.md#declarative-dashboards-one-file-many-views).
 - **`matter-server` looked "active (running)" while its websocket never
   opened.** Upstream fetches PAA root certs live from DCL on every
   `server.start()`; DCL currently serves a certificate that fails strict
