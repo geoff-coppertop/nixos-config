@@ -97,6 +97,76 @@
               ];
             }
             {
+              type = "entities";
+              title = "Set Points";
+              # input_number.climate_*_* from ecobee-climate.nix — the
+              # schedule reads these live, so a slider tweak here applies
+              # on its next trigger (including immediately, since these
+              # entities are themselves triggers) rather than needing a
+              # redeploy. Row names spell out exactly when each target
+              # applies, since "comfort"/"setback"/"away"/"summer floor"
+              # alone don't say that on their own — the schedule logic
+              # itself (ecobee-climate.nix's mkHeatOnlyZone) is the source
+              # of truth for these conditions.
+              entities = [
+                {
+                  type = "section";
+                  label = "Main/basement";
+                }
+                {
+                  entity = "input_number.climate_main_and_basement_comfort";
+                  name = "Comfort (winter day, home)";
+                }
+                {
+                  entity = "input_number.climate_main_and_basement_setback";
+                  name = "Setback (winter night, home)";
+                }
+                {
+                  entity = "input_number.climate_main_and_basement_away";
+                  name = "Away (winter, nobody home)";
+                }
+                {
+                  entity = "input_number.climate_main_and_basement_summer_floor";
+                  name = "Summer floor (all the time)";
+                }
+                {
+                  type = "section";
+                  label = "Upstairs";
+                }
+                {
+                  entity = "input_number.climate_upstairs_comfort";
+                  name = "Comfort (winter day, home)";
+                }
+                {
+                  entity = "input_number.climate_upstairs_setback";
+                  name = "Setback (winter night, home)";
+                }
+                {
+                  entity = "input_number.climate_upstairs_away";
+                  name = "Away (winter, nobody home)";
+                }
+                {
+                  entity = "input_number.climate_upstairs_summer_floor";
+                  name = "Summer floor (all the time)";
+                }
+              ];
+            }
+            {
+              type = "history-graph";
+              title = "Temperature History";
+              hours_to_show = 24;
+              entities = [
+                {
+                  entity = "climate.main_and_basement";
+                  name = "Main/basement";
+                }
+                {
+                  entity = "climate.upstairs";
+                  name = "Upstairs";
+                }
+              ];
+            }
+            {
               type = "weather-forecast";
               entity = "weather.forecast_home";
               name = "Weather";
