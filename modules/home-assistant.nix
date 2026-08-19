@@ -82,6 +82,20 @@ in {
             # custom.home-assistant.extraComponents too (that part was correct
             # already, just not sufficient alone without this YAML entry).
             mobile_app = {};
+            # recorder/history: confirmed live — a history-graph Lovelace card
+            # (hosts/reliant/home-assistant/climate-dashboard.nix) reported
+            # "History integration is disabled" with neither of these present.
+            # Same gap as sun/mobile_app above: nothing else in this repo
+            # declares either as a manifest dependency (unlike ssdp, pulled in
+            # automatically by sonos/apple_tv), so neither is ever attempted
+            # without an explicit key here. history itself depends on recorder
+            # (per Home Assistant's own docs) to have anything to read, so both
+            # are needed together. Each also needs its own
+            # custom.home-assistant.extraComponents entry per host, same as
+            # every other component here — see docs/smart-home.md § Choosing
+            # extraComponents.
+            recorder = {};
+            history = {};
             logger.default = "warning";
             # NOT http.trusted_proxies/use_x_forwarded_for here (previously
             # set): confirmed live, newer HA versions deprecate YAML http:

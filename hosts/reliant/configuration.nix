@@ -117,6 +117,12 @@ in {
         "ai_task"
         "assist_satellite"
         "ffmpeg"
+        # recorder/history: back the Climate view's "Temperature History"
+        # card (hosts/reliant/home-assistant/climate-dashboard.nix). See
+        # modules/home-assistant.nix's config.recorder/history YAML entries
+        # for why both are needed, not just this list.
+        "recorder"
+        "history"
       ];
       # Same secret/value as custom.adsb.locationEnvFile below — one home
       # address, reused rather than duplicated. Keeps zone.home (and the
