@@ -377,6 +377,30 @@
         state = "idle";
       };
 
+      # Gates every zone automation's action entirely until the one-time
+      # seed run has completed. Confirmed live: without this, a deploy that
+      # renames set-point input_numbers (forcing a fresh seed, since the
+      # new entities have no restore history — see
+      # climate_set_points_seeded_v2 above) reintroduces a race between
+      # this file's own homeassistant:start trigger and the seed
+      # automation's — both fire on the same event with no guaranteed
+      # order. If the schedule runs first, the new input_numbers haven't
+      # been seeded yet and read input_number's bare fallback (10°C via
+      # native_min_value), so it commands that and records it as
+      # last-commanded; the seed automation then writes the real values
+      # moments later, which re-triggers the schedule (correctly) and
+      # overwrites last-commanded again — but the first, stale command's
+      # delayed HomeKit push-back can still arrive after that overwrite,
+      # no longer matches last-commanded, and starts the override timer as
+      # if it were external. Requiring the marker to already be "on"
+      # closes the window entirely: an unseeded zone does nothing rather
+      # than commanding a value it's about to immediately correct.
+      seededCondition = {
+        condition = "state";
+        entity_id = "input_boolean.climate_set_points_seeded_v2";
+        state = "on";
+      };
+
       # Shared trigger set: the daily schedule times, both presence edges
       # (arrival immediate, departure after a 15 minute grace so a quick
       # errand doesn't cycle the setpoint), the season toggle changing,
@@ -451,6 +475,10 @@
         description = "Re-evaluate ${entityId}'s desired temperature on every schedule time, presence edge, season change, set point change, override expiry, and restart.";
         mode = "single";
         trigger = zoneTriggers timerEntityId setPointEntityIds;
+        # Whole-automation condition, not per-branch: see seededCondition
+        # above for why an unseeded zone must do nothing at all rather
+        # than command a soon-to-be-corrected default.
+        condition = [seededCondition];
         action = [
           {
             choose = [
