@@ -48,24 +48,29 @@
 # automation, re-evaluates and re-applies the schedule immediately, same as
 # a restart.
 #
-# In summer, both zones drop to a low standby heat floor at all times, not
-# just overnight/away — real-world testing found the original version (full
-# daytime comfort target even in summer, on the reasoning that a heat-only
-# zone with no AC doesn't need a different daytime target) just heats the
-# house to 21-23°C on a summer day for no reason. Each zone has its own
-# floor (input_number.climate_main_and_basement_summer_floor, initially
-# 20°C; input_number.climate_upstairs_summer_floor, initially 19°C), not a
-# shared value — the first shared value (17°C) also turned out too cold for
-# main/basement once tested live; independent per-zone numbers, not a delta
-# between them. All the set points below (comfort/setback/away/summer
-# floor, per zone) are input_number helpers rather than fixed constants —
-# see liveTemp — so they're adjustable from the dashboard without a
-# redeploy. hvac_mode "off" was considered instead of a low floor, but this
-# house does get occasional summer cold spells — an active low floor still
-# protects against those, where "off" wouldn't. That's also why this is an
-# explicit action, not just skipping the automation: leaving the previous
-# setpoint in place would still let a heat-mode thermostat heat back up to
-# whatever it was holding before.
+# Each zone stores six independent set points: Day, Night, and Away, for
+# each of winter and summer — not shared across seasons, so switching
+# between them (by hand or at a boundary) never loses either season's
+# tuning. This replaced an earlier, asymmetric version (winter: separate
+# comfort/setback/away; summer: one shared floor covering day, night, and
+# away alike) once real use made the asymmetry confusing — "floor" and
+# "away" read as different concepts even where they held the same value,
+# and summer had no way to hold a different daytime target from its
+# night/away one even if that were ever wanted. Summer's own real-world
+# finding still applies and is just as expressible now: the original
+# version's daytime summer target (before there was a separate one at all)
+# heated the house to 21-23°C on a warm day for no reason, so summer's
+# seeded defaults below start day/night/away all equal to the old shared
+# floor value per zone — this redesign changes what's adjustable, not the
+# behavior on the day it deploys. All twelve set points (six per zone) are
+# input_number helpers rather than fixed constants — see liveTemp — so
+# they're adjustable from the dashboard without a redeploy. hvac_mode
+# "off" was considered instead of an active summer target, but this house
+# does get occasional summer cold spells — an active low target still
+# protects against those, where "off" wouldn't. That's also why every
+# branch below is an explicit action, not just skipping the automation:
+# leaving the previous setpoint in place would still let a heat-mode
+# thermostat heat back up to whatever it was holding before.
 #
 # Each zone also reasserts hvac_mode "heat" alongside every setpoint, not
 # just temperature — confirmed live that this file never called
@@ -207,71 +212,27 @@
     # default, and unsafe to even briefly command as a real target. So
     # first-boot seeding is handled explicitly below (climate_set_points_seeded
     # + "Climate — seed set points") instead of via `initial`.
-    input_number = {
-      climate_main_and_basement_comfort = {
-        name = "Main/basement — comfort";
-        icon = "mdi:thermometer";
+    input_number = let
+      mkSetPoint = name: icon: {
+        inherit name icon;
         unit_of_measurement = "°C";
         min = 10;
         max = 28;
         step = 0.5;
       };
-      climate_main_and_basement_setback = {
-        name = "Main/basement — setback (winter night)";
-        icon = "mdi:thermometer-low";
-        unit_of_measurement = "°C";
-        min = 10;
-        max = 28;
-        step = 0.5;
-      };
-      climate_main_and_basement_away = {
-        name = "Main/basement — away (winter)";
-        icon = "mdi:thermometer-low";
-        unit_of_measurement = "°C";
-        min = 10;
-        max = 28;
-        step = 0.5;
-      };
-      climate_main_and_basement_summer_floor = {
-        name = "Main/basement — summer floor";
-        icon = "mdi:thermometer-low";
-        unit_of_measurement = "°C";
-        min = 10;
-        max = 28;
-        step = 0.5;
-      };
-      climate_upstairs_comfort = {
-        name = "Upstairs — comfort";
-        icon = "mdi:thermometer";
-        unit_of_measurement = "°C";
-        min = 10;
-        max = 28;
-        step = 0.5;
-      };
-      climate_upstairs_setback = {
-        name = "Upstairs — setback (winter night)";
-        icon = "mdi:thermometer-low";
-        unit_of_measurement = "°C";
-        min = 10;
-        max = 28;
-        step = 0.5;
-      };
-      climate_upstairs_away = {
-        name = "Upstairs — away (winter)";
-        icon = "mdi:thermometer-low";
-        unit_of_measurement = "°C";
-        min = 10;
-        max = 28;
-        step = 0.5;
-      };
-      climate_upstairs_summer_floor = {
-        name = "Upstairs — summer floor";
-        icon = "mdi:thermometer-low";
-        unit_of_measurement = "°C";
-        min = 10;
-        max = 28;
-        step = 0.5;
-      };
+    in {
+      climate_main_and_basement_winter_day = mkSetPoint "Main/basement — winter day" "mdi:thermometer";
+      climate_main_and_basement_winter_night = mkSetPoint "Main/basement — winter night" "mdi:thermometer-low";
+      climate_main_and_basement_winter_away = mkSetPoint "Main/basement — winter away" "mdi:thermometer-low";
+      climate_main_and_basement_summer_day = mkSetPoint "Main/basement — summer day" "mdi:thermometer";
+      climate_main_and_basement_summer_night = mkSetPoint "Main/basement — summer night" "mdi:thermometer-low";
+      climate_main_and_basement_summer_away = mkSetPoint "Main/basement — summer away" "mdi:thermometer-low";
+      climate_upstairs_winter_day = mkSetPoint "Upstairs — winter day" "mdi:thermometer";
+      climate_upstairs_winter_night = mkSetPoint "Upstairs — winter night" "mdi:thermometer-low";
+      climate_upstairs_winter_away = mkSetPoint "Upstairs — winter away" "mdi:thermometer-low";
+      climate_upstairs_summer_day = mkSetPoint "Upstairs — summer day" "mdi:thermometer";
+      climate_upstairs_summer_night = mkSetPoint "Upstairs — summer night" "mdi:thermometer-low";
+      climate_upstairs_summer_away = mkSetPoint "Upstairs — summer away" "mdi:thermometer-low";
     };
 
     # Internal marker, not shown on the dashboard: flips on the first time
@@ -281,8 +242,17 @@
     # away from for the set points themselves. No `initial:` here either,
     # for the same reason: this needs to actually persist as "already
     # seeded" across restarts, not reset to "not seeded" on every one.
-    input_boolean.climate_set_points_seeded = {
-      name = "Climate — set points seeded";
+    #
+    # _v2, not a bare name: the Day/Night/Away redesign above replaced the
+    # four old set points per zone with six new ones that never existed
+    # before, but the original marker was already flipped on in
+    # production from the earlier seeding — reusing that name would leave
+    # every new input_number sitting at its unsafe 10°C floor with nothing
+    # to seed them. A fresh marker name guarantees this seeds once more,
+    # for the new entities specifically, regardless of the old marker's
+    # state.
+    input_boolean.climate_set_points_seeded_v2 = {
+      name = "Climate — set points seeded (v2)";
       icon = "mdi:cog";
     };
 
@@ -457,12 +427,12 @@
           }
         ];
 
-      # A complete heat-only zone: comfort during the day, setback at night
-      # in winter, the standby floor at night/away in summer, away setback
-      # in winter — all re-evaluated on every trigger in zoneTriggers.
-      # Both main/basement and upstairs are this shape today; a zone that
-      # gains real cooling (or a new zone like the garage) needs its own
-      # automation, not a change here.
+      # A complete heat-only zone: Day, Night, and Away, independently for
+      # each of winter and summer (six branches total) — all re-evaluated
+      # on every trigger in zoneTriggers. main/basement is this shape
+      # today; a zone with real cooling (upstairs, once it has AC) needs
+      # its own bespoke automation instead, since a single target per
+      # period can't express a dual heat_cool setpoint.
       mkHeatOnlyZone = {
         id,
         alias,
@@ -470,10 +440,12 @@
         timerEntityId,
         lastCommandedEntityId,
         setPointEntityIds,
-        comfortTemp,
-        setbackTemp,
-        awayTemp,
-        summerFloorTemp,
+        winterDayTemp,
+        winterNightTemp,
+        winterAwayTemp,
+        summerDayTemp,
+        summerNightTemp,
+        summerAwayTemp,
       }: {
         inherit id alias;
         description = "Re-evaluate ${entityId}'s desired temperature on every schedule time, presence edge, season change, set point change, override expiry, and restart.";
@@ -482,45 +454,39 @@
         action = [
           {
             choose = [
-              # Comfort: home, daytime, winter, not currently overridden.
+              # Winter day: home, daytime, winter, not currently overridden.
               {
                 conditions = [presentCondition dayCondition winterCondition (notOverridden timerEntityId)];
-                sequence = setTemp entityId comfortTemp lastCommandedEntityId;
+                sequence = setTemp entityId winterDayTemp lastCommandedEntityId;
               }
-              # Setback: home, night, winter, not overridden.
+              # Winter night: home, winter, not overridden (night is the
+              # daytime condition's fall-through, not its own check).
               {
                 conditions = [presentCondition winterCondition (notOverridden timerEntityId)];
-                sequence = setTemp entityId setbackTemp lastCommandedEntityId;
+                sequence = setTemp entityId winterNightTemp lastCommandedEntityId;
               }
-              # Summer, home, not overridden: the standby floor regardless
-              # of day/night. Confirmed live: the original version of this
-              # zone kept the day-comfort branch season-blind (day always
-              # meant comfortTemp, even in summer), on the reasoning that a
-              # heat-only zone with no AC doesn't need a different daytime
-              # target in summer — real-world testing in August showed
-              # that's wrong: nobody wants full comfort-temp heating on a
-              # summer day just because they're home. Summer now collapses
-              # to one target (the floor) at all times while present, same
-              # as it already did while away — not just "no action", since
-              # leaving the prior setpoint in place would still let a
-              # heat-mode thermostat heat back up to whatever it was
-              # holding before.
+              # Summer day: home, daytime, summer, not overridden.
+              {
+                conditions = [presentCondition dayCondition summerCondition (notOverridden timerEntityId)];
+                sequence = setTemp entityId summerDayTemp lastCommandedEntityId;
+              }
+              # Summer night: home, summer, not overridden (same
+              # fall-through as winter night, above).
               {
                 conditions = [presentCondition summerCondition (notOverridden timerEntityId)];
-                sequence = setTemp entityId summerFloorTemp lastCommandedEntityId;
+                sequence = setTemp entityId summerNightTemp lastCommandedEntityId;
               }
-              # Away, winter: heat to the away setback regardless of any
-              # active override — leaving the house should always save
-              # energy.
+              # Away, winter: regardless of any active override — leaving
+              # the house should always save energy.
               {
                 conditions = [notPresentCondition winterCondition];
-                sequence = setTemp entityId awayTemp lastCommandedEntityId;
+                sequence = setTemp entityId winterAwayTemp lastCommandedEntityId;
               }
-              # Away, summer: the standby floor, same reasoning as the
-              # summer setback branch, also regardless of override.
+              # Away, summer: same reasoning as away/winter, also
+              # regardless of override.
               {
                 conditions = [notPresentCondition summerCondition];
-                sequence = setTemp entityId summerFloorTemp lastCommandedEntityId;
+                sequence = setTemp entityId summerAwayTemp lastCommandedEntityId;
               }
             ];
             # Only reached if every present-and-home branch above was
@@ -584,15 +550,19 @@
         timerEntityId = "timer.climate_override_main_and_basement";
         lastCommandedEntityId = "input_text.climate_last_commanded_main_and_basement";
         setPointEntityIds = [
-          "input_number.climate_main_and_basement_comfort"
-          "input_number.climate_main_and_basement_setback"
-          "input_number.climate_main_and_basement_away"
-          "input_number.climate_main_and_basement_summer_floor"
+          "input_number.climate_main_and_basement_winter_day"
+          "input_number.climate_main_and_basement_winter_night"
+          "input_number.climate_main_and_basement_winter_away"
+          "input_number.climate_main_and_basement_summer_day"
+          "input_number.climate_main_and_basement_summer_night"
+          "input_number.climate_main_and_basement_summer_away"
         ];
-        comfortTemp = liveTemp "input_number.climate_main_and_basement_comfort";
-        setbackTemp = liveTemp "input_number.climate_main_and_basement_setback";
-        awayTemp = liveTemp "input_number.climate_main_and_basement_away";
-        summerFloorTemp = liveTemp "input_number.climate_main_and_basement_summer_floor";
+        winterDayTemp = liveTemp "input_number.climate_main_and_basement_winter_day";
+        winterNightTemp = liveTemp "input_number.climate_main_and_basement_winter_night";
+        winterAwayTemp = liveTemp "input_number.climate_main_and_basement_winter_away";
+        summerDayTemp = liveTemp "input_number.climate_main_and_basement_summer_day";
+        summerNightTemp = liveTemp "input_number.climate_main_and_basement_summer_night";
+        summerAwayTemp = liveTemp "input_number.climate_main_and_basement_summer_away";
       })
       (mkHeatOnlyZone {
         id = "climate_upstairs";
@@ -601,15 +571,19 @@
         timerEntityId = "timer.climate_override_upstairs";
         lastCommandedEntityId = "input_text.climate_last_commanded_upstairs";
         setPointEntityIds = [
-          "input_number.climate_upstairs_comfort"
-          "input_number.climate_upstairs_setback"
-          "input_number.climate_upstairs_away"
-          "input_number.climate_upstairs_summer_floor"
+          "input_number.climate_upstairs_winter_day"
+          "input_number.climate_upstairs_winter_night"
+          "input_number.climate_upstairs_winter_away"
+          "input_number.climate_upstairs_summer_day"
+          "input_number.climate_upstairs_summer_night"
+          "input_number.climate_upstairs_summer_away"
         ];
-        comfortTemp = liveTemp "input_number.climate_upstairs_comfort";
-        setbackTemp = liveTemp "input_number.climate_upstairs_setback";
-        awayTemp = liveTemp "input_number.climate_upstairs_away";
-        summerFloorTemp = liveTemp "input_number.climate_upstairs_summer_floor";
+        winterDayTemp = liveTemp "input_number.climate_upstairs_winter_day";
+        winterNightTemp = liveTemp "input_number.climate_upstairs_winter_night";
+        winterAwayTemp = liveTemp "input_number.climate_upstairs_winter_away";
+        summerDayTemp = liveTemp "input_number.climate_upstairs_summer_day";
+        summerNightTemp = liveTemp "input_number.climate_upstairs_summer_night";
+        summerAwayTemp = liveTemp "input_number.climate_upstairs_summer_away";
       })
       (overrideStartAutomation {
         id = "climate_override_start_main_and_basement";
@@ -677,7 +651,7 @@
       {
         id = "climate_seed_set_points";
         alias = "Climate — seed set points";
-        description = "Runs exactly once, ever: sets the eight set-point input_numbers to their original sensible defaults, then flips climate_set_points_seeded on so this never runs again. Only exists because input_number's own restore-on-restart is incompatible with also specifying an `initial:` (see the input_number block above) — without this, a fresh deployment would start every set point at its unsafe 10°C floor until someone visits the dashboard.";
+        description = "Runs exactly once, ever: sets the twelve set-point input_numbers to sensible defaults (each season's day/night/away seeded equal to that zone's old comfort/setback/away or shared summer floor, so behavior is unchanged the moment this deploys), then flips climate_set_points_seeded_v2 on so this never runs again. Only exists because input_number's own restore-on-restart is incompatible with also specifying an `initial:` (see the input_number block above) — without this, a fresh deployment would start every set point at its unsafe 10°C floor until someone visits the dashboard.";
         mode = "single";
         trigger = [
           {
@@ -688,54 +662,74 @@
         condition = [
           {
             condition = "state";
-            entity_id = "input_boolean.climate_set_points_seeded";
+            entity_id = "input_boolean.climate_set_points_seeded_v2";
             state = "off";
           }
         ];
         action = [
           {
             service = "input_number.set_value";
-            target.entity_id = "input_number.climate_main_and_basement_comfort";
+            target.entity_id = "input_number.climate_main_and_basement_winter_day";
             data.value = 23;
           }
           {
             service = "input_number.set_value";
-            target.entity_id = "input_number.climate_main_and_basement_setback";
+            target.entity_id = "input_number.climate_main_and_basement_winter_night";
             data.value = 18;
           }
           {
             service = "input_number.set_value";
-            target.entity_id = "input_number.climate_main_and_basement_away";
+            target.entity_id = "input_number.climate_main_and_basement_winter_away";
             data.value = 16;
           }
           {
             service = "input_number.set_value";
-            target.entity_id = "input_number.climate_main_and_basement_summer_floor";
+            target.entity_id = "input_number.climate_main_and_basement_summer_day";
             data.value = 20;
           }
           {
             service = "input_number.set_value";
-            target.entity_id = "input_number.climate_upstairs_comfort";
+            target.entity_id = "input_number.climate_main_and_basement_summer_night";
+            data.value = 20;
+          }
+          {
+            service = "input_number.set_value";
+            target.entity_id = "input_number.climate_main_and_basement_summer_away";
+            data.value = 20;
+          }
+          {
+            service = "input_number.set_value";
+            target.entity_id = "input_number.climate_upstairs_winter_day";
             data.value = 21;
           }
           {
             service = "input_number.set_value";
-            target.entity_id = "input_number.climate_upstairs_setback";
+            target.entity_id = "input_number.climate_upstairs_winter_night";
             data.value = 18;
           }
           {
             service = "input_number.set_value";
-            target.entity_id = "input_number.climate_upstairs_away";
+            target.entity_id = "input_number.climate_upstairs_winter_away";
             data.value = 16;
           }
           {
             service = "input_number.set_value";
-            target.entity_id = "input_number.climate_upstairs_summer_floor";
+            target.entity_id = "input_number.climate_upstairs_summer_day";
+            data.value = 19;
+          }
+          {
+            service = "input_number.set_value";
+            target.entity_id = "input_number.climate_upstairs_summer_night";
+            data.value = 19;
+          }
+          {
+            service = "input_number.set_value";
+            target.entity_id = "input_number.climate_upstairs_summer_away";
             data.value = 19;
           }
           {
             service = "input_boolean.turn_on";
-            target.entity_id = "input_boolean.climate_set_points_seeded";
+            target.entity_id = "input_boolean.climate_set_points_seeded_v2";
           }
         ];
       }

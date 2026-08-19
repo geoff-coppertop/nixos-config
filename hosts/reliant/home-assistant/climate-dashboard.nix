@@ -103,52 +103,50 @@
               # schedule reads these live, so a slider tweak here applies
               # on its next trigger (including immediately, since these
               # entities are themselves triggers) rather than needing a
-              # redeploy. Row names spell out exactly when each target
-              # applies, since "comfort"/"setback"/"away"/"summer floor"
-              # alone don't say that on their own — the schedule logic
-              # itself (ecobee-climate.nix's mkHeatOnlyZone) is the source
-              # of truth for these conditions.
-              entities = [
+              # redeploy. Winter and summer are stored (and shown) as
+              # fully separate Day/Night/Away triples per zone, not a
+              # shared value with a separate "away" — that's what lets
+              # switching seasons keep both sets of tuning instead of
+              # losing one, per ecobee-climate.nix's mkHeatOnlyZone.
+              entities = let
+                mkRow = zone: season: period: {
+                  entity = "input_number.climate_${zone}_${season}_${period}";
+                  name =
+                    if period == "day"
+                    then "Day (home)"
+                    else if period == "night"
+                    then "Night (home)"
+                    else "Away";
+                };
+              in [
                 {
                   type = "section";
-                  label = "Main/basement";
+                  label = "Main/basement — winter";
                 }
-                {
-                  entity = "input_number.climate_main_and_basement_comfort";
-                  name = "Comfort (winter day, home)";
-                }
-                {
-                  entity = "input_number.climate_main_and_basement_setback";
-                  name = "Setback (winter night, home)";
-                }
-                {
-                  entity = "input_number.climate_main_and_basement_away";
-                  name = "Away (winter, nobody home)";
-                }
-                {
-                  entity = "input_number.climate_main_and_basement_summer_floor";
-                  name = "Summer floor (all the time)";
-                }
+                (mkRow "main_and_basement" "winter" "day")
+                (mkRow "main_and_basement" "winter" "night")
+                (mkRow "main_and_basement" "winter" "away")
                 {
                   type = "section";
-                  label = "Upstairs";
+                  label = "Main/basement — summer";
                 }
+                (mkRow "main_and_basement" "summer" "day")
+                (mkRow "main_and_basement" "summer" "night")
+                (mkRow "main_and_basement" "summer" "away")
                 {
-                  entity = "input_number.climate_upstairs_comfort";
-                  name = "Comfort (winter day, home)";
+                  type = "section";
+                  label = "Upstairs — winter";
                 }
+                (mkRow "upstairs" "winter" "day")
+                (mkRow "upstairs" "winter" "night")
+                (mkRow "upstairs" "winter" "away")
                 {
-                  entity = "input_number.climate_upstairs_setback";
-                  name = "Setback (winter night, home)";
+                  type = "section";
+                  label = "Upstairs — summer";
                 }
-                {
-                  entity = "input_number.climate_upstairs_away";
-                  name = "Away (winter, nobody home)";
-                }
-                {
-                  entity = "input_number.climate_upstairs_summer_floor";
-                  name = "Summer floor (all the time)";
-                }
+                (mkRow "upstairs" "summer" "day")
+                (mkRow "upstairs" "summer" "night")
+                (mkRow "upstairs" "summer" "away")
               ];
             }
             {
