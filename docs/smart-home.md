@@ -78,6 +78,45 @@ load-bearing rather than incidental: if HA's frontend port is ever changed
 from 8123, it has to be updated by hand in both of those places (see
 `hosts/reliant/README.md` § Known Gotchas for the exact locations).
 
+### Core location: latitude/longitude/elevation, unlike `http:`
+
+`custom.home-assistant.locationEnvFile` (set on `reliant`, same value as
+`custom.adsb.locationEnvFile`) points at the shared
+`secrets/location/coordinates.age` — see
+[docs/secrets.md § Secret Inventory](secrets.md#secret-inventory). When set,
+the module both adds it as the `home-assistant` systemd unit's
+`EnvironmentFile` and sets `config.homeassistant.{latitude,longitude,elevation}`
+to `"!env_var LOCATION_LAT"` / `"!env_var LOCATION_LON"` /
+`"!env_var LOCATION_ELEVATION"`.
+
+`!env_var NAME` is a real Home Assistant YAML tag (`annotatedyaml`'s loader,
+the same loader used for `configuration.yaml`) that reads an environment
+variable at config-load time and raises if it's unset — confirmed against
+that library's source, not guessed. Getting a literal `!word ...` tag past
+`pkgs.formats.yaml`'s generic serializer (which would otherwise quote it as
+an inert string) works because `modules/services/home-automation/
+home-assistant.nix`'s `renderYAMLFile` sed-unquotes any generated string
+matching `'!word rest'` — this is the module's own documented mechanism for
+`!secret`, confirmed against its source; `!env_var` matches the same pattern.
+
+Unlike [`http:` above](#http-config-no-longer-declarative), this is **not**
+deprecated or onboarding-only: confirmed against HA's own `core_config.py`,
+`homeassistant:` YAML keys (latitude, longitude, elevation, and others) are
+applied from YAML on *every* startup, not written back to `.storage` and
+then ignored — so this stays in sync with the secret on every rebuild,
+rather than only seeding it once. `zone.home` (and anything derived from
+it — `met`'s weather forecast, `sun.sun`'s solar calculations) reflects
+this repo's own coordinates as a result.
+
+The secret currently only carries `LOCATION_LAT`/`LOCATION_LON`
+(`modules/adsb.nix`'s original fields) plus `LOCATION_ELEVATION`, added for
+this. A wrong or missing elevation is a known cause of a several-degree
+`met` forecast-vs-actual offset — met.no's forecast API adjusts temperature
+for the delta between its grid cell's elevation and whatever elevation the
+requesting instance reports, so an elevation left at HA's default (0m,
+seeded during onboarding before this wiring existed) reads as a
+sea-level-adjusted forecast at any real elevation.
+
 ### Declarative automations
 
 Automations are declared in Nix, **one file per concern**, under

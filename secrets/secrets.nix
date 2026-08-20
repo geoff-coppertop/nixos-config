@@ -44,9 +44,10 @@ in {
   # host — named for the hardware, not reliant, so it keeps working without
   # a rename if the coordinator moves again.
   "zigbee/network-key.age".publicKeys = [reliant offlineAdmin];
-  # Shared receiver/station location (lat/lon) — used by adsb today,
-  # expected to be reused by a future weather station module too. Not
-  # host- or radio-specific.
+  # Shared receiver/station location (lat/lon/elevation) — used by adsb
+  # (lat/lon only) and, on reliant, Home Assistant's core location config
+  # (all three — see docs/smart-home.md § Core location). Not host- or
+  # radio-specific.
   "location/coordinates.age".publicKeys = [reliant offlineAdmin];
   # Matched to the physical Z-Wave controller's own NVM state, not the
   # host — same reasoning as zigbee/network-key.age above.

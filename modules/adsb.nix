@@ -27,8 +27,10 @@ in {
         store/git history as a secret rather than a plain option value
         since it resolves to a home address; null skips passing
         --lat/--lon entirely. Same secret/env-var naming as the shared
-        location/coordinates.age file, since a future weather station
-        module is expected to need the same coordinates.
+        location/coordinates.age file, also consumed by
+        custom.home-assistant.locationEnvFile for HA's own core location
+        config — this module only reads the LAT/LON fields, not the
+        LOCATION_ELEVATION field that secret also carries.
       '';
     };
   };
