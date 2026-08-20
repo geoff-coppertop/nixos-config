@@ -5,8 +5,8 @@
 Why this change is needed. The diff already shows what changed — don't
 restate it here.
 
-Affected hosts: `enterprise-d` / `defiant` / `holodeck-01` / `excelsior` /
-`reliant` / none.
+Affected hosts: `enterprise-d` / `holodeck-01` / `excelsior` / `reliant` /
+none.
 
 ## Test plan
 

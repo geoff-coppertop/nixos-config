@@ -66,14 +66,13 @@ in {
 
     home-assistant = {
       enable = true;
-      # Mirrors hosts/defiant/configuration.nix's extraComponents — see
-      # hosts/defiant/README.md § Known Gotchas and
+      # Originally mirrored hosts/defiant/configuration.nix's extraComponents
+      # (defiant has since been retired) — see
       # docs/smart-home.md § Choosing extraComponents for why each of these
       # is here (mqtt and zwave_js in particular caused real outages on
-      # defiant when missing). Not an exact mirror any more: "sonos" and
-      # "linkplay" back hosts/reliant/home-assistant/sonos-wiim.nix, which
-      # targets this host directly rather than defiant (defiant is being
-      # retired — see hosts/reliant/README.md) and so never shipped there.
+      # defiant when missing). Not an exact mirror: "sonos" and "linkplay"
+      # back hosts/reliant/home-assistant/sonos-wiim.nix, which targets this
+      # host directly and so never shipped on defiant.
       extraComponents = [
         "homekit_controller"
         "matter"
@@ -151,8 +150,8 @@ in {
       # re-pair of every Z-Wave device once the controller moves.
       secretsConfigFile = "/run/agenix/zwave/secrets";
       # 3000 (the module default) collides with AdGuard Home's admin UI,
-      # enabled above — same collision documented for defiant in
-      # hosts/defiant/README.md § Known Gotchas.
+      # enabled above — same collision this host's own `defiant`
+      # predecessor hit.
       port = 3001;
     };
 
@@ -207,13 +206,10 @@ in {
         # /var/cache/zwave-js instead, via systemd's CacheDirectory= — confirmed
         # live on reliant's first boot (a real ID-prefixed .jsonl/.metadata.jsonl/
         # .values.jsonl set, not an empty directory). /var/cache/zwave-js is
-        # itself a symlink to private/zwave-js, same shape as defiant's
-        # /var/lib/AdGuardHome symlink gotcha (hosts/defiant/README.md § Known
-        # Gotchas) — restic follows a symlink passed as an explicit top-level
-        # path, so this works the same way that one does. defiant's own
-        # zwave-js backup job has the same /var/lib/zwave-js bug and has likely
-        # been silently backing up nothing this whole time; out of scope to fix
-        # here since this PR doesn't touch defiant's config.
+        # itself a symlink to private/zwave-js, same shape as this host's own
+        # /var/lib/AdGuardHome symlink gotcha (see below) — restic follows a
+        # symlink passed as an explicit top-level path, so this works the
+        # same way that one does.
         zwave-js = {
           enable = true;
           paths = ["/var/cache/zwave-js"];
@@ -236,11 +232,10 @@ in {
       enable = true;
       domain = "coppertop.ca";
       inherit lanIp;
-      # Carried from defiant: the module default (192.168.1.0/24) and this
-      # host's own VLAN (192.168.20.0/24) each only cover one of the 3 LAN
-      # VLANs — widened so unbound's access-control covers direct (bypass)
-      # queries on port 5335 from any of them. See
-      # docs/homelab-network.md and hosts/defiant/README.md § Known Gotchas.
+      # The module default (192.168.1.0/24) and this host's own VLAN
+      # (192.168.20.0/24) each only cover one of the 3 LAN VLANs — widened
+      # so unbound's access-control covers direct (bypass) queries on port
+      # 5335 from any of them. See docs/homelab-network.md.
       lanSubnet = "192.168.0.0/16";
       # Matches defiant's full subdomain list: home-assistant, adsb, and
       # zigbee (Zigbee2MQTT) all self-register their own Traefik routes when
@@ -343,11 +338,11 @@ in {
 
   # Per-host override of the shared default (10, profiles/common/base.nix) —
   # the 120GB mSATA disk has far less headroom than enterprise-d/excelsior's
-  # NVMe/SSDs, and defiant's SD card already showed what an unbounded (or
-  # too-high) generation count does to a small, fixed disk (see
-  # hosts/defiant/README.md § Known Gotchas). Kept in sync with
-  # hardware.nix's boot.loader.systemd-boot.configurationLimit (also 5).
-  # Revisit both once real disk usage after Phase 2 is known.
+  # NVMe/SSDs, and this host's own `defiant` predecessor's SD card already
+  # showed what an unbounded (or too-high) generation count does to a
+  # small, fixed disk. Kept in sync with hardware.nix's
+  # boot.loader.systemd-boot.configurationLimit (also 5). Revisit both once
+  # real disk usage is known.
   custom.nix.gc.keepGenerations = 5;
 
   system.stateVersion = "25.11";

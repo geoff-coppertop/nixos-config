@@ -35,7 +35,7 @@ custom.users.thomasga =
 The `thomasga` on the right is `users/thomasga/account.nix`, a plain attrset of
 the machine-independent attributes (`description`, `hashedPassword`, `avatar`),
 imported at the top of the host config. Each host overrides the machine-specific
-parts — `defiant` uses `groups = ["wheel" "dialout"]` and no avatar, since it is
+parts — `reliant` uses `groups = ["wheel" "dialout"]` and no avatar, since it is
 headless.
 
 Per-entry options are `description`, `hashedPassword`, `shell` (defaults to

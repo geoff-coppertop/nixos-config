@@ -84,7 +84,7 @@ importing it over hardcoding the address.
 
 ## Backing Up Service State Outside `/home`
 
-Override `paths` explicitly. Example from `defiant`, backing up Home Assistant:
+Override `paths` explicitly. Example from `reliant`, backing up Home Assistant:
 
 ```nix
 custom.backups.users = {
@@ -174,7 +174,8 @@ those commands, or restic prompts for the passphrase.
   progress, restic may leave a lock behind; restic clears its own stale locks on
   the following run, and `restic --repo <repo> unlock` forces it.
 - Service state paths are case-sensitive and not always what the service name
-  suggests — `defiant` backs up `/var/lib/AdGuardHome`, capitalized, because the
-  lowercase path does not exist. Confirm with `ls -l` on the host before adding
-  an entry; that also shows whether the path is a symlink, which matters for the
-  reason given in [Symlinked State Directories](#symlinked-state-directories).
+  suggests — AdGuard Home's is `/var/lib/AdGuardHome`, capitalized, because the
+  lowercase path does not exist (confirmed on `reliant`). Confirm with `ls -l`
+  on the host before adding an entry; that also shows whether the path is a
+  symlink, which matters for the reason given in
+  [Symlinked State Directories](#symlinked-state-directories).

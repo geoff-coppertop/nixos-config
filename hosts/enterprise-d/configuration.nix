@@ -73,9 +73,10 @@ in {
   # bitwarden-desktop is rebuilt against a supported electron release.
   nixpkgs.config.permittedInsecurePackages = ["electron-39.8.10"];
 
-  # Lets `nix build` cross-compile aarch64-linux derivations (e.g. defiant) via
-  # qemu-user emulation instead of failing with "platform mismatch". Slow —
-  # full emulation, not native — but there's no remote aarch64 builder set up.
+  # Lets `nix build` cross-compile aarch64-linux derivations via qemu-user
+  # emulation instead of failing with "platform mismatch". Slow — full
+  # emulation, not native — but there's no remote aarch64 builder set up.
+  # No host currently uses aarch64-linux; kept for a future one.
   boot.binfmt.emulatedSystems = ["aarch64-linux"];
 
   networking.hostName = "enterprise-d";

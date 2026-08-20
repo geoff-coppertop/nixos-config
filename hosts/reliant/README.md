@@ -1,28 +1,23 @@
 # reliant
 
-This host replaces `defiant` as the homelab server. Both halves of the
-migration — `custom.dns`/`custom.traefik` (owned by `homelab-network`, see
-[docs/homelab-network.md](../../docs/homelab-network.md)) and the appliance
-layer: Home Assistant, MQTT, Matter, Zigbee, Z-Wave, ADS-B (owned by
-`smart-home`, see [docs/smart-home.md](../../docs/smart-home.md)) — landed as
-one combined PR, since both target this same new host as a single coordinated
-migration rather than two independent changes.
+This host is the homelab server — it replaced `defiant` (Raspberry Pi 4,
+retired) via a migration that landed `custom.dns`/`custom.traefik` (owned by
+`homelab-network`, see [docs/homelab-network.md](../../docs/homelab-network.md))
+and the appliance layer: Home Assistant, MQTT, Matter, Zigbee, Z-Wave, ADS-B
+(owned by `smart-home`, see [docs/smart-home.md](../../docs/smart-home.md))
+in one combined PR, since both targeted this same host as a single
+coordinated migration rather than two independent changes. `defiant` has
+since been fully retired and removed from the flake.
 
 **Live and confirmed working**: the Zigbee and Z-Wave USB radios are
 physically moved here and paired devices respond (Zigbee network key and
 Z-Wave `securityKeys` reuse worked as intended, no re-pair needed); the ADS-B
 receiver is reading real traffic; all four backup jobs run clean; Home
-Assistant's config was restored from `defiant`'s restic snapshot and is
-controlling real devices; `dns1.coppertop.ca`/`zigbee.coppertop.ca` resolve
-and serve valid `*.coppertop.ca` certs through this host's own Traefik. The
-LAN's DHCP-advertised DNS server has been repointed at this host's own IP
-(`192.168.20.15`) in Unifi — `reliant` is the live DNS primary, done by
-repointing DHCP rather than reassigning `defiant`'s `192.168.20.10`
-reservation (see
-[docs/homelab-network.md § Migration: defiant → reliant](../../docs/homelab-network.md#migration-defiant--reliant)).
-`defiant` keeps running every one of these services untouched in parallel;
-removing the homelab stack from `hosts/defiant/` and retiring the Pi is a
-separate, later step.
+Assistant's config was restored from `defiant`'s restic snapshot (prior to
+its retirement) and is controlling real devices; `dns1.coppertop.ca`/
+`zigbee.coppertop.ca` resolve and serve valid `*.coppertop.ca` certs through
+this host's own Traefik. The LAN's DHCP-advertised DNS server is this host's
+own IP (`192.168.20.15`) in Unifi — `reliant` is the DNS primary.
 
 **Still open**: AdGuard's filter/allow/deny-list configuration wasn't part
 of the Home Assistant restore and hasn't been migrated — `reliant`'s AdGuard
@@ -38,8 +33,8 @@ full design; host-specific facts:
 
 - `dns1.coppertop.ca` → this host's own AdGuard Home admin UI.
 - `dns2.coppertop.ca` → `excelsior`'s AdGuard Home admin UI, proxied
-  cross-host (the same manual router `defiant` also still carries — see
-  docs/homelab-network.md § Second DNS Instance (excelsior)).
+  cross-host by a manual router (see docs/homelab-network.md § Second DNS
+  Instance (excelsior)).
 - `custom.traefik.acme.environmentFile` points at
   `/run/agenix/traefik/cloudflare-api-token` — **reused** from `defiant`'s
   existing secret (it's just an API credential, not tied to either host's
@@ -143,11 +138,11 @@ onward (same as `enterprise-d`/`excelsior`).
   snapper's timeline snapshots on a 1TB disk with headroom to spare. This
   disk is 120GB total, smaller than that DCS install alone, and Phase 2 is
   expected to migrate `defiant`'s growing homelab state onto it. Adding
-  btrfs CoW + snapper snapshots on top of that here risks exactly the kind
-  of disk-pressure problem documented in
-  [hosts/defiant/README.md § Known Gotchas](../defiant/README.md#known-gotchas)
-  for its SD card. Plain ext4 avoids that; btrfs + snapper can be added
-  later if there turns out to be headroom to spare.
+  btrfs CoW + snapper snapshots on top of that here risks the kind of
+  disk-pressure problem `defiant`'s fixed-size SD card hit (see
+  git history, since that host and its README are now retired). Plain ext4
+  avoids that; btrfs + snapper can be added later if there turns out to be
+  headroom to spare.
 - `hardware.nix`'s `boot.loader.systemd-boot.configurationLimit` and
   `configuration.nix`'s `custom.nix.gc.keepGenerations` are both lowered
   from the shared default (10) to 5, ahead of any actual disk-pressure
@@ -232,10 +227,8 @@ Same job-keyed sharing as `thomasga` above: each reuses `defiant`'s existing
 `restic-password` secret rather than a new one, since the repo path already
 disambiguates by hostname. All four confirmed running clean.
 `zwave-js`'s backup path is `/var/cache/zwave-js`, not `/var/lib/zwave-js` —
-confirmed live that the latter is never created on either host (see the
-comment in `hosts/reliant/configuration.nix`); `defiant`'s own `zwave-js`
-backup job has the same bug and has likely been backing up nothing. See
-[docs/smart-home.md § Migration: defiant → reliant](../../docs/smart-home.md#migration-defiant--reliant).
+confirmed live that the latter is never created (see the comment in
+`hosts/reliant/configuration.nix`).
 
 ## Secrets
 

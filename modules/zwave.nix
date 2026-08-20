@@ -22,7 +22,7 @@ in {
       description = ''
         Port for the zwave-js WebSocket server (services.zwave-js.port
         upstream default). Confirmed live: AdGuardHome's own admin UI
-        already claims 3000 on defiant, so zwave-js deterministically
+        already claims 3000 on reliant, so zwave-js deterministically
         crash-looped on EADDRINUSE every restart, ~15s in (once its
         driver finished initializing and tried to bind) — override this
         per-host to whatever's actually free.
@@ -73,7 +73,7 @@ in {
     # activation script owns and populates that entire directory tree —
     # the "d" tmpfiles type re-enforces ownership/mode on every activation,
     # even on an already-existing directory, which would fight agenix over
-    # permissions on /run/agenix/defiant (shared by every other secret for
+    # permissions on /run/agenix/<host> (shared by every other secret for
     # this host) rather than just seeding a harmless placeholder.
     systemd.tmpfiles.rules = mkIf (cfg.secretsConfigFile == defaultSecretsConfigFile) [
       "d ${dirOf cfg.secretsConfigFile} 0750 zwave-js zwave-js -"

@@ -154,10 +154,10 @@ restic repository. `passwordFile` defaults to
 | Secret | Backup job | Host recipients |
 | --- | --- | --- |
 | `secrets/thomasga/restic-password.age` | `thomasga` (home directory) | `enterprise-d`, `reliant` |
-| `secrets/hass/restic-password.age` | `hass` | `defiant`, `reliant` |
-| `secrets/zigbee2mqtt/restic-password.age` | `zigbee2mqtt` | `defiant`, `reliant` |
-| `secrets/zwave-js/restic-password.age` | `zwave-js` | `defiant`, `reliant` |
-| `secrets/adguardhome/restic-password.age` | `adguardhome` | `defiant`, `reliant` |
+| `secrets/hass/restic-password.age` | `hass` | `reliant` |
+| `secrets/zigbee2mqtt/restic-password.age` | `zigbee2mqtt` | `reliant` |
+| `secrets/zwave-js/restic-password.age` | `zwave-js` | `reliant` |
+| `secrets/adguardhome/restic-password.age` | `adguardhome` | `reliant`, `excelsior` |
 
 Because a job-keyed secret is shared, more than one host can be a recipient of
 the same file — the restic repository path embeds the hostname
@@ -167,8 +167,7 @@ repository. Add a host only when that host actually runs the job.
 ### NAS SMB credentials
 
 `secrets/thomasga/nas-smb-credentials.age` (recipients: `enterprise-d`,
-`reliant`, `excelsior` — see `## Known Gotchas` below) and
-`secrets/defiant/nas-smb-credentials.age` (recipient: `defiant`) decrypt to:
+`reliant`, `excelsior` — see `## Known Gotchas` below) decrypts to:
 
 ```text
 username=nas-user
@@ -193,23 +192,24 @@ WIFI_AGT_HOME_PASSWORD=your-passphrase-here
 ### Shared hardware and domain secrets
 
 Named for what they hold or which physical hardware they're tied to, not for
-`defiant` — the Zigbee/Z-Wave keys are matched to the coordinator/controller's
+`reliant` — the Zigbee/Z-Wave keys are matched to the coordinator/controller's
 own NVRAM/NVM state, and the Cloudflare token and location aren't
 host-specific at all, so none of them are renamed if that hardware or
 responsibility ever moves to a different host.
 
-All four are shared with `reliant` — none are rotated or duplicated for it,
-since each is tied to physical hardware state (the Zigbee/Z-Wave radios' own
-NVRAM/NVM) or isn't host-specific at all (the Cloudflare token, the receiver
-location), not to `defiant`'s identity. `reliant` is simply added as an extra
-recipient.
+None are rotated or duplicated per host, since each is tied to physical
+hardware state (the Zigbee/Z-Wave radios' own NVRAM/NVM) or isn't
+host-specific at all (the Cloudflare token, the receiver location). A new
+host taking over that hardware or responsibility is simply added as an extra
+recipient — this is what let the Zigbee/Z-Wave radios keep working without a
+re-pair when they physically moved to `reliant`.
 
 | Secret | Contents | Host recipients |
 | --- | --- | --- |
-| `traefik/cloudflare-api-token.age` | `CF_DNS_API_TOKEN=<Cloudflare Zone:DNS:Edit token>` | `defiant`, `reliant` |
-| `location/coordinates.age` | ADS-B receiver location, as `VAR=value` lines | `defiant`, `reliant` |
-| `zigbee/network-key.age` | A bracketed byte array, e.g. `[12,34,...,255]` | `defiant`, `reliant` |
-| `zwave/secrets.age` | JSON with one `securityKeys` object | `defiant`, `reliant` |
+| `traefik/cloudflare-api-token.age` | `CF_DNS_API_TOKEN=<Cloudflare Zone:DNS:Edit token>` | `reliant` |
+| `location/coordinates.age` | ADS-B receiver location, as `VAR=value` lines | `reliant` |
+| `zigbee/network-key.age` | A bracketed byte array, e.g. `[12,34,...,255]` | `reliant` |
+| `zwave/secrets.age` | JSON with one `securityKeys` object | `reliant` |
 
 ### Home Assistant integration credentials
 
