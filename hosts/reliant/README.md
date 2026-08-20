@@ -202,13 +202,27 @@ onward (same as `enterprise-d`/`excelsior`).
   [docs/smart-home.md § HTTP config](../../docs/smart-home.md#http-config-no-longer-declarative).
 - **iOS companion app setup silently times out when entering `<ip>:8123`,
   works with the FQDN (`home.coppertop.ca`).** `modules/home-assistant.nix`
-  sets `services.home-assistant.openFirewall = false` unconditionally, and
-  `configuration.nix`'s `firewall.extraCommands` only opens 8123 from
-  `192.168.20.0/24` for Sonos UPnP callbacks — a client on any other VLAN
-  can't reach 8123 directly. Traefik's 443 is open broadly via
-  `custom.traefik`, so the FQDN (proxied to HA) connects fine; a raw IP:port
-  entry just hangs with no error. Always use `home.coppertop.ca` for
-  companion app / client setup, never `<ip>:8123`.
+  simply never opens port 8123 itself, and `configuration.nix`'s
+  `firewall.extraCommands` only opens 8123 from `192.168.20.0/24` for Sonos
+  UPnP callbacks — a client on any other VLAN can't reach 8123 directly.
+  Traefik's 443 is open broadly via `custom.traefik`, so the FQDN (proxied to
+  HA) connects fine; a raw IP:port entry just hangs with no error. Always use
+  `home.coppertop.ca` for companion app / client setup, never `<ip>:8123`.
+- **`services.home-assistant.openFirewall` is gone upstream — defining it at
+  all (even `false`) is now an eval-time assertion failure.** nixpkgs used to
+  determine the frontend port by parsing it out of HA's rendered YAML config
+  at eval time; that's no longer possible (HTTP config moved out of YAML —
+  see the entry above), so the option was removed via
+  `mkRemovedOptionModule` regardless of the value assigned to it. Fixed by
+  deleting the `openFirewall = false;` line from `modules/home-assistant.nix`
+  — it was a no-op even before the removal (nothing opened 8123
+  declaratively; that's what the manual `firewall.extraCommands` rule above
+  is for), so removing it changes no runtime behavior. If HA's frontend port
+  is ever reconfigured off 8123, the port has to be updated by hand in the
+  two places that now hardcode it — `hosts/reliant/configuration.nix`'s
+  `firewall.extraCommands` and `modules/home-assistant.nix`'s Traefik route
+  registration — since nixpkgs can no longer discover it automatically. See
+  [docs/smart-home.md § Firewall](../../docs/smart-home.md#firewall-openfirewall-removed-upstream).
 
 ## Backups
 

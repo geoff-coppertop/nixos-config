@@ -56,6 +56,28 @@ this — a one-time manual step after first boot is required: Settings >
 System > Network > enable "Use X-Forwarded-For" and add `127.0.0.1` as a
 trusted proxy.
 
+### Firewall: `openFirewall` removed upstream
+
+`modules/home-assistant.nix` no longer sets
+`services.home-assistant.openFirewall`. nixpkgs used to derive the frontend
+port by parsing it out of the module's own rendered YAML config at eval
+time; now that HTTP config isn't declarative any more (previous section),
+that's no longer possible, and the option was removed via
+`mkRemovedOptionModule` — defining it at all, `true` or `false`, is now an
+eval-time assertion failure ("no longer has any effect; please remove it").
+
+Deleting the line is a pure no-op here: it was already `false`, and `false`
+never added a firewall rule in the first place. The intended posture — HA's
+frontend port (8123) closed to everything except a narrow LAN carve-out for
+Sonos UPnP callbacks, with all other access going through Traefik — is
+unchanged and is carried entirely by `hosts/reliant/configuration.nix`'s
+`networking.firewall.extraCommands` iptables rule and the Traefik route
+registration in this module, both of which already hardcode `8123`. Since
+nixpkgs can no longer discover the port at eval time, that hardcoding is now
+load-bearing rather than incidental: if HA's frontend port is ever changed
+from 8123, it has to be updated by hand in both of those places (see
+`hosts/reliant/README.md` § Known Gotchas for the exact locations).
+
 ### Declarative automations
 
 Automations are declared in Nix, **one file per concern**, under

@@ -124,12 +124,6 @@
           system = hostSystem;
           config = {
             allowUnfree = true;
-            # Standalone home configs build their own pkgs (the NixOS-module path
-            # inherits the host's config instead), so the electron_39 allowance in
-            # hosts/enterprise-d/configuration.nix does not reach them. Mirror it
-            # here so `home-manager switch` can build bitwarden. Drop when nixpkgs
-            # re-pins bitwarden-desktop off EOL electron.
-            permittedInsecurePackages = ["electron-39.8.10"];
           };
           overlays = [nix-vscode-extensions.overlays.default];
         };
