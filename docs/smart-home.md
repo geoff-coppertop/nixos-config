@@ -253,37 +253,50 @@ even though the UI lists "Hue" as an option regardless. Note that some
 integrations are distinct platforms needing their own entry — `google_translate`
 is separate from the core `tts` component, for instance.
 
-### Wiim: community integration, not core `linkplay`
+### Wiim: reverted to core `linkplay`, pending live verification
 
-Core HA's `linkplay` integration fails to complete setup against Wiim Pro
-units — confirmed live on `reliant`: its SSDP-discovery validation call,
-`getMetaInfo`, gets back the literal string `"Failed"` instead of JSON, which
-`json.loads()` can't parse (`Expecting value: line 1 column 1 (char 0)`). That
-exception aborts the config flow before it ever creates an integration entry
-or a discovered-device card, so nothing shows up in the UI at all — not a
-missing-dependency gap `extraComponents` can close, and not specific to this
-repo's packaging. Other `httpapi.asp` commands work fine against the same
-device (`getStatusEx` returns full, valid JSON), so it's specifically
-`getMetaInfo` the firmware doesn't answer correctly. Tracked upstream at
-[home-assistant/core#145132](https://github.com/home-assistant/core/issues/145132)
-and related open issues (#123088, #132922, #125770, #125328); no fix has
-landed in `home-assistant/core` as of the nixpkgs revision this flake
-currently pins.
+**Status: reverted, not yet confirmed working.** This repo previously carried
+a community `wiim` custom-component replacement for core HA's `linkplay`
+integration (see git history / the previous revision of this section for the
+full original writeup) because `linkplay`'s SSDP-discovery validation call,
+`getMetaInfo`, was getting back the literal string `"Failed"` instead of JSON
+against these Wiim Pro units, aborting the config flow before it ever reached
+the UI. That was tracked upstream at
+[home-assistant/core#145132](https://github.com/home-assistant/core/issues/145132).
 
-The community-maintained `wiim` integration
-([github.com/mjcumming/wiim](https://github.com/mjcumming/wiim)) already
-handles this device's `getMetaInfo` response correctly. It's a third-party
-`custom_components` (HACS) package, not part of Home Assistant core, so
-nixpkgs' `component-packages.nix` has no entry for it and `extraComponents`
-can't install it. `pkgs/home-assistant-wiim.nix` packages it declaratively via
-`buildHomeAssistantComponent` instead, wired in through
-`services.home-assistant.customComponents` (`hosts/reliant/configuration.nix`)
-rather than `extraComponents` — see that module's `README.md § Known Gotchas`
-entry. Its own dependency, the `pywiim` client library (also not in nixpkgs),
-is packaged separately in `pkgs/pywiim.nix`, built against
-`home-assistant.python.pkgs` specifically (not the general `python3Packages`)
-so its transitive dependencies share Home Assistant's own Python environment
-rather than risking a second, conflicting copy.
+That issue is now closed (`stateReason: NOT_PLANNED`), with a code-owner
+comment that it was fixed in HA **2025.5.2**. Every nixpkgs revision this
+flake has ever actually pinned home-assistant to — including both the
+currently-deployed one and the one this revert lands alongside — is
+2026.8.x, more than a year past that fix. In other words, the fix has been
+present in every HA version this repo has actually run; it was never newly
+available, we just hadn't re-checked the upstream issue since packaging the
+workaround.
+
+Reverted: `custom.home-assistant.extraComponents` in
+`hosts/reliant/configuration.nix` now lists `"linkplay"` again instead of
+routing through the community package. `pkgs/home-assistant-wiim.nix` and
+`pkgs/pywiim.nix` (the custom `buildHomeAssistantComponent` package and its
+`pywiim` client-library dependency) are removed, along with the
+`services.home-assistant.customComponents` entry that wired the former in.
+
+**This has not been confirmed against the physical units yet** — nobody has
+deployed this revert and re-paired against reliant's real Wiim Pro hardware.
+Until that happens:
+
+- Core `linkplay`'s config flow may or may not actually complete cleanly now
+  — the fix report is a code-owner's word on the upstream issue, not
+  something verified live here.
+- `hosts/reliant/home-assistant/sonos-wiim.nix`'s automations reference
+  `media_player.wiim_<slug>` entity IDs, which came from the community `wiim`
+  integration's own naming. Core `linkplay` will very likely assign different
+  entity IDs (its own device-name-derived scheme) — those automations will
+  need their entity IDs re-verified against Developer Tools > States and
+  updated once `linkplay` is live, not before. See the warning comment at the
+  top of that file.
+
+Do not treat this section as "fixed" until both of those are confirmed live
+and this note is updated accordingly.
 
 ## Radio Networks
 

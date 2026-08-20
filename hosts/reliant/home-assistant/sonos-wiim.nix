@@ -18,15 +18,27 @@
 # own integration, and the Sonos Amp is bridged through Home Assistant's
 # native Sonos integration.
 #
-# Real rooms/entity IDs, confirmed live against reliant's actual devices:
-# media_player.wiim_<slug> / media_player.sonos_<slug> (not sonos_amp_<slug> —
-# these Sonos Amp entities came out of pairing without "amp" in the
-# entity_id, so the `sonos` default below matches that, not the more generic
-# name a fresh pairing might produce). The Wiim's actual non-playing state
-# values and the Sonos line-in source name are still unconfirmed — verify
-# against Developer Tools > States before relying on the offAfter automation,
-# and override `lineIn`/the trigger `to` list per pair if they differ from
-# the defaults below ("Line-in", "paused"/"idle"/"off"/"standby").
+# Real rooms/entity IDs, confirmed live against reliant's actual devices, AS
+# PAIRED UNDER THE COMMUNITY "wiim" INTEGRATION: media_player.wiim_<slug> /
+# media_player.sonos_<slug> (not sonos_amp_<slug> — these Sonos Amp entities
+# came out of pairing without "amp" in the entity_id, so the `sonos` default
+# below matches that, not the more generic name a fresh pairing might
+# produce). The Wiim's actual non-playing state values and the Sonos line-in
+# source name are still unconfirmed — verify against Developer Tools > States
+# before relying on the offAfter automation, and override `lineIn`/the
+# trigger `to` list per pair if they differ from the defaults below
+# ("Line-in", "paused"/"idle"/"off"/"standby").
+#
+# NOT YET RE-VERIFIED after reverting hosts/reliant/configuration.nix from
+# the community "wiim" integration back to core "linkplay" (see
+# docs/smart-home.md § Wiim) — core linkplay very likely assigns different
+# entity_ids than the wiim_<slug> convention above (its own device-name-based
+# scheme, not confirmed here). The `wiim ? "media_player.wiim_${slug}"`
+# default below is almost certainly wrong post-revert and was deliberately
+# left as-is rather than guessed at blind. Once linkplay is confirmed live
+# against the physical Wiim Pro units, re-check each entity_id under
+# Developer Tools > States and either update this default or pass `wiim =`
+# per pair to match.
 #
 # Targets reliant, not defiant — defiant is being retired (see
 # hosts/reliant/README.md), and this automation never merged/deployed while

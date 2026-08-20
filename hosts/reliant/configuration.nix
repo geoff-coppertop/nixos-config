@@ -6,7 +6,7 @@
 # Phases. defiant keeps running every one of these services untouched; this
 # is not a cutover. reliant is ready to activate its own instances the
 # moment the Zigbee/Z-Wave USB radios are physically relocated to it.
-{pkgs, ...}: let
+_: let
   nas = import ../../lib/nas.nix;
   thomasga = import ../../users/thomasga/account.nix;
   # reliant's own reserved LAN IP (Unifi DHCP reservation) — distinct from
@@ -42,18 +42,6 @@ in {
       SUBSYSTEM=="tty", ATTRS{idVendor}=="0658", MODE="0660", GROUP="dialout"
       SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", MODE="0660", GROUP="dialout"
     '';
-
-    # wiim: community Home Assistant integration (pkgs/home-assistant-wiim.nix)
-    # for the Wiim receivers in hosts/reliant/home-assistant/sonos-wiim.nix,
-    # replacing core HA's "linkplay" integration (removed from
-    # custom.home-assistant.extraComponents above) -- see the comment there
-    # and hosts/reliant/README.md § Known Gotchas for why. Not part of
-    # nixpkgs' component-packages.nix (it's a third-party
-    # custom_components/HACS package, not core), so it goes through
-    # customComponents instead of extraComponents.
-    home-assistant.customComponents = [
-      (pkgs.callPackage ../../pkgs/home-assistant-wiim.nix {})
-    ];
   };
 
   custom = {
@@ -73,6 +61,18 @@ in {
       # defiant when missing). Not an exact mirror: "sonos" and "linkplay"
       # back hosts/reliant/home-assistant/sonos-wiim.nix, which targets this
       # host directly and so never shipped on defiant.
+      #
+      # "linkplay" backs the Wiim Pro receivers in sonos-wiim.nix directly —
+      # this repo briefly carried a community "wiim" custom_components
+      # replacement (pkgs/home-assistant-wiim.nix, pkgs/pywiim.nix) because
+      # core linkplay's getMetaInfo discovery call was failing against these
+      # units (home-assistant/core#145132). That issue was fixed upstream in
+      # HA 2025.5.2 and closed NOT_PLANNED; every HA version this flake has
+      # ever actually pinned is well past that, so the workaround was never
+      # exercising the fixed code path to begin with. Reverted back to core
+      # linkplay here — REVERTED, PENDING LIVE VERIFICATION on reliant, not
+      # yet confirmed against the physical units. See
+      # docs/smart-home.md § Wiim and hosts/reliant/README.md § Known Gotchas.
       extraComponents = [
         "homekit_controller"
         "matter"
@@ -91,15 +91,7 @@ in {
         # integration picker itself lists "Hue" regardless of whether this
         # is present) — see docs/smart-home.md § Choosing extraComponents.
         "hue"
-        # NOT "linkplay": core HA's linkplay integration fails to set up
-        # against these Wiim Pro units specifically — confirmed live,
-        # getMetaInfo returns the literal string "Failed" instead of JSON
-        # (home-assistant/core#145132 and related open issues), which
-        # aborts the SSDP-discovery config flow before it ever reaches the
-        # UI. The community "wiim" integration
-        # (services.home-assistant.customComponents, in the services block
-        # above) already fixed this exact getMetaInfo handling — see
-        # hosts/reliant/README.md § Known Gotchas.
+        "linkplay"
         "ssdp"
         # mobile_app: required for the iOS/Android companion app to connect —
         # without it the app's error dialog reads "The mobile_app component is

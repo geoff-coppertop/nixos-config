@@ -172,15 +172,22 @@ onward (same as `enterprise-d`/`excelsior`).
   [docs/smart-home.md § Matter](../../docs/smart-home.md#matter-pinned-paa-root-certs-not-live-dcl-fetch).
   Tracked upstream at
   [nixpkgs#377136](https://github.com/NixOS/nixpkgs/issues/377136).
-- **Core HA's `linkplay` integration never sets up against the Wiim Pro
-  units** — its `getMetaInfo` discovery call gets the literal string
-  `"Failed"` back instead of JSON, so the config flow dies silently before
-  anything reaches the UI. Replaced with the community `wiim` integration,
-  packaged declaratively via `services.home-assistant.customComponents`
-  instead of `extraComponents` — see
-  [docs/smart-home.md § Wiim](../../docs/smart-home.md#wiim-community-integration-not-core-linkplay).
-  Tracked upstream at
-  [home-assistant/core#145132](https://github.com/home-assistant/core/issues/145132).
+- **Core HA's `linkplay` integration previously failed to set up against the
+  Wiim Pro units** — its `getMetaInfo` discovery call was getting the literal
+  string `"Failed"` back instead of JSON, so the config flow died silently
+  before anything reached the UI. Worked around at the time with a community
+  `wiim` integration, packaged declaratively via
+  `services.home-assistant.customComponents`. Tracked upstream at
+  [home-assistant/core#145132](https://github.com/home-assistant/core/issues/145132),
+  which turned out to be closed (`NOT_PLANNED`) with a code-owner comment that
+  it was fixed in HA 2025.5.2 — well before every HA version this flake has
+  actually pinned. **Reverted back to core `linkplay`
+  (`"linkplay"` in `extraComponents`), pending live verification on
+  reliant** — not yet confirmed against the physical units, and
+  `hosts/reliant/home-assistant/sonos-wiim.nix`'s `media_player.wiim_<slug>`
+  entity IDs (from the old community integration's naming) will very likely
+  need updating to whatever `linkplay` actually assigns once tested live. See
+  [docs/smart-home.md § Wiim](../../docs/smart-home.md#wiim-reverted-to-core-linkplay-pending-live-verification).
 - **iOS companion app failed to connect with "The mobile_app component is not
   loaded."** `"mobile_app"` was already in `extraComponents`, which installs
   the package but doesn't cause HA to load it, and `mobile_app` has no "Add
