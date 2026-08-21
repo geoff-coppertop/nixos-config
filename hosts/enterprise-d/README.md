@@ -240,13 +240,6 @@ looks the way it does. Changing them back reintroduces a real failure.
   briefly broken display.** Known-broken with no clean fix; use the natural
   idle path or a `loginctl lock-session` delay instead — see
   [§ Manual hibernate from an active session is known-broken](#manual-hibernate-from-an-active-session-is-known-broken).
-- **`bitwarden-desktop` is pinned to an EOL, insecure electron release.**
-  `nixpkgs.config.permittedInsecurePackages = ["electron-39.8.10"]` in
-  `hosts/enterprise-d/configuration.nix:70-74` works around an open nixpkgs
-  packaging lag ([nixpkgs#529107](https://github.com/NixOS/nixpkgs/issues/529107),
-  [nixpkgs#526914](https://github.com/NixOS/nixpkgs/issues/526914)) — remove
-  the override once bitwarden-desktop is rebuilt against a supported
-  electron.
 
 ## Verification
 

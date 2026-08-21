@@ -316,12 +316,11 @@ in {
 
     # Home Assistant's Sonos integration subscribes each speaker directly to
     # HA's own HTTP server (port 8123) for UPnP event callbacks -- LAN-local
-    # traffic that never goes through Traefik, so modules/home-assistant.nix's
-    # deliberate openFirewall = false (everything else reaches HA only via
-    # Traefik -> 127.0.0.1) leaves it unreachable. Confirmed live on defiant
-    # before this moved here: every paired Sonos speaker logged
-    # "Subscription ... failed, attempting to poll directly" until this rule
-    # was added.
+    # traffic that never goes through Traefik, so modules/home-assistant.nix
+    # deliberately doesn't open 8123 itself (everything else reaches HA only
+    # via Traefik -> 127.0.0.1 — see modules/home-assistant.nix for why
+    # there's no `openFirewall` there any more), which leaves the Sonos
+    # callback path unreachable without this rule. Confirmed live on defiant
     #
     # unbound (modules/dns.nix) has its own access-control option to scope
     # its LAN-bypass port to a subnet; HA's http integration has no

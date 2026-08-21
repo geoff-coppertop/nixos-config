@@ -29,7 +29,17 @@ in {
     {
       services.home-assistant = {
         enable = true;
-        openFirewall = false;
+        # No openFirewall here: nixpkgs removed the option (it used to parse
+        # the frontend port out of the module's rendered YAML config at eval
+        # time, which is no longer possible — see
+        # docs/smart-home.md § HTTP config). Defining it at all, true or
+        # false, is now an eval-time assertion failure
+        # (mkRemovedOptionModule). The desired posture — frontend port 8123
+        # closed except to the Sonos UPnP-callback VLAN — is unchanged and
+        # keeps working exactly as before, because it was already achieved
+        # by NOT opening the port here: hosts/reliant/configuration.nix's
+        # networking.firewall.extraCommands carries the one narrow iptables
+        # rule, and everything else reaches HA only via Traefik.
         configWritable = true;
         inherit (cfg) extraComponents;
         config = {
