@@ -241,9 +241,10 @@ in {
       # zigbee (Zigbee2MQTT) all self-register their own Traefik routes when
       # their custom.* modules are enabled (see modules/home-assistant.nix,
       # modules/adsb.nix, modules/zigbee.nix), which they now are, above.
-      # dns1 is this host's own AdGuard admin UI; dns2 is the cross-host
-      # router to excelsior's, defined by hand below.
-      subdomains = ["home" "dns1" "dns2" "adsb" "zigbee"];
+      # dns1 is this host's own AdGuard admin UI; dns2 and dcs are the
+      # cross-host routers to excelsior's AdGuard admin UI and DCS
+      # on-demand control page, defined by hand below.
+      subdomains = ["home" "dns1" "dns2" "dcs" "adsb" "zigbee"];
       # Renamed from the module default "dns", carried from defiant — dns1
       # (this host) and dns2 (excelsior) pair the two AdGuard instances.
       adminSubdomain = "dns1";
@@ -271,13 +272,61 @@ in {
   # fine alongside the module-contributed routes since dynamicConfigOptions
   # is a freeform TOML type. See docs/homelab-network.md § Second DNS
   # Instance (excelsior).
+  #
+  # dcs.coppertop.ca: excelsior's on-demand DCS start/stop control page +
+  # webhook (custom.dcsServer.control), cross-host and firewall-restricted
+  # to this host the same way as dns2 above, no Traefik auth yet.
+  # Starting/stopping a live session is a bigger blast radius than the
+  # read-only AdGuard panel, so this genuinely wants real auth sooner
+  # rather than later, but that's being done holistically across all these
+  # routers rather than one at a time — deliberately not added here yet.
+  #
+  # This used to also carry a same-origin reverse proxy for DCS's own
+  # remote-control WebGUI (custom.dcsServer.webGuiProxy) — removed.
+  # Confirmed live (and confirmed via DCS's own forum/community docs): DCS
+  # deliberately rejects WebGUI API calls that don't arrive from a
+  # genuinely local connection, by design, specifically to prevent this
+  # exact reverse-proxy pattern — no combination of loopback binding,
+  # credentials mode, or Host header tried here got past it. DCS's real
+  # remote-control mechanism assumes ports 8088 (WebGUI) and 10308 (game)
+  # are directly port-forwarded from the WAN to excelsior, reachable
+  # without any HTTP-layer proxy in the path at all — see
+  # hosts/excelsior/configuration.nix and hosts/excelsior/README.md Known
+  # Gotchas. dcs.coppertop.ca is now just the control page/webhook.
+  # Both routers below need explicit priorities: dcsControlPage's rule
+  # ("Host(...)") is a substring of dcsControlHooks's rule
+  # ("Host(...) && PathPrefix(/hooks)"), and Traefik's default
+  # rule-length-based priority for the unprefixed page router beat a
+  # previous hardcoded priority on the hooks router alone, silently
+  # routing /hooks/* to nginx (a raw 404) instead of the webhook.
   services.traefik.dynamicConfigOptions.http = {
-    routers.dns2 = {
-      rule = "Host(`dns2.coppertop.ca`)";
-      service = "dns2";
-      tls = {};
+    routers = {
+      dns2 = {
+        rule = "Host(`dns2.coppertop.ca`)";
+        service = "dns2";
+        tls = {};
+      };
+
+      dcsControlHooks = {
+        rule = "Host(`dcs.coppertop.ca`) && PathPrefix(`/hooks`)";
+        service = "dcsControlHooks";
+        priority = 100;
+        tls = {};
+      };
+
+      dcsControlPage = {
+        rule = "Host(`dcs.coppertop.ca`)";
+        service = "dcsControlPage";
+        priority = 1;
+        tls = {};
+      };
     };
-    services.dns2.loadBalancer.servers = [{url = "http://192.168.1.10:3000";}];
+
+    services = {
+      dns2.loadBalancer.servers = [{url = "http://192.168.1.10:3000";}];
+      dcsControlHooks.loadBalancer.servers = [{url = "http://192.168.1.10:9091";}];
+      dcsControlPage.loadBalancer.servers = [{url = "http://192.168.1.10:9090";}];
+    };
   };
 
   # Headless — the only way in is SSH with an authorized key

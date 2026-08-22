@@ -139,13 +139,106 @@ Both admin UIs are reachable without an SSH tunnel, proxied through Traefik:
   This merges fine alongside every module-contributed route on that host
   since `dynamicConfigOptions` is a TOML freeform type.
 
-`excelsior`'s AdGuard admin port needs no extra firewall work for this to be
-reachable: `services.adguardhome.host` defaults to `0.0.0.0`, and
-`modules/dns.nix` already sets `openFirewall = true`.
+`excelsior`'s AdGuard admin UI (`services.adguardhome`, default port 3000) is
+bound to `excelsior`'s own LAN IP and reachable only from `reliant`:
+`modules/dns.nix` sets `openFirewall = false` (the nixpkgs AdGuard module's
+`openFirewall` opens the admin port with no source restriction at all — not
+appropriate for a service with weak default auth), and
+`hosts/excelsior/configuration.nix` instead adds a `firewall.extraCommands`
+rule scoped to `reliant`'s IP (`192.168.20.15`) for that port. `defiant` and
+`reliant` need no such rule for their own AdGuard instances — Traefik reaches
+those over `127.0.0.1` regardless of the firewall.
 
 `reliant` is the only host carrying this manual `dns2` router and running
 Traefik — the "Traefik never runs a second copy" invariant this section
 otherwise assumes.
+
+## DCS On-Demand Start/Stop And Remote Control (excelsior)
+
+`excelsior` also runs `custom.dcsServer` (DCS World dedicated server —
+`docs/architecture.md` § Custom Options). Two related but distinct things
+live at `dcs.coppertop.ca`: an on-demand start/stop control page (proxied
+by Traefik, works remotely), and DCS's own WebGUI (does **not** work
+remotely through any proxy, by DCS's own design — see below).
+
+### On-demand start/stop
+
+DCS runs 24/7 by default, which is real resource cost for a game server
+that's idle most of the time. `custom.dcsServer.startAtBoot = false;` on
+`excelsior` stops the container from auto-starting on boot — the
+`podman-dcs-server.service`/`podman-dcs-srs-server.service` systemd units
+still exist and can be started on demand, they just don't come back on
+their own. `custom.dcsServer.control.enable = true;` stands up the on-demand
+surface: a static status/Start/Stop page (nginx) plus a narrowly-scoped
+`webhook` (adnanh/webhook) instance that actually runs `systemctl
+start`/`stop` on those two units, both bound to excelsior's LAN IP and
+firewall-restricted to `reliant` only.
+
+The webhook process itself runs as a dedicated unprivileged `dcs-control`
+user, not root. `security.sudo.extraRules` grants that user a `NOPASSWD`
+rule scoped to the *exact* two `systemctl start`/`stop` command lines for
+those two named units — nothing broader. Stopping is intentionally
+**manual only**; there's no idle-timeout auto-stop, since a false-idle read
+stopping a live session is worse than the resource cost of a forgotten
+manual stop.
+
+`reliant`'s `configuration.nix` proxies `dcs.coppertop.ca` at this control
+page/webhook, same manual-router shape as `dns2`:
+
+```nix
+routers.dcsControlHooks = {
+  rule = "Host(`dcs.coppertop.ca`) && PathPrefix(`/hooks`)";
+  service = "dcsControlHooks";
+  priority = 100;
+  tls = {};
+};
+routers.dcsControlPage = {
+  rule = "Host(`dcs.coppertop.ca`)";
+  service = "dcsControlPage";
+  priority = 1;
+  tls = {};
+};
+```
+
+Both routers need explicit priorities: `dcsControlPage`'s rule
+(`Host(...)`) is a substring of `dcsControlHooks`'s rule
+(`Host(...) && PathPrefix(/hooks)`), and Traefik's default rule-length-based
+priority for the unprefixed page router beat a previous hardcoded priority
+on the hooks router alone, silently routing `/hooks/*` to nginx (a raw 404)
+instead of the webhook.
+
+`dcs.coppertop.ca` itself has no auth beyond the source-IP restriction —
+general Traefik auth in front of it is a deliberate follow-up being done
+holistically rather than one router at a time. Starting the container via
+the control page does **not** by itself load a DCS mission — that's a
+separate, unrelated gap (`Mission list is empty, server not started.` in
+DCS's own log), not something start/stop fixes.
+
+### DCS's own WebGUI does not work through any reverse proxy
+
+`custom.dcsServer.webGuiPort` (default 8088) is DCS's own remote-control
+WebGUI backend (`POST /encryptedRequest`, served by `DCS_server.exe`
+itself). **Confirmed live and via DCS's own community documentation: this
+cannot be reverse-proxied for remote use, by design.** DCS's server
+deliberately rejects `/encryptedRequest` calls that don't arrive from a
+genuinely local connection — a real security boundary, not a bug. A same-
+origin nginx proxy serving the WebGUI's static files with a same-origin
+`app.js` patch was built and tested here; every variation (loopback-bound
+backend, forced `credentials: "omit"`, forced `Host: 127.0.0.1`) still got
+`422 Unprocessable Entity` from DCS itself. See
+`hosts/excelsior/README.md` § Known Gotchas for the full investigation —
+worth reading in full before attempting this again.
+
+DCS's own remote-control mechanism instead assumes ports 8088 (WebGUI) and
+10308 (game) are directly port-forwarded from the WAN to `excelsior`, with
+no HTTP-layer proxy in the path — confirmed by DCS's own log
+(`Registering HTTP control interface as <public-ip>:8088 (port is assumed
+to be open)`). That router-level port-forward is **not** managed by this
+repo. `webGuiBindAddress` is bound to `excelsior`'s LAN IP (not loopback,
+not Traefik-proxied) specifically so that WAN forward has something to
+reach, and `networking.firewall.allowedTCPPorts` opens 8088 broadly, the
+same way the game port already is — real remote DCS clients can come from
+any public IP, not just `reliant`'s.
 
 ## Adding A New Homelab Service
 

@@ -105,6 +105,27 @@ in {
       # Traefik route depends on (hosts/reliant/configuration.nix) — same
       # class of conflict reliant already hit and fixed for zwave-js.
       desktopPort = 3001;
+      # Bound to this host's own LAN IP so the router's WAN port-forward
+      # (8088, alongside the game port 10308 — router-side config, not
+      # managed by this repo) has something to actually reach. DCS's own
+      # remote-control mechanism assumes this port is directly
+      # port-forwarded from the WAN, no HTTP-layer proxy in the path — a
+      # same-origin Traefik/nginx reverse proxy was tried and confirmed
+      # live NOT to work (DCS deliberately rejects WebGUI API calls that
+      # don't arrive from a genuinely local connection, by design — see
+      # this README's Known Gotchas). openFirewall below opens this
+      # broadly, same as the game port, since real remote DCS clients can
+      # come from any public IP, not just reliant's.
+      webGuiBindAddress = "192.168.1.10";
+      # On-demand start/stop via dcs.coppertop.ca (see
+      # docs/homelab-network.md) instead of always running. startAtBoot=false
+      # means a reboot no longer brings DCS back up on its own — start it
+      # through the control page.
+      startAtBoot = false;
+      control = {
+        enable = true;
+        bindAddress = "192.168.1.10";
+      };
     };
 
     dns = {
@@ -139,7 +160,35 @@ in {
     };
   };
 
-  networking.hostName = "excelsior";
-  networking.hosts.${nas.ip} = [nas.host];
+  # The DCS on-demand control page + webhook (custom.dcsServer.control,
+  # 9090/9091) and AdGuard Home's admin UI (custom.dns, port 3000) are
+  # bound to this host's own LAN IP rather than 127.0.0.1 or 0.0.0.0,
+  # specifically so reliant's Traefik can reach them cross-host
+  # (dcs.coppertop.ca, dns2.coppertop.ca) — neither has real auth of its
+  # own at any layer yet (a holistic Traefik auth pass is a deliberate
+  # follow-up), so the firewall is the only thing standing between them and
+  # the whole LAN. Restricted to reliant's IP only, same pattern as
+  # hosts/reliant/configuration.nix's own 8123 restriction.
+  #
+  # DCS's raw WebGUI backend (custom.dcsServer.webGuiPort, 8088) is
+  # different: it's meant to be reached directly by real remote DCS
+  # clients over the WAN (router port-forward, not managed by this repo —
+  # see the webGuiBindAddress comment above), which can come from any
+  # public IP, not just reliant's. Opened the same broad way as the game
+  # port (10308, via custom.dcsServer.openFirewall) rather than restricted
+  # to one source.
+  networking = {
+    firewall.allowedTCPPorts = [8088];
+
+    firewall.extraCommands = ''
+      iptables -I nixos-fw -p tcp -s 192.168.20.15 --dport 3000 -j ACCEPT
+      iptables -I nixos-fw -p tcp -s 192.168.20.15 --dport 9090 -j ACCEPT
+      iptables -I nixos-fw -p tcp -s 192.168.20.15 --dport 9091 -j ACCEPT
+    '';
+
+    hostName = "excelsior";
+    hosts.${nas.ip} = [nas.host];
+  };
+
   system.stateVersion = "25.11";
 }
