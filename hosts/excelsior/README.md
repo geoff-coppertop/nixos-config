@@ -62,7 +62,7 @@ onward (same as enterprise-d).
 | 5335 | tcp+udp | unbound bypass (skips AdGuard filtering) | LAN/WAN (firewall open) |
 | 3001 | tcp | DCS webtop web desktop | 127.0.0.1 only |
 | 9090 | tcp | DCS start/stop control page (`custom.dcsServer.control`) | reliant only (firewall-restricted; proxied at `dcs.coppertop.ca`) |
-| 9091 | tcp | DCS start/stop webhook (`custom.dcsServer.control`) | reliant only (firewall-restricted; proxied at `dcs.coppertop.ca`) |
+| 9091 | tcp | DCS start/stop/mission-upload webhook (`custom.dcsServer.control`) | reliant only (firewall-restricted; proxied at `dcs.coppertop.ca`) |
 
 AdGuard's admin UI (3000) and `custom.dcsServer.control.bindAddress`
 (9090/9091) are bound to this host's real LAN IP instead of `127.0.0.1`,
@@ -91,7 +91,9 @@ ssh -L 3001:localhost:3001 thomasga@excelsior.local
 Then open `http://localhost:3001` (web desktop) for DCS's own local WebGUI
 and launcher — see Known Gotchas for why this is the only way to actually
 use DCS's WebGUI (remote access via any reverse proxy doesn't work, by
-DCS's own design).
+DCS's own design). `dcs.coppertop.ca` itself now also has a mission upload
+form — no SSH tunnel needed just to get a `.miz` file onto the host — see
+`docs/homelab-network.md` § DCS On-Demand Start/Stop And Remote Control.
 
 ## First-Time Service Setup
 
@@ -108,8 +110,10 @@ Starting the container (whether via the control page or manually) does
 **not** by itself load a mission — DCS's own log
 (`Saved Games/DCS.dcs_serverrelease/Logs/dcs.log`) will show
 `Mission list is empty, server not started.` until one is configured in
-`serverSettings.lua` or loaded through the WebGUI/webtop. That's separate,
-unrelated setup, not something start/stop fixes.
+`serverSettings.lua` or loaded through the WebGUI/webtop. `dcs.coppertop.ca`
+can upload a `.miz` file into `custom.dcsServer.control.missionsDir` (see
+below), but adding it to the active mission list is still a manual step in
+the tunneled webtop's WebGUI — uploading and loading are separate.
 
 ## DCS Server Maintenance
 

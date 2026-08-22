@@ -164,7 +164,13 @@ in {
       webhookPort = mkOption {
         type = types.port;
         default = 9091;
-        description = "Port for the start/stop/status webhook (adnanh/webhook), reached at /hooks/dcs-start, /hooks/dcs-stop, /hooks/dcs-status.";
+        description = "Port for the start/stop/status/upload-mission webhook (adnanh/webhook), reached at /hooks/dcs-start, /hooks/dcs-stop, /hooks/dcs-status, /hooks/dcs-upload-mission.";
+      };
+
+      missionsDir = mkOption {
+        type = types.str;
+        default = "${cfg.dataDir}/.wine/drive_c/users/abc/Saved Games/DCS.dcs_serverrelease/Missions";
+        description = "Host path DCS itself reads missions from (inside the persistent Wine profile). Uploaded .miz files via /hooks/dcs-upload-mission land here.";
       };
     };
   };
@@ -273,6 +279,51 @@ in {
       stopScript = pkgs.writeShellScript "dcs-control-stop" ''
         exec /run/wrappers/bin/sudo -n ${systemctlBin} stop ${dcsUnits}
       '';
+
+      # Mission uploads are privilege-separated the same way start/stop are:
+      # the webhook's own (unprivileged, firewall-restricted-only) user never
+      # writes into the DCS install directly. It stages the upload under its
+      # own home, then hands off to a fixed, zero-argument sudo command that
+      # does the real placement -- so the only thing sudoers has to trust is
+      # "run this exact script", not an arbitrary filename passed on a
+      # command line (which sudoers can't safely pattern-match). All
+      # filename sanitization happens *inside* the privileged script, which
+      # treats the staged name file as untrusted input regardless of what
+      # the unprivileged step already did to it.
+      uploadStageDir = "/var/lib/dcs-control/uploads";
+      uploadStageFile = "${uploadStageDir}/pending.miz";
+      uploadNameFile = "${uploadStageDir}/pending.name";
+      installMissionScript = pkgs.writeShellScript "dcs-control-install-mission" ''
+        set -eu
+        dest=${escapeShellArg cfg.control.missionsDir}
+        mkdir -p "$dest"
+        raw=$(cat ${escapeShellArg uploadNameFile} 2>/dev/null || true)
+        base=$(basename -- "''${raw:-mission.miz}")
+        safe=$(printf '%s' "$base" | tr -c 'A-Za-z0-9._-' '_')
+        case "$safe" in
+          .*|"") safe="mission.miz" ;;
+        esac
+        case "$safe" in
+          *.miz) ;;
+          *) safe="$safe.miz" ;;
+        esac
+        target="$dest/$safe"
+        if [ -e "$target" ]; then
+          ts=$(date +%Y%m%d-%H%M%S)
+          safe="''${safe%.miz}-$ts.miz"
+          target="$dest/$safe"
+        fi
+        install -o 1000 -g 1000 -m 0644 ${escapeShellArg uploadStageFile} "$target"
+        rm -f ${escapeShellArg uploadStageFile} ${escapeShellArg uploadNameFile}
+        printf '%s\n' "$safe"
+      '';
+      uploadScript = pkgs.writeShellScript "dcs-control-upload-mission" ''
+        set -eu
+        mkdir -p ${escapeShellArg uploadStageDir}
+        cp "$HOOK_MISSION" ${escapeShellArg uploadStageFile}
+        printf '%s' "''${HOOK_FILENAME:-mission.miz}" > ${escapeShellArg uploadNameFile}
+        exec /run/wrappers/bin/sudo -n ${installMissionScript}
+      '';
       hooksFile = pkgs.writeText "dcs-control-hooks.yaml" ''
         - id: dcs-status
           execute-command: "${statusScript}"
@@ -287,6 +338,19 @@ in {
           execute-command: "${stopScript}"
           command-working-directory: "/tmp"
           http-method: POST
+        - id: dcs-upload-mission
+          execute-command: "${uploadScript}"
+          command-working-directory: "/tmp"
+          http-method: POST
+          include-command-output-in-response: true
+          pass-file-to-command:
+            - source: raw-request-body
+              name: mission
+              envname: HOOK_MISSION
+          pass-environment-to-command:
+            - source: header
+              name: X-Filename
+              envname: HOOK_FILENAME
       '';
       controlPage = pkgs.writeTextDir "index.html" ''
         <!doctype html>
@@ -396,6 +460,26 @@ in {
                 cursor: not-allowed;
                 opacity: 0.4;
               }
+              .upload-row {
+                margin-top: 1.5rem;
+                padding-top: 1.5rem;
+                border-top: 1px solid var(--border);
+              }
+              .upload-row input[type="file"] {
+                font-size: 0.85rem;
+                color: var(--muted);
+                max-width: 100%;
+              }
+              #uploadBtn {
+                display: block;
+                margin: 0.75rem auto 0;
+              }
+              #uploadStatus {
+                margin-top: 0.5rem;
+                font-size: 0.85rem;
+                color: var(--muted);
+                min-height: 1.1em;
+              }
             </style>
           </head>
           <body>
@@ -408,6 +492,11 @@ in {
               <div class="buttons">
                 <button id="start">Start</button>
                 <button id="stop">Stop</button>
+              </div>
+              <div class="upload-row">
+                <input type="file" id="missionFile" accept=".miz" />
+                <button id="uploadBtn">Upload Mission</button>
+                <div id="uploadStatus"></div>
               </div>
             </main>
             <script>
@@ -494,6 +583,39 @@ in {
                 await fetch('/hooks/dcs-stop', {method: 'POST'});
                 refresh();
               };
+
+              const missionFile = document.getElementById('missionFile');
+              const uploadBtn = document.getElementById('uploadBtn');
+              const uploadStatus = document.getElementById('uploadStatus');
+              uploadBtn.onclick = async () => {
+                const file = missionFile.files[0];
+                if (!file) {
+                  uploadStatus.textContent = 'Choose a .miz file first.';
+                  return;
+                }
+                uploadBtn.disabled = true;
+                uploadStatus.textContent = 'Uploading ' + file.name + '…';
+                try {
+                  const r = await fetch('/hooks/dcs-upload-mission', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/octet-stream',
+                      'X-Filename': file.name,
+                    },
+                    body: file,
+                  });
+                  const text = (await r.text()).trim();
+                  uploadStatus.textContent = r.ok
+                    ? 'Uploaded as ' + text + '. Load it from the mission list in the local webtop desktop.'
+                    : 'Upload failed.';
+                } catch {
+                  uploadStatus.textContent = 'Upload failed.';
+                } finally {
+                  uploadBtn.disabled = false;
+                  missionFile.value = "";
+                }
+              };
+
               refresh();
               setInterval(refresh, 5000);
             </script>
@@ -507,8 +629,11 @@ in {
       };
       users.groups.dcs-control = {};
 
-      # Minimal-privilege grant for one automated action: this user, these
-      # two exact command lines, these two named units — nothing broader.
+      # Minimal-privilege grant for a small number of automated actions:
+      # this user, these exact command lines — nothing broader.
+      # installMissionScript takes zero arguments (see its definition
+      # above) specifically so this sudoers entry never has to trust a
+      # user-controlled filename on a command line.
       security.sudo.extraRules = [
         {
           users = ["dcs-control"];
@@ -521,9 +646,15 @@ in {
               command = "${systemctlBin} stop ${dcsUnits}";
               options = ["NOPASSWD"];
             }
+            {
+              command = "${installMissionScript}";
+              options = ["NOPASSWD"];
+            }
           ];
         }
       ];
+
+      systemd.tmpfiles.rules = ["d ${uploadStageDir} 0750 dcs-control dcs-control -"];
 
       systemd.services.dcs-control-webhook = {
         description = "Webhook endpoints for on-demand DCS server start/stop";

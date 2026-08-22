@@ -214,6 +214,37 @@ the control page does **not** by itself load a DCS mission — that's a
 separate, unrelated gap (`Mission list is empty, server not started.` in
 DCS's own log), not something start/stop fixes.
 
+### Mission upload
+
+The same control page also has a `.miz` file upload form, backed by a third
+`webhook` hook, `/hooks/dcs-upload-mission` — an alternative to `scp`-ing a
+mission file to the host over SSH. The browser POSTs the file as a raw
+(non-multipart) request body with the filename in an `X-Filename` header;
+`adnanh/webhook`'s `pass-file-to-command` only pulls file content out of
+`source: payload` for parts it can JSON-decode, so a real binary upload has
+to go in as `source: raw-request-body` instead (confirmed against
+`adnanh/webhook`'s own Go source, not guessed — its multipart handling never
+populates the JSON-parameter map for a non-JSON file part).
+
+The unprivileged `dcs-control` user can't write into the DCS install
+directly (it's owned by the container's `PUID`/`PGID`, 1000:1000), so
+uploads are privilege-separated the same way start/stop are: the webhook
+script stages the file and its sanitized-on-the-way-in name under
+`/var/lib/dcs-control/uploads`, then hands off to a **fixed,
+zero-argument** `sudo` command (`security.sudo.extraRules`, same pattern as
+the start/stop grant) that re-sanitizes the staged filename itself — never
+trusting that the unprivileged step already made it safe — and `install`s
+it into `custom.dcsServer.control.missionsDir` as `1000:1000`. Sudoers can't
+safely pattern-match an arbitrary filename on a command line, which is why
+the privileged script takes no arguments at all and reads everything itself
+from a fixed staging path instead.
+
+Uploading only gets the file onto the host; DCS still won't run it until
+it's added to the active mission list through the tunneled webtop's WebGUI
+(see `hosts/excelsior/README.md`) — the same manual step required today,
+just without needing an SSH tunnel to get the file there in the first
+place.
+
 ### DCS's own WebGUI does not work through any reverse proxy
 
 `custom.dcsServer.webGuiPort` (default 8088) is DCS's own remote-control
