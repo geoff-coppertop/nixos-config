@@ -6,6 +6,7 @@
 - Hardware: `hosts/enterprise-d/hardware.nix`
 - Power tuning and hibernation policy: `hosts/enterprise-d/power.nix`
 - Disk layout: `hosts/enterprise-d/disko.nix`
+- Plymouth boot theme package: `hosts/enterprise-d/framework-penguin-plymouth.nix`
 - Flake entry: `flake.nix`
 
 ## Installation
@@ -46,6 +47,86 @@ sudo systemd-cryptenroll /dev/disk/by-partlabel/root --json | jq '.[] | select(.
 ```
 
 A non-empty result confirms TPM2 enrollment is active.
+
+## Boot Theme
+
+`boot.plymouth.theme = "framework-penguin"` (set in `configuration.nix`) uses
+[ygurin/framework-penguin](https://github.com/ygurin/framework-penguin), an
+animated ASCII-penguin throbber with a LUKS password-entry UI, packaged as a
+`fetchFromGitHub` derivation in
+`hosts/enterprise-d/framework-penguin-plymouth.nix` — upstream ships no NixOS
+packaging, only a "copy the theme dir into `/usr/share/plymouth/themes/`"
+shell recipe, which this derivation reproduces into `$out`.
+
+This is Framework-laptop-specific — not general desktop capability — so it
+lives under `hosts/enterprise-d/` rather than `profiles/desktop/`, per
+[docs/architecture.md § Placement Rule](../../docs/architecture.md#placement-rule).
+
+**Compatible with this host's lanzaboote Secure Boot setup with no extra
+signing steps.** Confirmed by reading both sources directly (nixpkgs
+`nixos/modules/system/boot/plymouth.nix` and the pinned `lanzaboote` rev's
+`nix/modules/lanzaboote.nix`), not assumed: Plymouth's theme files are wired
+into the initrd entirely through `boot.initrd.*` (the theme's contents end up
+under `/etc/plymouth/themes` inside `config.system.build.initrd`), with no
+assertion or special-casing tying it to a particular boot loader. Lanzaboote
+never rebuilds or reaches into that initrd — it consumes the already-built
+kernel and initrd paths from the standard NixOS `boot.bootspec` output (via
+`boot.loader.external`) and only signs the resulting unified kernel image.
+So the theme is already present in the initrd before lanzaboote ever touches
+it, the same as it would be under `systemd-boot` alone.
+
+**`boot.plymouth.enable` alone does not make the splash visible.** The kernel
+and systemd print their boot log straight to the console by default, which
+draws over (and effectively replaces) whatever Plymouth is rendering.
+`configuration.nix` also sets `boot.consoleLogLevel = 3`,
+`boot.initrd.verbose = false`, and `boot.kernelParams = [ "quiet" "splash"
+"udev.log_priority=3" "rd.systemd.show_status=auto" ]` to keep that log
+output quiet — without these, boot looks unchanged (Framework logo →
+systemd-boot menu → plain text log → GDM) even though the theme is correctly
+installed and configured.
+
+**Confirmed root cause of the black screen: a broken script path in the
+theme itself.** `plymouthd --debug` shows the actual failure —
+`Parser error : Error opening file
+/usr/share/plymouth/themes/framework-penguin/framework-penguin.script`.
+Upstream's `framework-penguin.plymouth` hardcodes `ImageDir=` and
+`ScriptFile=` as `/usr/share/plymouth/themes/framework-penguin/...`, which
+doesn't exist on NixOS — the `.plymouth` file itself loads fine (it's
+correctly relocated into the store and `/etc/plymouth/themes`), but the
+script it points to isn't there, so nothing gets drawn.
+`framework-penguin-plymouth.nix` now `substituteInPlace`s both paths to the
+real store path at build time, the same way nixpkgs' own themes reference
+themselves, so NixOS's own store-path relocation into
+`/etc/plymouth/themes` (root fs and initrd both) picks it up correctly.
+**Confirmed fixed on a real reboot** (not just the `x11.so`-renderer live
+test `plymouthd --debug` uses) — the penguin animation actually renders.
+
+Upstream's `watermark.png` is a hardcoded Fedora wordmark — explicitly
+meant to be swapped ("Customizable distro logo" per upstream's own
+description) — so the derivation renders
+[nixos-artwork](https://github.com/NixOS/nixos-artwork)'s `logo/nixos.svg`
+(the NixOS wordmark, not just the snowflake icon alone) via `rsvg-convert`
+at the original asset's 149px width, replacing it.
+
+**Also needs early KMS.** Plymouth needs a framebuffer to draw into before
+the real root is mounted; without `amdgpu` loaded that early, the driver
+only comes up during normal module loading, well after Plymouth has already
+tried (silently — no error, just a black screen) to render. `hardware.nix`
+sets `boot.initrd.kernelModules = [ "amdgpu" ]` for this.
+
+**`plymouth.use-simpledrm=0` was tried, then removed pending a bisect.**
+Applied preemptively before the script-path bug above was found, on the
+theory that `simple-framebuffer` (the EFI GOP device, which registers
+before `amdgpu` finishes its ~6s KMS/PSP/SMU init) was winning a race for
+Plymouth's attention and then not handing off cleanly when `amdgpu` took
+the real display over — that theory was never independently confirmed once
+the actual bug (above) was found and fixed. Removed to test whether it was
+ever actually load-bearing; if the splash still renders without it on a
+real reboot, it's gone for good. If a *black-screen-again* regression ever
+reappears after a `nixpkgs` bump touching Plymouth or `amdgpu`, this kernel
+param (real, compiled into this Plymouth build — confirmed via
+`grep -a -o use-simpledrm $(readlink -f $(command -v plymouthd))`) is the
+first thing to try again.
 
 ## Philosophy
 
