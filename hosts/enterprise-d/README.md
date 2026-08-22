@@ -16,10 +16,15 @@
 After the system boots:
 
 1. **Enroll TPM2 for LUKS auto-unlock** (see [TPM Auto-Unlock](#tpm-auto-unlock))
-2. **Collect the SSH host public key** and add it to `lib/ssh-hosts.nix` (see [docs/secrets.md](../../docs/secrets.md#collect-and-pin-the-host-key-after-deploy))
-3. **Generate and install your SSH login credentials** (see [docs/secrets.md](../../docs/secrets.md#generate-ssh-login-credentials))
-4. **Test hibernation** (see [Verification](#verification))
-5. **Validate the system** (see [docs/operations.md](../../docs/operations.md#validation-commands))
+2. **Enroll Secure Boot keys in firmware** (see [Secure Boot](#secure-boot)) —
+   `custom.secureBoot.enable = true` is set from first boot, but nothing
+   enrolls the keys into the firmware for you; skipping this leaves the
+   machine booting unsigned indefinitely with no error, just the UEFI stub's
+   `Secure Boot is not active!` warning on every boot
+3. **Collect the SSH host public key** and add it to `lib/ssh-hosts.nix` (see [docs/secrets.md](../../docs/secrets.md#collect-and-pin-the-host-key-after-deploy))
+4. **Generate and install your SSH login credentials** (see [docs/secrets.md](../../docs/secrets.md#generate-ssh-login-credentials))
+5. **Test hibernation** (see [Verification](#verification))
+6. **Validate the system** (see [docs/operations.md](../../docs/operations.md#validation-commands))
 
 ### TPM Auto-Unlock
 
@@ -47,6 +52,67 @@ sudo systemd-cryptenroll /dev/disk/by-partlabel/root --json | jq '.[] | select(.
 ```
 
 A non-empty result confirms TPM2 enrollment is active.
+
+## Secure Boot
+
+`custom.secureBoot.enable = true` (`modules/secure-boot.nix`) turns on
+lanzaboote with `pkiBundle = "/etc/secureboot"`, but enrolling the keys into
+firmware is a separate, manual step — see
+[docs/provisioning.md § Step 6 — Enroll Secure Boot](../../docs/provisioning.md#step-6--enroll-secure-boot)
+for the generic procedure and the `sbctl --config` requirement (this repo
+doesn't enable lanzaboote's `autoGenerateKeys`/`autoEnrollKeys`, so `sbctl`
+has no config file telling it where the keys live and defaults to the wrong
+directory unless told otherwise).
+
+Framework laptops need vendor-specific steps at two points, confirmed from
+lanzaboote's own `docs/getting-started/enable-secure-boot.md` (pinned rev,
+`flake.nix`):
+
+- **Entering Setup Mode** (before key enrollment): reboot to firmware setup →
+  "Administer Secure Boot" → for each of "PK Options", "KEK Options", "DB
+  Options", select it, then delete every item inside individually. Do **not**
+  use "Erase all Secure Boot Settings" — Framework firmware is reported buggy
+  with that option; the per-item delete is the documented workaround.
+- **Enrolling with `--firmware-builtin`**: run
+  `sudo sbctl --config /tmp/sbctl.conf enroll-keys --microsoft
+  --firmware-builtin` — the `--firmware-builtin` flag keeps the
+  vendor-pre-provisioned keys, which Framework firmware updates depend on.
+  Omitting it is not a hard failure, but drops keys a later firmware update
+  may need.
+- **After enrolling and rebooting**: "Administer Secure Boot" → enable
+  "Enforce Secure Boot" — on Framework firmware this is a separate toggle from
+  leaving Setup Mode.
+
+### Diagnosing "Secure Boot is not active" at boot
+
+The UEFI boot stub prints `Secure Boot is not active!` (lanzaboote's own
+`rust/uefi/stub/src/thin.rs`, pinned rev) whenever the firmware's live
+`SecureBoot` EFI variable is false at boot — this is read directly from
+firmware, not from anything this repo's Nix config controls, so it's always
+accurate. Check current state:
+
+```bash
+# Firmware-level state: disabled / enabled (setup) / enabled (user)
+bootctl status | grep -i "secure boot"
+
+# Are the keys this host generated at install actually on disk?
+sudo ls -la /etc/secureboot/keys /etc/secureboot/GUID
+
+# Point sbctl at them explicitly (see docs/provisioning.md Step 6 for why
+# this is required rather than optional) and check enrollment/setup-mode
+# status
+printf 'keydir: /etc/secureboot/keys\nguid: /etc/secureboot/GUID\n' | sudo tee /tmp/sbctl.conf
+sudo sbctl --config /tmp/sbctl.conf status
+```
+
+`enabled (user)` from `bootctl status` and `Installed: sbctl is installed` /
+`Setup Mode: Disabled` / `Secure Boot: Enabled` from `sbctl status` together
+mean enrollment is complete and firmware is enforcing it. Anything else means
+enrollment was never finished (most likely: the firmware toggle was flipped
+on without ever running `sbctl enroll-keys`, or Setup Mode was never
+re-entered/exited correctly) — re-run
+[docs/provisioning.md § Step 6](../../docs/provisioning.md#step-6--enroll-secure-boot)
+from the point that's missing; there is no firmware auto-repair path.
 
 ## Boot Theme
 
@@ -321,6 +387,13 @@ looks the way it does. Changing them back reintroduces a real failure.
   briefly broken display.** Known-broken with no clean fix; use the natural
   idle path or a `loginctl lock-session` delay instead — see
   [§ Manual hibernate from an active session is known-broken](#manual-hibernate-from-an-active-session-is-known-broken).
+- **Bare `sbctl` commands silently target the wrong key directory.** This
+  repo's lanzaboote config doesn't enable `autoGenerateKeys`/`autoEnrollKeys`,
+  so lanzaboote never writes `/etc/sbctl/sbctl.conf`, and `sbctl` falls back to
+  its own default (`/var/lib/sbctl`) instead of this host's real key location
+  (`/etc/secureboot`). Every `sbctl` invocation needs
+  `--config <file with keydir/guid pointing at /etc/secureboot>` — see
+  [§ Secure Boot](#secure-boot).
 
 ## Verification
 
