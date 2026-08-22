@@ -107,6 +107,16 @@ connect-iq-sdk-manager sdk set <version>
 connect-iq-sdk-manager device download
 ```
 
+## Plymouth Boot Theme
+
+`enterprise-d` is currently the only host with a Plymouth theme configured.
+Its `boot.plymouth.*` settings and the packaged theme
+(`hosts/enterprise-d/framework-penguin-plymouth.nix`) are documented in
+[hosts/enterprise-d/README.md § Boot Theme](../hosts/enterprise-d/README.md#boot-theme)
+rather than here — it is Framework-laptop-specific, not a shared
+`profiles/desktop/` capability, per
+[docs/architecture.md § Placement Rule](architecture.md#placement-rule).
+
 ## USB Debug Probes (udev)
 
 `custom.debugProbes.enable` (`modules/debug-probes.nix`) installs udev rules for

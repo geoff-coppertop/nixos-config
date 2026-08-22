@@ -213,14 +213,68 @@ unavailable. Store it in Bitwarden before proceeding.
 
 ## Step 6 — Enroll Secure Boot
 
-This repo uses lanzaboote.
+This repo uses lanzaboote, in its manual mode — `modules/secure-boot.nix` sets
+`pkiBundle = "/etc/secureboot"` but does not set
+`boot.lanzaboote.autoGenerateKeys.enable` or `autoEnrollKeys.enable`, so
+nothing enrolls keys for you. Verified against the pinned `lanzaboote` rev
+(`flake.nix`, currently `v1.1.0`)'s own docs and source.
 
 1. Ensure the installed system has `/etc/secureboot` populated with your Secure
-   Boot keys.
-2. Rebuild the system.
-3. Enroll the keys in firmware.
-4. Turn Secure Boot on in UEFI.
-5. Reboot and verify the system boots through the signed path.
+   Boot keys (`tools/install.py` does this at Step 5, via `sbctl create-keys`).
+2. Rebuild the system so lanzaboote signs the current generation's boot files,
+   then check the signature:
+
+   ```bash
+   sudo sbctl verify
+   ```
+
+   Every file should show as signed except ones starting with `kernel-` — that
+   one is expected to stay unsigned.
+
+3. **`sbctl` does not know where the keys are by default — point it there
+   explicitly.** Only `autoGenerateKeys`/`autoEnrollKeys` make lanzaboote write
+   `/etc/sbctl/sbctl.conf` (`nix/modules/lanzaboote.nix`:
+   `environment.etc."sbctl/sbctl.conf" = lib.mkIf (cfg.autoGenerateKeys.enable
+   || cfg.autoEnrollKeys.enable) ...`); this repo doesn't set either, so that
+   file never exists here, and a bare `sbctl` invocation silently falls back to
+   its own default, `/var/lib/sbctl` — not `/etc/secureboot`, where this repo's
+   keys actually live. Every `sbctl` command below needs `--config` pointed at
+   a file with the right paths:
+
+   ```bash
+   printf 'keydir: /etc/secureboot/keys\nguid: /etc/secureboot/GUID\n' | sudo tee /tmp/sbctl.conf
+   sudo sbctl --config /tmp/sbctl.conf status
+   ```
+
+4. Put the firmware into Secure Boot Setup Mode. Steps vary by vendor — see the
+   target host's own README for hardware-specific instructions (for example,
+   [hosts/enterprise-d/README.md § Secure Boot](../hosts/enterprise-d/README.md#secure-boot)
+   for Framework laptops).
+5. Enroll the keys:
+
+   ```bash
+   sudo sbctl --config /tmp/sbctl.conf enroll-keys --microsoft
+   ```
+
+   Include the vendor's OEM certificates (`--microsoft`) unless you know you
+   don't need them — some OptionROMs are only signed with those. On hardware
+   that ships pre-provisioned firmware keys (Framework laptops are the
+   documented case), add `--firmware-builtin` too, to keep those keys for
+   vendor firmware updates — confirmed in lanzaboote's own
+   `docs/getting-started/enable-secure-boot.md`.
+6. Turn Secure Boot enforcement on in UEFI.
+7. Reboot and verify:
+
+   ```bash
+   bootctl status | grep -i "secure boot"
+   ```
+
+   Expect `Secure Boot: enabled (user)`. `enabled (setup)` means the firmware
+   never left Setup Mode; `disabled` means the UEFI toggle itself is still
+   off. Both read the same firmware `SecureBoot` EFI variable that the
+   lanzaboote UEFI stub checks at boot (`rust/uefi/stub/src/thin.rs`) — if the
+   stub warns `Secure Boot is not active!` on boot, this command will not show
+   `enabled (user)` either; they can't disagree.
 
 Keep copies of Secure Boot key material in a safe recovery location. Bitwarden is
 a reasonable place for the recovery instructions and escrowed material if that
