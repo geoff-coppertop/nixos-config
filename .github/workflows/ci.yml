@@ -135,6 +135,51 @@ jobs:
           echo "matrix=$matrix"
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
+  # Validate reliant's Nix-declared Home Assistant automations against Home
+  # Assistant's own config schema. `nix flake check`/the toplevel build only
+  # prove the automations are well-formed Nix that serializes to YAML — they
+  # never check the Home Assistant side, so a bad trigger platform or malformed
+  # action passes CI and only breaks when HA loads it.
+  ha-config-check:
+    needs: flake-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: cachix/install-nix-action@v27
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+
+      - name: hass check_config (reliant automations)
+        id: hacheck
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          python3 tools/ha_config_check.py reliant 2>&1 | tee /tmp/ha-check-output.txt
+          exit ${PIPESTATUS[0]}
+
+      - name: Post failure comment
+        if: steps.hacheck.outcome == 'failure' && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs')
+            const output = fs.existsSync('/tmp/ha-check-output.txt')
+              ? fs.readFileSync('/tmp/ha-check-output.txt', 'utf8')
+              : '(no output captured)'
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## CI: Home Assistant config check failures\n\`\`\`\n${output.slice(0, 65000)}\n\`\`\``
+            })
+
+      - name: Fail if config check failed
+        if: steps.hacheck.outcome == 'failure'
+        run: exit 1
+
   # Each machine is built natively, one per job so every host gets its own
   # runner disk instead of sharing one across sequential builds. Confirmed
   # live: enterprise-d's toplevel is a full GNOME desktop closure (Steam, VS
