@@ -108,21 +108,33 @@
               # separate "away" — that's what lets switching seasons keep
               # both sets of tuning instead of losing one, per
               # ecobee-climate.nix's mkHeatOnlyZone. Only the current
-              # season's three rows are actually visible per zone — each
-              # row is wrapped in a `conditional` row keyed off
+              # season's rows are actually visible per zone — each row is
+              # wrapped in a `conditional` row keyed off
               # input_boolean.climate_summer_mode, rather than showing both
               # seasons at once, so flipping the toggle swaps which set of
-              # sliders is on screen instead of leaving six per zone
-              # visible with no indication which are live right now.
+              # sliders is on screen instead of leaving every value visible
+              # with no indication which are live right now. Upstairs'
+              # summer rows are pairs (heat floor/cool ceiling), not single
+              # targets — it's the only zone with real cooling, so its
+              # heat_cool dual setpoint needs both ends shown.
               entities = let
+                periodName = period:
+                  if period == "day"
+                  then "Day (home)"
+                  else if period == "night"
+                  then "Night (home)"
+                  else "Away";
                 mkRow = zone: season: period: {
                   entity = "input_number.climate_${zone}_${season}_${period}";
-                  name =
-                    if period == "day"
-                    then "Day (home)"
-                    else if period == "night"
-                    then "Night (home)"
-                    else "Away";
+                  name = periodName period;
+                };
+                mkDualRow = zone: season: period: end: {
+                  entity = "input_number.climate_${zone}_${season}_${period}_${end}";
+                  name = "${periodName period} — ${
+                    if end == "low"
+                    then "heat floor"
+                    else "cool ceiling"
+                  }";
                 };
                 mkConditionalRow = seasonState: row: {
                   type = "conditional";
@@ -139,6 +151,13 @@
                 mkZoneRows = zone:
                   (map (period: mkWinterRow (mkRow zone "winter" period)) ["day" "night" "away"])
                   ++ (map (period: mkSummerRow (mkRow zone "summer" period)) ["day" "night" "away"]);
+                upstairsSummerRows =
+                  builtins.concatMap
+                  (period: [
+                    (mkSummerRow (mkDualRow "upstairs" "summer" period "low"))
+                    (mkSummerRow (mkDualRow "upstairs" "summer" period "high"))
+                  ])
+                  ["day" "night" "away"];
               in
                 [
                   {
@@ -153,7 +172,8 @@
                     label = "Upstairs";
                   }
                 ]
-                ++ (mkZoneRows "upstairs");
+                ++ (map (period: mkWinterRow (mkRow "upstairs" "winter" period)) ["day" "night" "away"])
+                ++ upstairsSummerRows;
             }
             {
               type = "history-graph";

@@ -7,14 +7,20 @@
 # `ecobee` integration isn't obtainable for a new setup; local HomeKit control
 # also keeps working through an internet outage.
 #
-# This is deliberately scoped to the hardware that actually exists today:
-# two heat-only zones, main/basement and upstairs. Two more zones are
-# planned but not installed — a garage thermostat (frost protection) and
-# an AC for upstairs (which would turn it into a real heat/cool zone) — and
-# will land as their own separate PRs once that hardware is actually in,
-# rather than as feature-flagged code with nothing behind it yet. Adding a
-# zone at that point means adding a new automation alongside these, not
-# touching the shared helpers below.
+# This is deliberately scoped to the hardware that actually exists: upstairs'
+# real cooling landed here once the AC was actually installed, rather than
+# as feature-flagged code ahead of it. A garage thermostat (frost
+# protection) is also planned but not installed — that's a separate,
+# independent PR, not stacked on this one, since the two don't touch the
+# same automation. Upstairs is the only zone with real cooling —
+# main/basement has no AC — so it's the only one not using mkHeatOnlyZone
+# below.
+#
+# Winter turns cooling off entirely: upstairs runs in discrete "heat" mode,
+# same as main/basement. Summer puts upstairs in "heat_cool" — a real dual
+# setpoint (target_temp_low/target_temp_high held simultaneously), not a
+# single "cool" target — so it can still heat if it gets unexpectedly cold
+# without giving up daytime cooling.
 #
 # Pairing is a one-time interactive step per thermostat (mDNS discovery + the
 # 8-digit HomeKit setup code shown on the thermostat's own screen) — see
@@ -48,10 +54,14 @@
 # automation, re-evaluates and re-applies the schedule immediately, same as
 # a restart.
 #
-# Each zone stores six independent set points: Day, Night, and Away, for
-# each of winter and summer — not shared across seasons, so switching
-# between them (by hand or at a boundary) never loses either season's
-# tuning. This replaced an earlier, asymmetric version (winter: separate
+# Both zones store independent Day/Night/Away set points for each of
+# winter and summer, not shared across seasons, so switching between them
+# (by hand or at a boundary) never loses either season's tuning —
+# main/basement stores a single target per period (six values total, via
+# mkHeatOnlyZone below); upstairs stores a single target for each winter
+# period but a low/high pair for each summer period (nine values total,
+# since heat_cool needs both ends independently — see § Full symmetry
+# below). This replaced an earlier, asymmetric version (winter: separate
 # comfort/setback/away; summer: one shared floor covering day, night, and
 # away alike) once real use made the asymmetry confusing — "floor" and
 # "away" read as different concepts even where they held the same value,
@@ -62,23 +72,33 @@
 # heated the house to 21-23°C on a warm day for no reason, so summer's
 # seeded defaults below start day/night/away all equal to the old shared
 # floor value per zone — this redesign changes what's adjustable, not the
-# behavior on the day it deploys. All twelve set points (six per zone) are
-# input_number helpers rather than fixed constants — see liveTemp — so
-# they're adjustable from the dashboard without a redeploy. hvac_mode
-# "off" was considered instead of an active summer target, but this house
-# does get occasional summer cold spells — an active low target still
-# protects against those, where "off" wouldn't. That's also why every
-# branch below is an explicit action, not just skipping the automation:
-# leaving the previous setpoint in place would still let a heat-mode
-# thermostat heat back up to whatever it was holding before.
+# behavior on the day it deploys. Every set point (fifteen total, across
+# both zones) is an input_number helper rather than a fixed constant — see
+# liveTemp — so they're adjustable from the dashboard without a redeploy.
+# hvac_mode "off" was considered instead of an active summer target, but
+# this house does get occasional summer cold spells — an active low
+# target still protects against those, where "off" wouldn't. That's also
+# why every branch below is an explicit action, not just skipping the
+# automation: leaving the previous setpoint in place would still let a
+# heat-mode thermostat heat back up to whatever it was holding before.
 #
-# Each zone also reasserts hvac_mode "heat" alongside every setpoint, not
-# just temperature — confirmed live that this file never called
+# § Full symmetry: upstairs' summer low end (the heat floor half of its
+# dual setpoint) varies independently by Day/Night/Away too, rather than
+# sharing one floor value across all three the way the pre-redesign
+# version did — full Day/Night/Away symmetry everywhere, at the cost of
+# six summer sliders instead of three, chosen over the fewer-sliders
+# alternative specifically to avoid reintroducing the same "one value
+# secretly covers three different situations" asymmetry this whole
+# redesign exists to remove.
+#
+# main/basement also reasserts hvac_mode "heat" alongside every setpoint,
+# not just temperature — confirmed live that mkHeatOnlyZone never called
 # set_hvac_mode at all originally, so an external mode change (upstairs was
 # found switched to "off" with no override active and no explanation)
 # could never self-correct. Composes with the override timer below: a
 # manual mode change still starts that zone's 2-hour override, so this only
-# reasserts once it elapses.
+# reasserts once it elapses. Upstairs' bespoke automation already reasserts
+# its hvac_mode on every call, so this gap never applied to it.
 #
 # Restart-resilient in the same spirit as presence-lighting.nix: each zone
 # is one automation re-evaluating a single `choose` block of "what should
@@ -95,10 +115,14 @@
 # that zone's comfort/setback branches until it elapses, so the schedule
 # doesn't fight a deliberate change a few minutes after it's made. The away
 # branches are deliberately NOT gated by it — an empty house should still
-# save energy even if a hold was left active.
+# save energy even if a hold was left active. Upstairs watches all three
+# setpoint attributes (temperature, target_temp_low, target_temp_high)
+# since which one actually changes depends on its current season/mode.
 #
 # Detection compares the incoming state against a per-zone "last commanded"
-# snapshot (input_text.climate_last_commanded_*, "<hvac_mode>|<temperature>"),
+# snapshot (input_text.climate_last_commanded_*,
+# "<hvac_mode>|<temperature>|<target_temp_low>|<target_temp_high>", all
+# four fields always present regardless of which mode commanded it),
 # not context — two things this file already tried and both failed for the
 # same underlying reason. context.user_id is only set for a service call
 # issued directly by a logged-in HA user through the frontend/API, so it was
@@ -227,12 +251,20 @@
       climate_main_and_basement_summer_day = mkSetPoint "Main/basement — summer day" "mdi:thermometer";
       climate_main_and_basement_summer_night = mkSetPoint "Main/basement — summer night" "mdi:thermometer-low";
       climate_main_and_basement_summer_away = mkSetPoint "Main/basement — summer away" "mdi:thermometer-low";
+      # Upstairs' winter is a single target per period, same shape as
+      # main/basement's. Summer is a low/high pair per period instead —
+      # heat_cool needs both ends, and each varies independently by
+      # Day/Night/Away (see the file header § Full symmetry) rather than
+      # sharing one floor across all three.
       climate_upstairs_winter_day = mkSetPoint "Upstairs — winter day" "mdi:thermometer";
       climate_upstairs_winter_night = mkSetPoint "Upstairs — winter night" "mdi:thermometer-low";
       climate_upstairs_winter_away = mkSetPoint "Upstairs — winter away" "mdi:thermometer-low";
-      climate_upstairs_summer_day = mkSetPoint "Upstairs — summer day" "mdi:thermometer";
-      climate_upstairs_summer_night = mkSetPoint "Upstairs — summer night" "mdi:thermometer-low";
-      climate_upstairs_summer_away = mkSetPoint "Upstairs — summer away" "mdi:thermometer-low";
+      climate_upstairs_summer_day_low = mkSetPoint "Upstairs — summer day (heat floor)" "mdi:thermometer-low";
+      climate_upstairs_summer_day_high = mkSetPoint "Upstairs — summer day (cool ceiling)" "mdi:thermometer-high";
+      climate_upstairs_summer_night_low = mkSetPoint "Upstairs — summer night (heat floor)" "mdi:thermometer-low";
+      climate_upstairs_summer_night_high = mkSetPoint "Upstairs — summer night (cool ceiling)" "mdi:thermometer-high";
+      climate_upstairs_summer_away_low = mkSetPoint "Upstairs — summer away (heat floor)" "mdi:thermometer-low";
+      climate_upstairs_summer_away_high = mkSetPoint "Upstairs — summer away (cool ceiling)" "mdi:thermometer-high";
     };
 
     # Internal marker, not shown on the dashboard: flips on the first time
@@ -274,13 +306,24 @@
       # time.
       liveTemp = entityId: "{{ states('${entityId}') | float }}";
 
+      # Renders "none" for an inapplicable setpoint (e.g. target_temp_low
+      # in heat mode) so the last-commanded snapshot always has the same
+      # four fields regardless of which mode commanded it.
+      fmtTemp = t:
+        if t == null
+        then "none"
+        else toString t;
+
       # Records what this file itself just commanded, so overrideStartAutomation
       # can recognize its own handiwork arriving back as a state change — see
       # the file header for why context.parent_id can't do this job.
-      setLastCommanded = lastCommandedEntityId: mode: temperature: {
+      # "<hvac_mode>|<temperature>|<target_temp_low>|<target_temp_high>" —
+      # all four fields always present so notLastCommanded's comparison
+      # doesn't need to know which shape produced the snapshot.
+      setLastCommanded = lastCommandedEntityId: mode: temperature: tempLow: tempHigh: {
         service = "input_text.set_value";
         target.entity_id = lastCommandedEntityId;
-        data.value = "${mode}|${toString temperature}";
+        data.value = "${mode}|${fmtTemp temperature}|${fmtTemp tempLow}|${fmtTemp tempHigh}";
       };
 
       # lastCommandedEntityId is null for a zone with no override automation
@@ -304,14 +347,14 @@
         (
           if lastCommandedEntityId == null
           then []
-          else [(setLastCommanded lastCommandedEntityId "heat" temperature)]
+          else [(setLastCommanded lastCommandedEntityId "heat" temperature null null)]
         )
         ++ [
           {
             service = "climate.set_temperature";
             target.entity_id = entityId;
             # hvac_mode alongside temperature in the same call (climate.
-            # set_temperature accepts both) — these are heat-only zones, so
+            # set_temperature accepts both) — main/basement is heat-only, so
             # every re-evaluation reasserts "heat" too, not just the setpoint.
             # Confirmed live: upstairs was found in hvac_mode "off" with no
             # override active and no explanation — this file never called
@@ -327,11 +370,54 @@
           }
         ];
 
+      setClimate = entityId: hvacMode: temperature: lastCommandedEntityId:
+        [(setLastCommanded lastCommandedEntityId hvacMode temperature null null)]
+        ++ [
+          {
+            service = "climate.set_hvac_mode";
+            target.entity_id = entityId;
+            data.hvac_mode = hvacMode;
+          }
+          {
+            service = "climate.set_temperature";
+            target.entity_id = entityId;
+            data = {
+              inherit temperature;
+              hvac_mode = hvacMode;
+            };
+          }
+        ];
+
+      # Dual setpoint — upstairs in summer ("heat_cool" mode): holds a heat
+      # floor and a cool ceiling simultaneously, rather than a single target.
+      # Same write-before-command order as setClimate/setTemp above.
+      setClimateDual = entityId: tempLow: tempHigh: lastCommandedEntityId: [
+        (setLastCommanded lastCommandedEntityId "heat_cool" null tempLow tempHigh)
+        {
+          service = "climate.set_hvac_mode";
+          target.entity_id = entityId;
+          data.hvac_mode = "heat_cool";
+        }
+        {
+          service = "climate.set_temperature";
+          target.entity_id = entityId;
+          data = {
+            target_temp_low = tempLow;
+            target_temp_high = tempHigh;
+          };
+        }
+      ];
+
       # True when the incoming state doesn't match what this file itself
       # last commanded for this zone — i.e. genuinely came from outside.
-      # Compares by value (mode + temperature), not by context, since
-      # homekit_controller's state updates never carry a usable context at
-      # all — see the file header.
+      # Compares by value (mode + all three setpoint fields), not by
+      # context, since homekit_controller's state updates never carry a
+      # usable context at all — see the file header. The same -999 default
+      # on every float() conversion, both sides, is what makes "not
+      # applicable" match "not applicable": a missing HA attribute (heat
+      # mode has no target_temp_low) and a stored "none" (heat_cool has no
+      # plain temperature) both collapse to the same sentinel rather than
+      # comparing unequal to each other.
       #
       # Also requires a real prior state, not unavailable/unknown/none:
       # confirmed live that without this, the override started immediately
@@ -349,8 +435,13 @@
           {% set parts = states('${lastCommandedEntityId}').split('|') %}
           {% set expectedMode = parts[0] if parts | length > 0 else ''' %}
           {% set expectedTemp = parts[1] | float(-999) if parts | length > 1 else -999 %}
+          {% set expectedLow = parts[2] | float(-999) if parts | length > 2 else -999 %}
+          {% set expectedHigh = parts[3] | float(-999) if parts | length > 3 else -999 %}
+          {% set actualTemp = trigger.to_state.attributes.temperature | float(-999) %}
+          {% set actualLow = trigger.to_state.attributes.target_temp_low | float(-999) %}
+          {% set actualHigh = trigger.to_state.attributes.target_temp_high | float(-999) %}
           {% set fromKnown = trigger.from_state is not none and trigger.from_state.state not in ['unavailable', 'unknown'] %}
-          {{ fromKnown and not (trigger.to_state.state == expectedMode and (trigger.to_state.attributes.temperature | float(-998)) == expectedTemp) }}
+          {{ fromKnown and not (trigger.to_state.state == expectedMode and actualTemp == expectedTemp and actualLow == expectedLow and actualHigh == expectedHigh) }}
         '';
       };
 
@@ -466,10 +557,10 @@
 
       # A complete heat-only zone: Day, Night, and Away, independently for
       # each of winter and summer (six branches total) — all re-evaluated
-      # on every trigger in zoneTriggers. main/basement is this shape
-      # today; a zone with real cooling (upstairs, once it has AC) needs
-      # its own bespoke automation instead, since a single target per
-      # period can't express a dual heat_cool setpoint.
+      # on every trigger in zoneTriggers. Only main/basement uses this now
+      # — upstairs has real cooling, so its automation is bespoke (below),
+      # since a single target per period can't express a dual heat_cool
+      # setpoint.
       mkHeatOnlyZone = {
         id,
         alias,
@@ -545,33 +636,44 @@
         entityId,
         timerEntityId,
         lastCommandedEntityId,
+        # Which state attribute(s) to watch for a manual change. Defaults to
+        # the single-setpoint "temperature" attribute (heat mode, always
+        # true for main/basement). Upstairs switches between heat mode
+        # ("temperature") and heat_cool mode ("target_temp_low"/
+        # "target_temp_high") by season, so it passes all three — otherwise
+        # a manual change made while in whichever mode isn't watched would
+        # go undetected.
+        attributes ? ["temperature"],
       }: {
         inherit id alias;
         description = "A person (not this file's own automations) changed ${entityId}'s target temperature or mode — start/restart its override timer so the schedule leaves it alone for a while.";
         mode = "queued";
-        trigger = [
-          {
-            platform = "state";
-            entity_id = entityId;
-            attribute = "temperature";
-          }
+        trigger =
           # No `attribute:` here — a plain state trigger fires on the
           # entity's own state, which for a climate entity *is* hvac_mode.
           # Without this, manually switching a thermostat's mode (e.g. to
           # off) goes completely undetected: nothing starts the override
           # timer, so the schedule silently overwrites it at the next
           # trigger instead of leaving it alone for a while.
-          {
+          [
+            {
+              platform = "state";
+              entity_id = entityId;
+            }
+          ]
+          ++ map (attribute: {
             platform = "state";
             entity_id = entityId;
-          }
-        ];
+            inherit attribute;
+          })
+          attributes;
         # notLastCommanded, not context.parent_id — see the file header for
         # why. This is the check that distinguishes this file's own
-        # climate.set_temperature calls from anything external (thermostat,
-        # ecobee app, HomeKit, or the HA frontend) pushing a state change
-        # in, by comparing the resulting state against what setTemp last
-        # recorded for this zone rather than by context.
+        # climate.set_temperature/set_hvac_mode calls from anything
+        # external (thermostat, ecobee app, HomeKit, or the HA frontend)
+        # pushing a state change in, by comparing the resulting state
+        # against what setTemp/setClimate/setClimateDual last recorded for
+        # this zone rather than by context.
         condition = [(notLastCommanded lastCommandedEntityId)];
         # timer.start on an already-running timer restarts it from the full
         # configured duration, so repeated manual nudges keep extending the
@@ -605,27 +707,67 @@
         summerNightTemp = liveTemp "input_number.climate_main_and_basement_summer_night";
         summerAwayTemp = liveTemp "input_number.climate_main_and_basement_summer_away";
       })
-      (mkHeatOnlyZone {
+      {
         id = "climate_upstairs";
         alias = "Climate — upstairs schedule";
-        entityId = upstairs;
-        timerEntityId = "timer.climate_override_upstairs";
-        lastCommandedEntityId = "input_text.climate_last_commanded_upstairs";
-        setPointEntityIds = [
+        description = "Re-evaluate upstairs' desired mode/temperature on every schedule time, presence edge, season change, set point change, override expiry, and restart. The only zone with real cooling.";
+        mode = "single";
+        trigger = zoneTriggers "timer.climate_override_upstairs" [
           "input_number.climate_upstairs_winter_day"
           "input_number.climate_upstairs_winter_night"
           "input_number.climate_upstairs_winter_away"
-          "input_number.climate_upstairs_summer_day"
-          "input_number.climate_upstairs_summer_night"
-          "input_number.climate_upstairs_summer_away"
+          "input_number.climate_upstairs_summer_day_low"
+          "input_number.climate_upstairs_summer_day_high"
+          "input_number.climate_upstairs_summer_night_low"
+          "input_number.climate_upstairs_summer_night_high"
+          "input_number.climate_upstairs_summer_away_low"
+          "input_number.climate_upstairs_summer_away_high"
         ];
-        winterDayTemp = liveTemp "input_number.climate_upstairs_winter_day";
-        winterNightTemp = liveTemp "input_number.climate_upstairs_winter_night";
-        winterAwayTemp = liveTemp "input_number.climate_upstairs_winter_away";
-        summerDayTemp = liveTemp "input_number.climate_upstairs_summer_day";
-        summerNightTemp = liveTemp "input_number.climate_upstairs_summer_night";
-        summerAwayTemp = liveTemp "input_number.climate_upstairs_summer_away";
-      })
+        # Same seededCondition gate as mkHeatOnlyZone — see its comment
+        # above for why an unseeded zone must do nothing rather than
+        # command a soon-to-be-corrected default.
+        condition = [seededCondition];
+        action = [
+          {
+            choose = [
+              # Winter: heat-only, cooling off entirely — same three
+              # branches as mkHeatOnlyZone's winter half.
+              {
+                conditions = [presentCondition dayCondition winterCondition (notOverridden "timer.climate_override_upstairs")];
+                sequence = setClimate upstairs "heat" (liveTemp "input_number.climate_upstairs_winter_day") "input_text.climate_last_commanded_upstairs";
+              }
+              {
+                conditions = [presentCondition winterCondition (notOverridden "timer.climate_override_upstairs")];
+                sequence = setClimate upstairs "heat" (liveTemp "input_number.climate_upstairs_winter_night") "input_text.climate_last_commanded_upstairs";
+              }
+              {
+                conditions = [notPresentCondition winterCondition];
+                sequence = setClimate upstairs "heat" (liveTemp "input_number.climate_upstairs_winter_away") "input_text.climate_last_commanded_upstairs";
+              }
+              # Summer: heat_cool dual setpoint throughout — Day, Night,
+              # and Away each hold their own independent low/high pair
+              # (see the file header § Full symmetry).
+              {
+                conditions = [presentCondition dayCondition summerCondition (notOverridden "timer.climate_override_upstairs")];
+                sequence = setClimateDual upstairs (liveTemp "input_number.climate_upstairs_summer_day_low") (liveTemp "input_number.climate_upstairs_summer_day_high") "input_text.climate_last_commanded_upstairs";
+              }
+              {
+                conditions = [presentCondition summerCondition (notOverridden "timer.climate_override_upstairs")];
+                sequence = setClimateDual upstairs (liveTemp "input_number.climate_upstairs_summer_night_low") (liveTemp "input_number.climate_upstairs_summer_night_high") "input_text.climate_last_commanded_upstairs";
+              }
+              {
+                conditions = [notPresentCondition summerCondition];
+                sequence = setClimateDual upstairs (liveTemp "input_number.climate_upstairs_summer_away_low") (liveTemp "input_number.climate_upstairs_summer_away_high") "input_text.climate_last_commanded_upstairs";
+              }
+            ];
+            # Only reached if every present-and-home branch above was
+            # suppressed by an active override — every away branch (winter
+            # and summer) is unconditional, so one of them always matches
+            # when nobody's home.
+            default = [];
+          }
+        ];
+      }
       (overrideStartAutomation {
         id = "climate_override_start_main_and_basement";
         alias = "Climate — start manual override (main/basement)";
@@ -639,6 +781,7 @@
         entityId = upstairs;
         timerEntityId = "timer.climate_override_upstairs";
         lastCommandedEntityId = "input_text.climate_last_commanded_upstairs";
+        attributes = ["temperature" "target_temp_low" "target_temp_high"];
       })
       {
         id = "climate_summer_mode_season_default";
@@ -692,7 +835,7 @@
       {
         id = "climate_seed_set_points";
         alias = "Climate — seed set points";
-        description = "Runs exactly once, ever: sets the twelve set-point input_numbers to sensible defaults (each season's day/night/away seeded equal to that zone's old comfort/setback/away or shared summer floor, so behavior is unchanged the moment this deploys), then flips climate_set_points_seeded_v2 on so this never runs again. Only exists because input_number's own restore-on-restart is incompatible with also specifying an `initial:` (see the input_number block above) — without this, a fresh deployment would start every set point at its unsafe 10°C floor until someone visits the dashboard.";
+        description = "Runs exactly once, ever: sets all fifteen set-point input_numbers (six for main/basement, nine for upstairs) to sensible defaults matching each zone's pre-redesign behavior, then flips climate_set_points_seeded_v2 on so this never runs again. Only exists because input_number's own restore-on-restart is incompatible with also specifying an `initial:` (see the input_number block above) — without this, a fresh deployment would start every set point at its unsafe 10°C floor until someone visits the dashboard.";
         mode = "single";
         trigger = [
           {
@@ -755,18 +898,33 @@
           }
           {
             service = "input_number.set_value";
-            target.entity_id = "input_number.climate_upstairs_summer_day";
+            target.entity_id = "input_number.climate_upstairs_summer_day_low";
+            data.value = 20;
+          }
+          {
+            service = "input_number.set_value";
+            target.entity_id = "input_number.climate_upstairs_summer_day_high";
+            data.value = 24;
+          }
+          {
+            service = "input_number.set_value";
+            target.entity_id = "input_number.climate_upstairs_summer_night_low";
             data.value = 19;
           }
           {
             service = "input_number.set_value";
-            target.entity_id = "input_number.climate_upstairs_summer_night";
+            target.entity_id = "input_number.climate_upstairs_summer_night_high";
+            data.value = 24;
+          }
+          {
+            service = "input_number.set_value";
+            target.entity_id = "input_number.climate_upstairs_summer_away_low";
             data.value = 19;
           }
           {
             service = "input_number.set_value";
-            target.entity_id = "input_number.climate_upstairs_summer_away";
-            data.value = 19;
+            target.entity_id = "input_number.climate_upstairs_summer_away_high";
+            data.value = 28;
           }
           {
             service = "input_boolean.turn_on";
