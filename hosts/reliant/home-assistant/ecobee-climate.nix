@@ -287,8 +287,26 @@
       # to feed (garage: a frost-protection floor, not a schedule a person
       # would want to temporarily suspend) — skips the tracking write
       # entirely rather than creating an input_text nothing ever reads.
+      #
+      # setLastCommanded runs BEFORE climate.set_temperature, not after —
+      # confirmed live this was backwards: with the real command first, two
+      # queued runs of overrideStartAutomation both "Finished" (i.e. called
+      # timer.start) for a transition whose to_state exactly matched what
+      # this zone had just commanded. The real HomeKit state change reached
+      # overrideStartAutomation's trigger and got evaluated before this
+      # file's own second action (the write below) had run, so
+      # notLastCommanded read a stale snapshot and saw a mismatch that
+      # wasn't real — a race between two automations' action lists, not
+      # between an automation and the device. Writing the snapshot first
+      # closes it: by the time any trigger can observe the change, the
+      # value it'll compare against is already correct.
       setTemp = entityId: temperature: lastCommandedEntityId:
-        [
+        (
+          if lastCommandedEntityId == null
+          then []
+          else [(setLastCommanded lastCommandedEntityId "heat" temperature)]
+        )
+        ++ [
           {
             service = "climate.set_temperature";
             target.entity_id = entityId;
@@ -307,12 +325,7 @@
               hvac_mode = "heat";
             };
           }
-        ]
-        ++ (
-          if lastCommandedEntityId == null
-          then []
-          else [(setLastCommanded lastCommandedEntityId "heat" temperature)]
-        );
+        ];
 
       # True when the incoming state doesn't match what this file itself
       # last commanded for this zone — i.e. genuinely came from outside.
