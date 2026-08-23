@@ -91,6 +91,11 @@ in {
         # integration picker itself lists "Hue" regardless of whether this
         # is present) — see docs/smart-home.md § Choosing extraComponents.
         "hue"
+        # broadlink: backs the Broadlink RM4 mini IR/RF blaster, added via
+        # HA's config flow (Settings > Devices & Services > Add Integration).
+        # Not part of default_config — same "config-flow-only" gap as "hue"
+        # above, see docs/smart-home.md § Choosing extraComponents.
+        "broadlink"
         # NOT "linkplay": core HA's linkplay integration fails to set up
         # against these Wiim Pro units specifically — confirmed live,
         # getMetaInfo returns the literal string "Failed" instead of JSON
