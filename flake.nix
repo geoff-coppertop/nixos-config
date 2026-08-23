@@ -54,6 +54,7 @@
   };
 
   outputs = {
+    self,
     nixpkgs,
     disko,
     home-manager,
@@ -155,6 +156,63 @@
     checks.${system} = checks;
 
     apps.${system} = nixApps;
+
+    packages.${system} = {
+      # Reliant's Nix-declared automations and helpers, rendered to a
+      # standalone configuration.yaml. CI feeds this to `hass --script
+      # check_config` so a malformed automation (bad trigger platform, broken
+      # choose/action, unknown service) or a broken input_* helper definition
+      # fails the build instead of only surfacing when Home Assistant loads it
+      # at runtime — Nix serializes this config verbatim and never
+      # schema-checks the Home Assistant side itself. Scoped to "automation
+      # manual" and "input_datetime" (not the whole config) to keep the check
+      # focused on this file's own declarative content and free of
+      # config-entry/!include noise from the rest of the setup.
+      ha-config-reliant = let
+        haConfig = self.nixosConfigurations.reliant.config.services.home-assistant.config;
+      in
+        (pkgs.formats.yaml {}).generate "configuration.yaml" {
+          "automation manual" = haConfig."automation manual";
+          input_datetime = haConfig.input_datetime or {};
+        };
+
+      # home-assistant, for validating the automations with check_config in CI.
+      # `hass` runs standalone here — HA core is on its wrapper's PYTHONPATH —
+      # but HA's `--script` runner (homeassistant/scripts/__init__.py) also
+      # unconditionally requires colorlog==6.10.1 (an exact-version pin in
+      # homeassistant/scripts/check_config.py's REQUIREMENTS) and, if it isn't
+      # already importable at that exact version, shells out to
+      # `sys.executable -m uv pip install` to fetch it. That install always
+      # fails here regardless of network access: nixpkgs' Python interpreters
+      # carry an EXTERNALLY-MANAGED marker, and uv refuses outright to modify
+      # the read-only /nix/store rather than just installing to --target (an
+      # actual CI run confirmed this — "The interpreter ... is externally
+      # managed ... tries to modify the immutable /nix/store filesystem").
+      # ha-check-colorlog below pre-supplies the exact pinned version instead,
+      # so is_installed() is satisfied and install_package() never runs. Base
+      # HA (no extraComponents) is enough: the check is scoped to the
+      # automations, which use only core triggers/actions.
+      ha-check-hass = pkgs.home-assistant;
+
+      # colorlog, pinned to the exact version homeassistant/scripts/
+      # check_config.py requires (REQUIREMENTS = ("colorlog==6.10.1",)) rather
+      # than whatever nixpkgs' own colorlog attribute currently carries —
+      # confirmed those two drift independently (nixpkgs has already moved to
+      # 6.11.0, which fails HA's exact `==6.10.1` check despite being newer).
+      # Built directly from the upstream wheel so this stays correct
+      # regardless of nixpkgs' colorlog version; sha256 independently verified
+      # against the file downloaded from PyPI, not just copied from its API.
+      ha-check-colorlog = pkgs.home-assistant.python3Packages.buildPythonPackage {
+        pname = "colorlog";
+        version = "6.10.1";
+        format = "wheel";
+        src = pkgs.fetchurl {
+          url = "https://files.pythonhosted.org/packages/6d/c1/e419ef3723a074172b68aaa89c9f3de486ed4c2399e2dbd8113a4fdcaf9e/colorlog-6.10.1-py3-none-any.whl";
+          hash = "sha256-LX6DSCkZSK9mEiz/AGyfjaYlXSJOfPjjfY3i3zutjJw=";
+        };
+        doCheck = false;
+      };
+    };
 
     nixosConfigurations = {
       "enterprise-d" = mkNixosSystem {
