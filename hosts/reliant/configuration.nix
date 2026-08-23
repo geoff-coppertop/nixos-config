@@ -171,6 +171,21 @@ in {
       port = 3001;
     };
 
+    # 3D-printer management for the Bambu Lab printers on the LAN, with the
+    # OrcaSlicer sidecar container that gives it server-side slicing. The
+    # sidecar is amd64-only upstream, which this host is.
+    bambuddy = {
+      enable = true;
+      # Already the module default; stated explicitly because server-side
+      # slicing is the reason this host runs Bambuddy rather than nothing.
+      slicerSidecar.enable = true;
+      # NOT virtualPrinter.openFirewall: the virtual printer binds 3000/3002
+      # unconditionally and neither port is configurable, while this host's
+      # AdGuard Home admin UI already owns 3000 (see custom.dns below, and the
+      # assertion in modules/bambuddy.nix). Turning the feature on here means
+      # moving AdGuard's UI port first.
+    };
+
     adsb = {
       enable = true;
       # Same physical home-address coordinates as defiant's — location data
@@ -241,6 +256,19 @@ in {
           paths = ["/var/lib/AdGuardHome"];
           excludePatterns = [];
         };
+        # Bambuddy's SQLite database and 3MF/print archive — real user-created
+        # content, not reconstructible state. Unlike every other entry here
+        # this one has NO existing job-keyed secret to reuse: it needs a new
+        # secrets/bambuddy/restic-password.age plus the matching age.secrets
+        # entry in hosts/reliant/secrets.nix, from secrets-warden. Until then
+        # the job skips itself at runtime with "Missing restic password file"
+        # rather than failing (see modules/backups.nix).
+        bambuddy = {
+          enable = true;
+          paths = ["/var/lib/bambuddy"];
+          # Regenerated on demand; nothing but a font cache.
+          excludePatterns = ["/var/lib/bambuddy/matplotlib"];
+        };
       };
     };
 
@@ -253,14 +281,15 @@ in {
       # so unbound's access-control covers direct (bypass) queries on port
       # 5335 from any of them. See docs/homelab-network.md.
       lanSubnet = "192.168.0.0/16";
-      # Matches defiant's full subdomain list: home-assistant, adsb, and
-      # zigbee (Zigbee2MQTT) all self-register their own Traefik routes when
-      # their custom.* modules are enabled (see modules/home-assistant.nix,
-      # modules/adsb.nix, modules/zigbee.nix), which they now are, above.
+      # Matches defiant's full subdomain list plus bambuddy: home-assistant,
+      # adsb, zigbee (Zigbee2MQTT), and bambuddy all self-register their own
+      # Traefik routes when their custom.* modules are enabled (see
+      # modules/home-assistant.nix, modules/adsb.nix, modules/zigbee.nix,
+      # modules/bambuddy.nix), which they now are, above.
       # dns1 is this host's own AdGuard admin UI; dns2 and dcs are the
       # cross-host routers to excelsior's AdGuard admin UI and DCS
       # on-demand control page, defined by hand below.
-      subdomains = ["home" "dns1" "dns2" "dcs" "adsb" "zigbee"];
+      subdomains = ["home" "dns1" "dns2" "dcs" "adsb" "zigbee" "bambuddy"];
       # Renamed from the module default "dns", carried from defiant — dns1
       # (this host) and dns2 (excelsior) pair the two AdGuard instances.
       adminSubdomain = "dns1";
