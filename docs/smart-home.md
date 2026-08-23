@@ -207,8 +207,9 @@ Conventions the skeleton encodes:
 - Actions always use `target.entity_id = [ … ]`, never a top-level `entity_id`.
 - Entity IDs always fully qualified and domain-prefixed
   (`switch.front_entry_lights`, not `front_entry_lights`).
-- Trigger platforms in use here: `time` (with `at`), `sun` (with `event`),
-  `state` (with `entity_id`/`to`, optionally `for`), and `homeassistant` (with
+- Trigger platforms in use here: `time` (with `at`), `time_pattern` (with
+  `minutes`, e.g. `"/10"` for every ten minutes), `sun` (with `event`), `state`
+  (with `entity_id`/`to`, optionally `for`), and `homeassistant` (with
   `event = "start"`).
 
 Where several rooms or devices share one pattern, write a `mk*` function and
@@ -220,6 +221,17 @@ Settings > Devices & Services > Helpers without touching Nix or rebuilding —
 the automations trigger off the helper entities themselves
 (`platform: time, at: input_datetime.<slug>_wake_weekday`) rather than a
 Nix-baked literal time.
+
+`door-locks.nix` shows a different reusable shape — **periodic enforcement with
+a hold-off**. A `time_pattern` sweep gated by a `time` condition (the overnight
+window) runs an action that `repeat`s over the lock entities and, per door,
+locks it only when a `template` condition says it has been left unlocked and
+untouched past a hold-off (`now() - states[repeat.item].last_changed` against a
+Nix-interpolated `holdOffSeconds`). That keeps a periodic "always ends up
+locked" guarantee while backing off from the last manual interaction, and it
+degrades safely if the lock does not report manual operations — the sweep still
+re-locks on its next pass. Prefer this over a one-shot `time` trigger whenever a
+state must be *held* rather than set once.
 
 **Verify entity IDs before writing them.** They are assigned by Home Assistant
 at pairing or commissioning time and are not predictable from the device name —
