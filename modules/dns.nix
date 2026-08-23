@@ -127,7 +127,15 @@ in {
       services.traefik.dynamicConfigOptions.http = mkTraefikRoute {
         name = "adguard";
         subdomain = cfg.adminSubdomain;
-        port = 3000;
+        # Follows services.adguardhome.port (upstream default 3000) rather
+        # than a literal 3000: reliant's custom.bambuddy asserts against that
+        # same default to flag its own virtual-printer port collision (see
+        # modules/bambuddy.nix and hosts/reliant/README.md § Bambuddy), and
+        # the fix that assertion points at is moving
+        # services.adguardhome.port. A hardcoded 3000 here would silently
+        # decouple this route from that port the moment someone made that
+        # move, breaking the admin UI with no error until someone noticed.
+        port = config.services.adguardhome.port;
         inherit (config.custom.traefik.acme) domain;
       };
     })
