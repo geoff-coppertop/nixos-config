@@ -78,7 +78,14 @@ in {
       # ── AdGuard Home: LAN-facing ad-blocking resolver on port 53 ─────────
       services.adguardhome = {
         enable = true;
-        openFirewall = true;
+        # openFirewall only opens the admin web UI (default port 3000, not
+        # the DNS resolver — that's the explicit allowedTCPPorts/UDPPorts
+        # below) with no source restriction at all. No host needs that open:
+        # reliant reaches its own admin UI via Traefik on 127.0.0.1
+        # regardless of the firewall, and excelsior's cross-host case (see
+        # docs/homelab-network.md § Second DNS Instance) opens it explicitly,
+        # restricted to reliant's IP, in hosts/excelsior/configuration.nix.
+        openFirewall = false;
         mutableSettings = true;
         settings.dns = {
           bind_hosts = ["0.0.0.0"];

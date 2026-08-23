@@ -49,27 +49,51 @@ onward (same as enterprise-d).
 | Service | URL | Port behind Traefik |
 | --- | --- | --- |
 | AdGuard Home | `https://dns2.coppertop.ca` (proxied cross-host through reliant's Traefik — excelsior runs no Traefik of its own) | 3000 |
+| DCS start/stop control | `https://dcs.coppertop.ca` (no auth yet — same source-IP-only posture as the rows below, pending a holistic Traefik auth pass) | 9090 (page), 9091 (webhook) |
 
 | Port | Protocol | Purpose | Exposure |
 | --- | --- | --- | --- |
-| 10308 | tcp+udp | DCS game traffic | LAN/WAN (firewall open) |
+| 10308 | tcp+udp | DCS game traffic | LAN/WAN (firewall open; needs a router port-forward for real remote play — see Known Gotchas) |
+| 8088 | tcp | DCS's own remote-control WebGUI backend | LAN/WAN (firewall open; needs a router port-forward — DCS's own remote-control mechanism, not usable through Traefik/any reverse proxy — see Known Gotchas) |
 | 5002 | tcp+udp | DCS-SRS voice (separate `dcs-srs-server` container) | LAN/WAN (firewall open) |
 | 8080 | tcp | SRS REST API (`custom.dcsServer.srs.restApi.enable`, off by default) | LAN/WAN (firewall open) |
-| 3000 | tcp | AdGuard Home admin UI | LAN/WAN (firewall open) |
+| 3000 | tcp | AdGuard Home admin UI | reliant only (firewall-restricted; proxied at `dns2.coppertop.ca`) |
 | 53 | udp | DNS (AdGuard → unbound) | LAN/WAN (firewall open) |
 | 5335 | tcp+udp | unbound bypass (skips AdGuard filtering) | LAN/WAN (firewall open) |
 | 3001 | tcp | DCS webtop web desktop | 127.0.0.1 only |
-| 8088 | tcp | ED remote-control WebGUI | 127.0.0.1 only |
+| 9090 | tcp | DCS start/stop control page (`custom.dcsServer.control`) | reliant only (firewall-restricted; proxied at `dcs.coppertop.ca`) |
+| 9091 | tcp | DCS start/stop/mission-upload webhook (`custom.dcsServer.control`) | reliant only (firewall-restricted; proxied at `dcs.coppertop.ca`) |
 
-DCS admin surfaces (webtop, WebGUI) are loopback-only — the webtop desktop
-has weak default auth. Reach them through an SSH tunnel:
+AdGuard's admin UI (3000) and `custom.dcsServer.control.bindAddress`
+(9090/9091) are bound to this host's real LAN IP instead of `127.0.0.1`,
+and restricted to `reliant`'s IP by `networking.firewall.extraCommands` —
+neither has real auth of its own at any layer yet, so the firewall is the
+only gate for both. Real Traefik auth in front of them is a deliberate
+follow-up, not yet done. `custom.dcsServer.webGuiBindAddress` (8088) is
+different: it's bound to the LAN IP and opened broadly (not
+`reliant`-restricted) because it's meant to be reached directly by a
+router WAN port-forward, not by Traefik — see Known Gotchas. See
+`docs/homelab-network.md` § DCS On-Demand Start/Stop And Remote Control
+(excelsior) and § Second DNS Instance (excelsior).
+
+**`custom.dcsServer.startAtBoot = false;`** — behavior change: DCS no
+longer comes up automatically after a reboot. Start it via
+`https://dcs.coppertop.ca`. Stopping is manual only, by design — no
+idle-timeout auto-stop.
+
+The webtop desktop (3001) stays loopback-only — reach it through an SSH
+tunnel:
 
 ```bash
-ssh -L 3001:localhost:3001 -L 8088:localhost:8088 thomasga@excelsior.local
+ssh -L 3001:localhost:3001 thomasga@excelsior.local
 ```
 
-Then open `http://localhost:3001` (web desktop) and
-`http://localhost:8088` (WebGUI).
+Then open `http://localhost:3001` (web desktop) for DCS's own local WebGUI
+and launcher — see Known Gotchas for why this is the only way to actually
+use DCS's WebGUI (remote access via any reverse proxy doesn't work, by
+DCS's own design). `dcs.coppertop.ca` itself now also has a mission upload
+form — no SSH tunnel needed just to get a `.miz` file onto the host — see
+`docs/homelab-network.md` § DCS On-Demand Start/Stop And Remote Control.
 
 ## First-Time Service Setup
 
@@ -81,6 +105,15 @@ Then open `http://localhost:3001` (web desktop) and
 
 After DCS login is saved, set `custom.dcsServer.autoStart = true;` and
 rebuild so the DCS server launches with the container.
+
+Starting the container (whether via the control page or manually) does
+**not** by itself load a mission — DCS's own log
+(`Saved Games/DCS.dcs_serverrelease/Logs/dcs.log`) will show
+`Mission list is empty, server not started.` until one is configured in
+`serverSettings.lua` or loaded through the WebGUI/webtop. `dcs.coppertop.ca`
+can upload a `.miz` file into `custom.dcsServer.control.missionsDir` (see
+below), but adding it to the active mission list is still a manual step in
+the tunneled webtop's WebGUI — uploading and loading are separate.
 
 ## DCS Server Maintenance
 
@@ -138,6 +171,47 @@ servers — that's a router-side step, not managed by this repo.
   (`192.168.20.0/24`) each only cover one of the network's 3 VLANs. Widened
   on both hosts so unbound's `access-control` allows direct bypass queries
   on port 5335 from any of them.
+- **DCS's own remote-control WebGUI cannot be reverse-proxied for remote
+  use — confirmed live, this is deliberate on DCS's part, not a bug to
+  work around.** Its API backend (`custom.dcsServer.webGuiPort`, 8088,
+  `POST /encryptedRequest` served by `DCS_server.exe` itself) is not a
+  browsable page — `GET /` returns a bare 404 by design; the real client
+  is a local HTML file (`WebGui/index.html`) shipped inside the DCS
+  install, opened from the controlling PC's own filesystem, whose
+  `app.js` hardcodes `http://127.0.0.1:8088` for its API calls. A same-
+  origin nginx proxy (`custom.dcsServer.webGuiProxy`, since removed) was
+  built to serve those static files at `dcs.coppertop.ca` with a same-
+  origin `app.js` patch (a verified 3-part text patch from DCS forum
+  topic
+  [378083](https://forum.dcs.world/topic/378083-webgui-over-reverse-proxy-invalid-url-for-encryptedrequest/),
+  reapplied via a self-healing `systemd.path` unit since DCS's own
+  auto-updater periodically overwrites the file). It correctly served the
+  real dashboard UI — but every `/encryptedRequest` call still failed,
+  confirmed live across four independent fixes, each disproven in turn:
+  binding the raw backend to loopback instead of the LAN IP (still
+  failed, `invalid PKCS #7 block padding` in `dcs.log`); forcing the
+  client's `credentials: "omit"` to match the working local path (changed
+  the failure mode to a clean `422 Unprocessable Entity` — DCS's own
+  documented rejection code, "remote non-locally-originating requests
+  refused unless a key was negotiated with the DCS master server"); and
+  overriding the proxied request's `Host` header to `127.0.0.1` (still
+  422). Web research beyond DCS's own forums confirmed this in plain
+  terms: "This client can only be used to control a local DCS_server.exe
+  instance due to the encryption requirement... a deliberate security
+  measure implemented by DCS to prevent remote control of servers through
+  reverse proxies without proper authentication." Not an official use
+  case, and not achievable this way — don't re-attempt a same-origin
+  proxy for this. DCS's own log during this investigation showed the real
+  intended mechanism: `Registering HTTP control interface as
+  <public-ip>:8088 (port is assumed to be open)` — DCS's remote-control
+  assumes a **direct WAN port-forward** to 8088 (and 10308 for the game
+  itself), no HTTP-layer proxy in the path at all. `webGuiBindAddress` is
+  bound to this host's LAN IP and the firewall opens 8088 broadly for
+  exactly that; the router-side port-forward itself is not managed by
+  this repo. For anything the WebGUI is actually needed for (loading
+  missions, server settings), use the local webtop desktop instead (see
+  Services And URLs above) — that's genuinely local, not proxied, and
+  works today.
 
 ## Provisioning
 
