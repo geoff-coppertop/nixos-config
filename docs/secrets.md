@@ -207,7 +207,7 @@ re-pair when they physically moved to `reliant`.
 | Secret | Contents | Host recipients |
 | --- | --- | --- |
 | `traefik/cloudflare-api-token.age` | `CF_DNS_API_TOKEN=<Cloudflare Zone:DNS:Edit token>` | `reliant` |
-| `location/coordinates.age` | ADS-B receiver location, as `VAR=value` lines | `reliant` |
+| `location/coordinates.age` | `LOCATION_LAT`, `LOCATION_LON`, `LOCATION_ELEVATION` — home coordinates, as `VAR=value` lines. Backs the ADS-B receiver and (on `reliant`) Home Assistant's core location — see [docs/smart-home.md § Core location](smart-home.md#core-location-latitudelongitudeelevation-unlike-http) | `reliant` |
 | `zigbee/network-key.age` | A bracketed byte array, e.g. `[12,34,...,255]` | `reliant` |
 | `zwave/secrets.age` | JSON with one `securityKeys` object | `reliant` |
 

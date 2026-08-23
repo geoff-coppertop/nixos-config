@@ -118,6 +118,11 @@ in {
         "assist_satellite"
         "ffmpeg"
       ];
+      # Same secret/value as custom.adsb.locationEnvFile below — one home
+      # address, reused rather than duplicated. Keeps zone.home (and the
+      # met/weather forecast derived from it) in sync with this repo's own
+      # coordinates instead of whatever was typed into onboarding by hand.
+      locationEnvFile = "/run/agenix/location/coordinates";
     };
 
     mqtt.enable = true;
