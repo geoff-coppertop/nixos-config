@@ -176,6 +176,13 @@ username=nas-user
 password=nas-password
 ```
 
+This is the fleet's only NAS SMB secret. Every CIFS mount on every host uses
+it: each host's `custom.backups.nas.credentialsFile`, and `excelsior`'s
+`/mnt/media` Jellyfin library mount (`hosts/excelsior/media.nix`). Do not mint
+a per-host or per-share variant — all the shares in `lib/nas.nix` are subpaths
+of the same `Personal-Drive` share, so a second account isolates nothing
+unless it is independently ACL'd on the NAS itself.
+
 ### Wi-Fi passphrases
 
 Each Wi-Fi secret decrypts to exactly one line — the variable name and password,
@@ -506,8 +513,9 @@ concern — see
 - `secrets/thomasga/nas-smb-credentials.age` is the `thomasga` user's own
   personal NAS login, reused as the mount credential for every host's
   `custom.backups.nas.credentialsFile` (`enterprise-d`, `reliant`,
-  `excelsior`) — a personal credential standing in for what should be a
-  dedicated machine/service account with its own NAS-side access scope.
+  `excelsior`) and for `excelsior`'s `/mnt/media` Jellyfin mount — a personal
+  credential standing in for what should be a dedicated machine/service
+  account with its own NAS-side access scope.
   Splitting it out has to start on the NAS itself (create a machine-scoped
   SMB user there first); minting the corresponding `.age` secret here is
   the easy half, not the blocker.

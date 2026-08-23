@@ -17,6 +17,7 @@
     ./gaming.nix
     ./home-assistant.nix
     ./is-laptop.nix
+    ./jellyfin.nix
     ./matter.nix
     ./mqtt.nix
     ./network-drives.nix

@@ -11,6 +11,7 @@ in {
     ./secrets.nix
     ./hardware.nix
     ./disko.nix
+    ./media.nix
 
     ../../profiles/common
     # NOT: profiles/desktop — no display server
