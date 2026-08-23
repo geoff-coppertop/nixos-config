@@ -597,7 +597,7 @@ def _sdcard_flow(machine: str, repo: Path) -> None:
         print("  6. Commit and deploy:")
         print(f"       git add -p && git commit -m 'fix: set {machine} reserved IP'")
         print(f"       nixos-rebuild switch --flake .#{machine} \\")
-        print(f"         --target-host thomasga@{machine} --use-remote-sudo")
+        print(f"         --target-host thomasga@{machine}.local --sudo")
     else:
         print(
             f"{machine}'s lanIp is set to a real address and its SSH host "
