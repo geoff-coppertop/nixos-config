@@ -233,6 +233,18 @@ servers — that's a router-side step, not managed by this repo.
   Services And URLs above) — that's genuinely local, not proxied, and
   works today.
 
+- **`custom.autoRip` bind-mounts `/home/arm` itself, not just its
+  subdirectories.** Confirmed live: the ARM container image bakes in
+  `/home/arm` at uid:gid 1000:1000, and its own entrypoint's UID/GID
+  remap (`ARM_UID`/`ARM_GID`) fixes up the subdirectories mounted under it
+  but not that top-level directory's group, so the container refused to
+  start (`does not have permissions to /home/arm using 5000:5000... Folder
+  permissions--> 5000:1000`) even with every subdirectory correctly owned.
+  Host-mounting `/home/arm` itself, pre-created and chowned via
+  `systemd.tmpfiles.rules`, sidesteps the container's own ownership check
+  entirely — see the [ARM Docker Troubleshooting
+  wiki](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/Docker-Troubleshooting).
+
 ## Provisioning
 
 See [docs/provisioning.md](../../docs/provisioning.md) (the generic `disko`

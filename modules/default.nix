@@ -1,6 +1,7 @@
 {
   imports = [
     ./adsb.nix
+    ./auto-rip.nix
     ./backups.nix
     ./bambuddy.nix
     ./bin-compat.nix
@@ -19,6 +20,8 @@
     ./is-laptop.nix
     ./jellyfin.nix
     ./matter.nix
+    ./media-manager.nix
+    ./media-ripping.nix
     ./mqtt.nix
     ./network-drives.nix
     ./nix-gc.nix

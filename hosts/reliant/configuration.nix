@@ -286,10 +286,11 @@ in {
       # Traefik routes when their custom.* modules are enabled (see
       # modules/home-assistant.nix, modules/adsb.nix, modules/zigbee.nix,
       # modules/bambuddy.nix), which they now are, above.
-      # dns1 is this host's own AdGuard admin UI; dns2, dcs, and jellyfin are
-      # cross-host routers to excelsior (AdGuard admin UI, DCS on-demand
-      # control page, and Jellyfin respectively), defined by hand below.
-      subdomains = ["home" "dns1" "dns2" "dcs" "jellyfin" "adsb" "zigbee" "bambuddy"];
+      # dns1 is this host's own AdGuard admin UI; dns2, dcs, jellyfin, rip,
+      # and library are cross-host routers to excelsior (AdGuard admin UI,
+      # DCS on-demand control page, Jellyfin, Automatic Ripping Machine, and
+      # tinyMediaManager respectively), defined by hand below.
+      subdomains = ["home" "dns1" "dns2" "dcs" "jellyfin" "rip" "library" "adsb" "zigbee" "bambuddy"];
       # Renamed from the module default "dns", carried from defiant — dns1
       # (this host) and dns2 (excelsior) pair the two AdGuard instances.
       adminSubdomain = "dns1";
@@ -362,6 +363,12 @@ in {
   # account system, so no Traefik auth concern here — the firewall
   # restriction on excelsior's side (hosts/excelsior/media.nix) still limits
   # the raw port to this host only, matching the others' pattern.
+  #
+  # rip.coppertop.ca / library.coppertop.ca: excelsior's disc-ripping
+  # (Automatic Ripping Machine) and library-metadata (tinyMediaManager) admin
+  # UIs, same cross-host pattern. Neither has meaningful auth of its own, and
+  # this repo does not gate them with a Traefik middleware — access control
+  # for these two is handled outside this config.
   services.traefik.dynamicConfigOptions.http = {
     routers = {
       dns2 = {
@@ -389,6 +396,18 @@ in {
         service = "jellyfin";
         tls = {};
       };
+
+      rip = {
+        rule = "Host(`rip.coppertop.ca`)";
+        service = "rip";
+        tls = {};
+      };
+
+      library = {
+        rule = "Host(`library.coppertop.ca`)";
+        service = "library";
+        tls = {};
+      };
     };
 
     services = {
@@ -396,6 +415,8 @@ in {
       dcsControlHooks.loadBalancer.servers = [{url = "http://192.168.1.10:9091";}];
       dcsControlPage.loadBalancer.servers = [{url = "http://192.168.1.10:9090";}];
       jellyfin.loadBalancer.servers = [{url = "http://192.168.1.10:8096";}];
+      rip.loadBalancer.servers = [{url = "http://192.168.1.10:8080";}];
+      library.loadBalancer.servers = [{url = "http://192.168.1.10:4000";}];
     };
   };
 
