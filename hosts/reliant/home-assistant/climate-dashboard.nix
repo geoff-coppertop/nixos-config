@@ -97,6 +97,80 @@
               ];
             }
             {
+              type = "entities";
+              title = "Set Points";
+              # input_number.climate_*_* from ecobee-climate.nix — the
+              # schedule reads these live, so a slider tweak here applies
+              # on its next trigger (including immediately, since these
+              # entities are themselves triggers) rather than needing a
+              # redeploy. Winter and summer are stored as fully separate
+              # Day/Night/Away triples per zone, not a shared value with a
+              # separate "away" — that's what lets switching seasons keep
+              # both sets of tuning instead of losing one, per
+              # ecobee-climate.nix's mkHeatOnlyZone. Only the current
+              # season's three rows are actually visible per zone — each
+              # row is wrapped in a `conditional` row keyed off
+              # input_boolean.climate_summer_mode, rather than showing both
+              # seasons at once, so flipping the toggle swaps which set of
+              # sliders is on screen instead of leaving six per zone
+              # visible with no indication which are live right now.
+              entities = let
+                mkRow = zone: season: period: {
+                  entity = "input_number.climate_${zone}_${season}_${period}";
+                  name =
+                    if period == "day"
+                    then "Day (home)"
+                    else if period == "night"
+                    then "Night (home)"
+                    else "Away";
+                };
+                mkConditionalRow = seasonState: row: {
+                  type = "conditional";
+                  conditions = [
+                    {
+                      entity = "input_boolean.climate_summer_mode";
+                      state = seasonState;
+                    }
+                  ];
+                  inherit row;
+                };
+                mkWinterRow = mkConditionalRow "off";
+                mkSummerRow = mkConditionalRow "on";
+                mkZoneRows = zone:
+                  (map (period: mkWinterRow (mkRow zone "winter" period)) ["day" "night" "away"])
+                  ++ (map (period: mkSummerRow (mkRow zone "summer" period)) ["day" "night" "away"]);
+              in
+                [
+                  {
+                    type = "section";
+                    label = "Main/basement";
+                  }
+                ]
+                ++ (mkZoneRows "main_and_basement")
+                ++ [
+                  {
+                    type = "section";
+                    label = "Upstairs";
+                  }
+                ]
+                ++ (mkZoneRows "upstairs");
+            }
+            {
+              type = "history-graph";
+              title = "Temperature History";
+              hours_to_show = 24;
+              entities = [
+                {
+                  entity = "climate.main_and_basement";
+                  name = "Main/basement";
+                }
+                {
+                  entity = "climate.upstairs";
+                  name = "Upstairs";
+                }
+              ];
+            }
+            {
               type = "weather-forecast";
               entity = "weather.forecast_home";
               name = "Weather";

@@ -314,6 +314,21 @@ even though the UI lists "Hue" as an option regardless. Note that some
 integrations are distinct platforms needing their own entry — `google_translate`
 is separate from the core `tts` component, for instance.
 
+Some components additionally need an explicit YAML block in
+`modules/home-assistant.nix`'s `services.home-assistant.config`, the same as
+`sun`/`mobile_app` there: NixOS's home-assistant module has its own fixed
+`defaultIntegrations` list (frontend, automation, the `input_*` helpers, and
+similar — confirmed against that module's source) that's always set up
+regardless of YAML, but `history`/`recorder`/`logbook`/`sun`/`mobile_app`
+aren't on it. Unlike `ssdp` (pulled in automatically as a manifest dependency
+of `sonos`/`apple_tv`, so it only needed the `extraComponents` entry), nothing
+else in this repo references `history`/`recorder`, so — confirmed live, a
+history-graph Lovelace card reported "History integration is disabled" with
+only the `extraComponents` entries present — both also need bare
+`recorder = {};` / `history = {};` keys to ever be attempted at all.
+`history` needs `recorder` configured to have anything to read, so the two
+are always added together.
+
 ### Wiim: community integration, not core `linkplay`
 
 Core HA's `linkplay` integration fails to complete setup against Wiim Pro
