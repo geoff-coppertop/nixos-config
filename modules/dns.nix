@@ -3,7 +3,7 @@
   lib,
   ...
 }: let
-  inherit (lib) mkEnableOption mkIf mkMerge mkOption optional types;
+  inherit (lib) mapAttrsToList mkEnableOption mkIf mkMerge mkOption optional types;
   mkTraefikRoute = import ../lib/traefik-route.nix;
   cfg = config.custom.dns;
 in {
@@ -36,6 +36,12 @@ in {
       type = types.nullOr types.str;
       default = null;
       description = "IP the bare domain (apex) resolves to locally, e.g. for a landing page. Null lets the apex recurse to public DNS (kept for ACME SOA discovery on the DNS host — only an A record is overridden, so SOA/NS/TXT still recurse).";
+    };
+
+    extraRecords = mkOption {
+      type = types.attrsOf types.str;
+      default = {};
+      description = "Extra A records (hostname -> IP) served for the local domain, for names whose Traefik ingress lives on another host (e.g. {jellyfin = \"192.168.20.15\";}).";
     };
 
     adminSubdomain = mkOption {
@@ -79,7 +85,8 @@ in {
           local-zone = ["\"${cfg.domain}.\" transparent"];
           local-data =
             map (sub: "\"${sub}.${cfg.domain}. A ${cfg.lanIp}\"") cfg.subdomains
-            ++ optional (cfg.apexRecord != null) "\"${cfg.domain}. A ${cfg.apexRecord}\"";
+            ++ optional (cfg.apexRecord != null) "\"${cfg.domain}. A ${cfg.apexRecord}\""
+            ++ mapAttrsToList (host: ip: "\"${host}.${cfg.domain}. A ${ip}\"") cfg.extraRecords;
         };
       };
 
