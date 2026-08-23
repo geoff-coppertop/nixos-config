@@ -14,8 +14,9 @@ define a `custom.backups` block for every host.
 
 Each domain agent adds the entries for its own services (the same way each adds
 its own `custom.dns.subdomains`): `smart-home` owns the `hass`, `zigbee2mqtt`,
-and `zwave-js` entries, `homelab-network` owns `adguardhome`, and
-`user-provisioner` owns the per-person home-directory entries.
+and `zwave-js` entries, `homelab-network` owns `adguardhome`,
+`user-provisioner` owns the per-person home-directory entries, and `architect`
+owns `bambuddy` — the one service whose `custom.*` module no specialist owns.
 
 ## How Backups Run
 
