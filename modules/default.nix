@@ -2,6 +2,7 @@
   imports = [
     ./adsb.nix
     ./backups.nix
+    ./bambuddy.nix
     ./bin-compat.nix
     ./btrfs.nix
     ./dcs-server.nix

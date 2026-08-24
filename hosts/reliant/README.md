@@ -22,7 +22,8 @@ own IP (`192.168.20.15`) in Unifi — `reliant` is the DNS primary.
 **Still open**: AdGuard's filter/allow/deny-list configuration wasn't part
 of the Home Assistant restore and hasn't been migrated — `reliant`'s AdGuard
 is a fresh instance; Z-Wave device-level control (beyond the driver being
-healthy) not yet spot-checked.
+healthy) not yet spot-checked. Bambuddy and its slicing sidecar are newly
+added and have not been run on this hardware yet — see § Bambuddy below.
 
 ## Services
 
@@ -72,11 +73,41 @@ onward (same as `enterprise-d`/`excelsior`).
   `media_player.apple_tv_basement_living_room`, and
   `media_player.apple_tv_geoff_s_office`.
 
+## Bambuddy (3D Printing)
+
+`custom.bambuddy` runs Bambuddy natively (`pkgs/bambuddy.nix` — the upstream
+image is not used; see the header comment there for why) plus the OrcaSlicer
+slicing sidecar as a podman container. Host-specific notes:
+
+- Reached at `bambuddy.coppertop.ca` through this host's Traefik. The app
+  itself binds `127.0.0.1:8000` only, the same posture as every other service
+  here.
+- **Each printer needs LAN Only Mode + Developer Mode enabled**, on the
+  printer: Settings → Network → LAN Only Mode, then Developer Mode (it only
+  appears after LAN Only Mode is on). Note the Access Code, IP, and serial —
+  those three are what the first-run wizard asks for. Without Developer Mode
+  the printer is read-only monitoring at best. Also enable **"Store sent files
+  on external storage"** in the slicer, or Bambuddy has no 3MF to archive.
+- The slicing sidecar listens on `127.0.0.1:3003` and is called only by
+  Bambuddy on this same host — no Traefik route, no firewall opening. Its
+  image is **linux/amd64 only** upstream (no ARM64 build, no source for the
+  patched OrcaSlicer CLI inside it), which is fine here and would not be on an
+  ARM host. `SLICER_API_URL` is set from the module, so nothing needs entering
+  in Settings → Slicer.
+- **The virtual-printer feature is off at the firewall on this host and cannot
+  simply be turned on.** It binds ports 3000/3002 unconditionally — hardcoded
+  in upstream's `bind_server.py`, because a slicer looks for a real printer on
+  exactly those ports — and 3000 is already AdGuard Home's admin UI here.
+  `modules/bambuddy.nix` asserts on that combination rather than letting it
+  fail at bind time; moving `services.adguardhome.port` is the prerequisite.
+- Data (SQLite database, 3MF/print archive) lives in `/var/lib/bambuddy`,
+  owned by a fixed `bambuddy` system user. Logs are in `/var/log/bambuddy`.
+
 ## Machine Files
 
 | File | Purpose |
 | --- | --- |
-| `configuration.nix` | Boot, hardware, networking, `custom.users`, `custom.backups`, and (Phase 2) `custom.dns`/`custom.traefik`/`custom.home-assistant`/`mqtt`/`matter`/`zigbee`/`zwave`/`adsb`, all migrated from `defiant` |
+| `configuration.nix` | Boot, hardware, networking, `custom.users`, `custom.backups`, (Phase 2) `custom.dns`/`custom.traefik`/`custom.home-assistant`/`mqtt`/`matter`/`zigbee`/`zwave`/`adsb` all migrated from `defiant`, plus `custom.bambuddy` (new here) |
 | `hardware.nix` | systemd-boot, EFI, Intel microcode, generic firmware (template, not a hardware scan — see Hardware And Access below) |
 | `power.nix` | Explicit no-hibernate/no-suspend statement for this always-on headless host |
 | `disko.nix` | GPT layout: ESP, swap, plain ext4 root (no btrfs/snapper — see the comment in the file for why) |
@@ -243,6 +274,13 @@ disambiguates by hostname. All four confirmed running clean.
 `zwave-js`'s backup path is `/var/cache/zwave-js`, not `/var/lib/zwave-js` —
 confirmed live that the latter is never created (see the comment in
 `hosts/reliant/configuration.nix`).
+
+The `bambuddy` entry (`/var/lib/bambuddy`) is the one job here with **no
+existing job-keyed secret to reuse** — it needs a new
+`secrets/bambuddy/restic-password.age` and the matching `age.secrets` entry in
+`hosts/reliant/secrets.nix` from `secrets-warden`. Until that lands the job
+runs and skips itself ("Missing restic password file"), so it is a pending
+hand-off rather than a broken unit.
 
 ## Secrets
 

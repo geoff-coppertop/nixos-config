@@ -103,6 +103,16 @@ the proxy connects over `::1`. Home Assistant, whose `trusted_proxies` lists onl
 `127.0.0.1`, returned 400 in exactly this way while AdGuard's route (which has no
 such check) worked.
 
+When the target service's own listen port is itself a configurable option
+(rather than fixed, like dump1090's), pass the live option value —
+`port = config.services.<foo>.port;` — not a literal. `modules/dns.nix`'s own
+AdGuard route does this (`config.services.adguardhome.port`, upstream default
+3000): a hardcoded `3000` would silently decouple the route from the real port
+the moment that option is ever overridden, which is a real prerequisite for
+another module on `reliant` — `custom.bambuddy`'s virtual-printer feature
+hardcodes ports 3000/3002 upstream and can't be enabled on this host until
+AdGuard moves off 3000, see `hosts/reliant/README.md` § Bambuddy.
+
 ## Second DNS Instance (excelsior)
 
 AdGuard Home has no native clustering — every real-world HA setup for it is a

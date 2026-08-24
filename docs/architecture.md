@@ -208,7 +208,7 @@ The machines currently in this repo are listed in the [root README](../README.md
 | `hosts/enterprise-d/` | Framework laptop: hardware scan, disko disk layout, power/hibernate policy |
 | `hosts/holodeck-01/` | NixOS-WSL instance |
 | `hosts/excelsior/` | Headless x86_64 game server: DCS World dedicated server + DCS-SRS, second independent DNS instance |
-| `hosts/reliant/` | Gigabyte Brix mini PC: homelab server — DNS, Traefik, Home Assistant, and the radio/appliance stack (Zigbee, Z-Wave, Matter, MQTT, ADS-B) |
+| `hosts/reliant/` | Gigabyte Brix mini PC: homelab server — DNS, Traefik, Home Assistant, the radio/appliance stack (Zigbee, Z-Wave, Matter, MQTT, ADS-B), and Bambuddy 3D-printer management |
 | `profiles/common/` | Baseline every host gets: nix settings/GC, `system.autoUpgrade`, timezone/locale, kernel, fonts; plus network discovery (avahi/mDNS), the agenix identity path, SSH known-hosts rendering |
 | `profiles/desktop/` | Desktop environment baseline, audio (pipewire), power/idle policy |
 | `profiles/dev/` | Dev tooling: GitHub CLI, container runtime, network tools |
@@ -218,7 +218,7 @@ The machines currently in this repo are listed in the [root README](../README.md
 | `users/common/` | Shared opt-in user modules: CLI tools, GUI apps, appearance |
 | `lib/` | `apps.nix`, `checks.nix`, `module-inertness.nix` (the `modules-inert` check), `devshell.nix`, `local-file.nix` (see [§ Local Files As Build Inputs](#local-files-as-build-inputs)), `nas.nix`, `nixos-system.nix`, `ssh-hosts.nix`, `traefik-route.nix` |
 | `secrets/` | agenix `.age` files (safe to commit) plus `secrets/secrets.nix` (recipient declarations) |
-| `pkgs/` | Custom package builds: `search-light`, `connect-iq-sdk-manager-cli` (`framework-control` moved upstream to nixpkgs), `pywiim` + `home-assistant-wiim` (see [docs/smart-home.md § Wiim](smart-home.md#wiim-community-integration-not-core-linkplay)) |
+| `pkgs/` | Custom package builds: `search-light`, `connect-iq-sdk-manager-cli` (`framework-control` moved upstream to nixpkgs), `pywiim` + `home-assistant-wiim` (see [docs/smart-home.md § Wiim](smart-home.md#wiim-community-integration-not-core-linkplay)), `bambuddy` (npm-built frontend + Python backend, consumed by `modules/bambuddy.nix`) |
 | `tools/` | Python provisioning and secret helpers (plus one shell script, `hibernate-test-report.sh`) |
 | `docs/` | This documentation tree |
 
@@ -293,7 +293,7 @@ test from § Layers applied consistently, with no exceptions today.
 ### Homelab services
 
 `custom.traefik` and the appliance modules (`home-assistant`, `mqtt`, `matter`,
-`zigbee`, `zwave`, `adsb`) are enabled only on `reliant`. `custom.dns` runs on
+`zigbee`, `zwave`, `adsb`, `bambuddy`) are enabled only on `reliant`. `custom.dns` runs on
 **both** `reliant` and `excelsior` as two independent instances — AdGuard Home
 has no native clustering, so redundancy means two separate resolvers, not
 shared config. See [docs/homelab-network.md](homelab-network.md).
@@ -308,6 +308,8 @@ shared config. See [docs/homelab-network.md](homelab-network.md).
 | `custom.zigbee` | Zigbee2MQTT |
 | `custom.zwave` | Z-Wave JS server |
 | `custom.adsb` | dump1090 ADS-B receiver |
+| `custom.bambuddy` | Bambuddy Bambu Lab printer management (`pkgs/bambuddy.nix`) as a native systemd service; `virtualPrinter.openFirewall` opens the LAN printer-protocol ports, which collide with AdGuard Home on 3000 (asserted) |
+| `custom.bambuddy.slicerSidecar` | Server-side slicing sidecar for Bambuddy — the prebuilt amd64-only `orca-slicer-api` OCI image under podman, loopback-only, on by default with the parent; `bambuStudio` is a second, off-by-default sidecar |
 
 ### Game server
 
