@@ -83,6 +83,8 @@ The remaining helpers in `tools/` are run directly:
 | `tools/install_age_identity.py` | Install or rotate a host age identity on disk |
 | `tools/check_no_plaintext_secrets.py` | Pre-commit guard against staging plaintext secrets |
 | `tools/ci_changed_hosts.py` | CI only: prints the build matrix of hosts whose toplevel derivation changed |
+| `tools/ha_config_check.py` | CI only: validates reliant's Home Assistant config via `hass --script check_config` |
+| `tools/ci_ha_config_changed.py` | CI only: decides whether `ha_config_check.py` needs to re-run at all |
 | `tools/common.py` | Shared helpers for the scripts above |
 | `tools/hibernate-test-report.sh` | Collect a hibernate/resume diagnostic report |
 
@@ -227,14 +229,18 @@ request, each job posting its output as a PR comment before failing:
 | `flake-check` | `nix flake check --no-build` |
 | `changes` | `python3 tools/ci_changed_hosts.py --base <sha> --head <sha>` |
 | `build` | Matrix over the hosts `changes` selected: `nix build .#nixosConfigurations.<host>.config.system.build.toplevel --no-link` |
+| `ha-config-check` | `python3 tools/ha_config_check.py reliant`, scoped by `changes` (see below) |
 
-`lint` and `flake-check` are unconditional. `build` is not: it depends on
-`changes`, which runs `tools/ci_changed_hosts.py` to evaluate each host's
-toplevel `drvPath` at the base commit and again at the head commit of the push
-or PR, and prints a build matrix containing only those hosts whose `drvPath`
-differs. A host whose derivation is byte-identical at both commits cannot
-produce a different build, so it is skipped; a docs-only change moves no host's
-`drvPath` and runs zero build jobs.
+`lint` and `flake-check` are unconditional. `build` and `ha-config-check` are
+not — both depend on `changes`, which runs two derivation-diff scripts to
+decide what actually needs to happen for this push or PR.
+
+`build`'s scoping: `tools/ci_changed_hosts.py` evaluates each host's toplevel
+`drvPath` at the base commit and again at the head commit, and prints a build
+matrix containing only those hosts whose `drvPath` differs. A host whose
+derivation is byte-identical at both commits cannot produce a different
+build, so it is skipped; a docs-only change moves no host's `drvPath` and
+runs zero build jobs.
 
 Nothing about the host list is hand-maintained. The script reads it out of the
 flake at each commit:
@@ -280,6 +286,27 @@ optimization stays correct, just less effective. The mechanism and the fix
 
 The build job frees disk space on the runner before building, since a full
 desktop closure can exhaust the default runner disk.
+
+**`ha-config-check`'s scoping** is two layers, both keyed to `reliant` (the
+only host with Home Assistant enabled — there is no second host yet to
+justify generalizing this):
+
+1. If `reliant` isn't in the `changes` matrix above, its toplevel didn't
+   change at all, so nothing about its Home Assistant config could have
+   either — the check is skipped with no further evaluation
+   (`ha-reliant-changed=false`).
+2. If it is, `tools/ci_ha_config_changed.py` diffs the drvPaths of the three
+   flake packages `tools/ha_config_check.py` actually builds
+   (`packages.<system>.ha-config-reliant`, the rendered automation config;
+   `ha-check-hass` and `ha-check-colorlog`, the validator itself) between
+   base and head. Most reliant changes — Traefik, Bambuddy, Z-Wave, etc. —
+   move reliant's toplevel without touching any of these three, and are
+   correctly skipped. A nixpkgs bump that changes the `home-assistant`
+   package still trips this even when no automation file moved, since
+   `ha-check-hass`'s drvPath moves too.
+
+Both scripts fail safe: any checkout/eval problem is treated as "changed"
+rather than risking a skipped validation.
 
 ### Pull request template
 

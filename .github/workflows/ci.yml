@@ -113,6 +113,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.detect.outputs.matrix }}
+      ha-reliant-changed: ${{ steps.detect-ha.outputs.changed }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -135,13 +136,42 @@ jobs:
           echo "matrix=$matrix"
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
+      # reliant's toplevel being unchanged (per the matrix above) already
+      # implies nothing about its Home Assistant config changed either, so
+      # only pay for the finer-grained package diff below when reliant is
+      # actually in the matrix. tools/ci_ha_config_changed.py then decides
+      # whether the change was HA-relevant at all (it might just be Traefik,
+      # Bambuddy, Z-Wave, etc.) or a nixpkgs bump that touched the Home
+      # Assistant package itself.
+      - name: detect whether reliant's Home Assistant config changed
+        id: detect-ha
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if echo "${{ steps.detect.outputs.matrix }}" | jq -e 'any(.[]; .host == "reliant")' > /dev/null; then
+            changed=$(python3 tools/ci_ha_config_changed.py --base "$BASE_SHA" --head "$HEAD_SHA")
+          else
+            echo "reliant not in the build matrix — skipping the Home Assistant package diff." >&2
+            changed=false
+          fi
+          echo "changed=$changed"
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+
   # Validate reliant's Nix-declared Home Assistant automations against Home
   # Assistant's own config schema. `nix flake check`/the toplevel build only
   # prove the automations are well-formed Nix that serializes to YAML — they
   # never check the Home Assistant side, so a bad trigger platform or malformed
   # action passes CI and only breaks when HA loads it.
+  #
+  # Scoped to actual HA changes via the changes job's ha-reliant-changed
+  # output (see tools/ci_ha_config_changed.py) rather than running
+  # unconditionally on every PR — most reliant changes (Traefik, Bambuddy,
+  # Z-Wave, etc.) don't touch Home Assistant at all.
   ha-config-check:
-    needs: flake-check
+    needs: [flake-check, changes]
+    if: needs.changes.outputs.ha-reliant-changed == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
