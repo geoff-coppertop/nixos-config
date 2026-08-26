@@ -19,6 +19,7 @@
     ./connect-iq.nix
     ./shell.nix
     ./drawio.nix
+    ./orca-slicer.nix
   ];
 
   custom.appearance.darkMode = true;
