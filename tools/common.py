@@ -2,12 +2,14 @@
 """Shared utilities for NixOS provisioning scripts."""
 
 import getpass
+import json
 import os
 import subprocess
 import sys
 from pathlib import Path
 
 SYSTEM_IDENTITY_PATH = Path("/var/lib/agenix/identity")
+NULL_SHA = "0" * 40
 
 
 def die(msg: str) -> None:
@@ -26,6 +28,60 @@ def repo_root() -> Path | None:
     if result.returncode == 0:
         return Path(result.stdout.strip())
     return None
+
+
+def ci_log(msg: str) -> None:
+    """Write a progress line to stderr, keeping stdout pure for CI scripts."""
+    print(msg, file=sys.stderr)
+
+
+def commit_exists(sha: str, root: Path) -> bool:
+    """True if sha names a commit object in this clone."""
+    if not sha or sha == NULL_SHA:
+        return False
+    result = subprocess.run(
+        ["git", "cat-file", "-e", f"{sha}^{{commit}}"],
+        capture_output=True,
+        cwd=str(root),
+    )
+    return result.returncode == 0
+
+
+def checkout(sha: str, root: Path) -> bool:
+    """Detach the working tree at sha. True on success."""
+    result = subprocess.run(
+        ["git", "checkout", "--quiet", "--detach", sha],
+        capture_output=True,
+        text=True,
+        cwd=str(root),
+    )
+    if result.returncode != 0:
+        ci_log(f"git checkout {sha} failed: {result.stderr.strip()}")
+        return False
+    return True
+
+
+def nix_eval_json(attr: str, apply: str, root: Path):
+    """Run `nix eval --json <attr> --apply <apply>`. None if it fails.
+
+    Logs the actual nix stderr on failure — silently returning None here
+    once already cost real time to diagnose (a broken attribute path failed
+    every host's eval without a visible reason).
+    """
+    result = subprocess.run(
+        ["nix", "eval", "--json", attr, "--apply", apply],
+        capture_output=True,
+        text=True,
+        cwd=str(root),
+    )
+    if result.returncode != 0:
+        ci_log(f"nix eval {attr} failed: {result.stderr.strip()}")
+        return None
+    try:
+        return json.loads(result.stdout)
+    except json.JSONDecodeError:
+        ci_log(f"nix eval {attr} produced non-JSON output: {result.stdout.strip()!r}")
+        return None
 
 
 def run(cmd: list, **kwargs) -> subprocess.CompletedProcess:

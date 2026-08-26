@@ -44,12 +44,11 @@ Usage:
 
 import argparse
 import json
-import subprocess
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from common import repo_root
+from common import checkout, ci_log, commit_exists, nix_eval_json, repo_root
 
 # Nix systems to the GitHub-hosted runner that builds them natively. A host
 # whose system is missing from this table (or could not be evaluated) still
@@ -82,62 +81,6 @@ HOST_INFO_EXPR = """
     drvPath = builtins.unsafeDiscardStringContext cfg.config.system.build.toplevel.drvPath;
   }
 """
-
-NULL_SHA = "0" * 40
-
-
-def log(msg: str) -> None:
-    """Write a progress line to stderr, keeping stdout pure JSON."""
-    print(msg, file=sys.stderr)
-
-
-def commit_exists(sha: str, root: Path) -> bool:
-    """True if sha names a commit object in this clone."""
-    if not sha or sha == NULL_SHA:
-        return False
-    result = subprocess.run(
-        ["git", "cat-file", "-e", f"{sha}^{{commit}}"],
-        capture_output=True,
-        cwd=str(root),
-    )
-    return result.returncode == 0
-
-
-def checkout(sha: str, root: Path) -> bool:
-    """Detach the working tree at sha. True on success."""
-    result = subprocess.run(
-        ["git", "checkout", "--quiet", "--detach", sha],
-        capture_output=True,
-        text=True,
-        cwd=str(root),
-    )
-    if result.returncode != 0:
-        log(f"git checkout {sha} failed: {result.stderr.strip()}")
-        return False
-    return True
-
-
-def nix_eval_json(attr: str, apply: str, root: Path):
-    """Run `nix eval --json <attr> --apply <apply>`. None if it fails.
-
-    Logs the actual nix stderr on failure — silently returning None here
-    once already cost real time to diagnose (a broken attribute path in
-    HOST_INFO_EXPR failed every host's eval without a visible reason).
-    """
-    result = subprocess.run(
-        ["nix", "eval", "--json", attr, "--apply", apply],
-        capture_output=True,
-        text=True,
-        cwd=str(root),
-    )
-    if result.returncode != 0:
-        log(f"nix eval {attr} failed: {result.stderr.strip()}")
-        return None
-    try:
-        return json.loads(result.stdout)
-    except json.JSONDecodeError:
-        log(f"nix eval {attr} produced non-JSON output: {result.stdout.strip()!r}")
-        return None
 
 
 def host_names(root: Path) -> list[str] | None:
@@ -178,19 +121,19 @@ def evaluate_at(sha: str, root: Path) -> dict[str, dict[str, str] | None] | None
 def changed_hosts(base: dict | None, head: dict) -> list[str]:
     """Hosts whose toplevel derivation differs between base and head."""
     if base is None:
-        log("No usable base commit — building every host.")
+        ci_log("No usable base commit — building every host.")
         return list(head)
 
     changed = []
     for host, head_info in head.items():
         base_info = base.get(host)
         if head_info is None or base_info is None:
-            log(f"{host}: no comparable eval at both ends of the range — building.")
+            ci_log(f"{host}: no comparable eval at both ends of the range — building.")
             changed.append(host)
         elif base_info["drvPath"] == head_info["drvPath"]:
-            log(f"{host}: drvPath unchanged — skipping build.")
+            ci_log(f"{host}: drvPath unchanged — skipping build.")
         else:
-            log(f"{host}: drvPath changed — building.")
+            ci_log(f"{host}: drvPath changed — building.")
             changed.append(host)
     return changed
 
@@ -199,11 +142,11 @@ def runner_for(host: str, info: dict[str, str] | None) -> str:
     """The runner that builds this host natively, from its own system."""
     system = info.get("system") if info else None
     if not system:
-        log(f"{host}: system unknown — assigning {FALLBACK_RUNNER}.")
+        ci_log(f"{host}: system unknown — assigning {FALLBACK_RUNNER}.")
         return FALLBACK_RUNNER
     runner = RUNNERS.get(system)
     if runner is None:
-        log(f"{host}: no runner mapped for {system} — assigning {FALLBACK_RUNNER}.")
+        ci_log(f"{host}: no runner mapped for {system} — assigning {FALLBACK_RUNNER}.")
         return FALLBACK_RUNNER
     return runner
 
@@ -216,7 +159,7 @@ def main() -> None:
 
     root = repo_root()
     if root is None:
-        log("Not in a git repo — evaluating the working tree and building every host.")
+        ci_log("Not in a git repo — evaluating the working tree and building every host.")
         head = evaluate(Path.cwd())
         base = None
     else:
@@ -224,14 +167,14 @@ def main() -> None:
         if commit_exists(args.base, root):
             base = evaluate_at(args.base, root)
             if base is None:
-                log(f"Could not evaluate the base commit ('{args.base}').")
+                ci_log(f"Could not evaluate the base commit ('{args.base}').")
         else:
-            log(f"No usable base commit ('{args.base}').")
+            ci_log(f"No usable base commit ('{args.base}').")
             base = None
         head = evaluate_at(args.head, root)
 
     if head is None:
-        log("Could not enumerate nixosConfigurations at head — refusing to guess.")
+        ci_log("Could not enumerate nixosConfigurations at head — refusing to guess.")
         sys.exit(1)
 
     matrix = [
