@@ -47,6 +47,7 @@ package policy, which is set in `flake.nix`.
 | `users/thomasga/desktop-common.nix` | DE-neutral home bits: wallpaper decode, avatar, Steam-shortcut cleanup, launcher hygiene — loaded regardless of the selected desktop |
 | `users/thomasga/vscode.nix` | VS Code through home-manager rather than the system profile |
 | `users/thomasga/easyeffects.nix` | EasyEffects EQ for the Framework 13 speakers |
+| `users/thomasga/orca-slicer.nix` | OrcaSlicer, the 3D-print slicer GUI |
 
 ## Theme, Background, And Desktop Preferences
 
@@ -110,6 +111,29 @@ Browse**, search "draw.io", install, enable. Obsidian owns
 plugins are toggled — so this repo intentionally does not manage that file.
 Managing it would clobber plugin state on every `nixos-rebuild switch`.
 
+## OrcaSlicer
+
+`users/thomasga/orca-slicer.nix` installs `pkgs.orca-slicer`, the native
+desktop slicer GUI, for local model prep, preview, and slicing on
+enterprise-d. Its printer profiles and network-plugin settings live in
+`~/.config/OrcaSlicer` and are configured through the app's own first-run
+wizard, not declaratively — same as other account-bound apps in this repo
+(Signal, Discord, Bitwarden).
+
+This is separate from the OrcaSlicer *sidecar* on `reliant`
+(`custom.bambuddy.slicerSidecar` in `modules/bambuddy.nix`): that's a
+headless, patched OrcaSlicer CLI wrapped in a container for Bambuddy's
+server-side slicing, with no GUI and no shared configuration with this
+desktop package.
+
+nixpkgs' `orca-slicer` package references its icon by theme name
+(`Icon=OrcaSlicer`) rather than a path, and ships no scalable SVG — only
+hicolor PNGs. Hicolor lookup by name doesn't resolve through the
+home-manager profile, so GNOME's app grid falls back to a generic icon.
+`users/thomasga/orca-slicer.nix` overrides the upstream `.desktop` entry
+(same XDG_DATA_DIRS-precedence trick as the draw.io and Signal overrides)
+to point `icon` at the packaged 192px PNG directly.
+
 ## EasyEffects (Framework Speaker EQ)
 
 `users/thomasga/easyeffects.nix` enables `services.easyeffects` (home-manager)
@@ -154,3 +178,8 @@ per-extension dconf settings block was added; defaults are left as-is.
   hibernate-resume GPU-context crash as VS Code above, worked around by
   overriding the upstream `.desktop` entry; no upstream issue is cited either
   — see `users/common/gui-apps.nix:31-32`.
+- **OrcaSlicer's `.desktop` entry is overridden to set `icon` to a store
+  path.** Upstream references its icon by theme name and ships no scalable
+  SVG; hicolor lookup by name doesn't resolve through the home-manager
+  profile, so the app grid shows a generic icon otherwise — see
+  `users/thomasga/orca-slicer.nix`.
