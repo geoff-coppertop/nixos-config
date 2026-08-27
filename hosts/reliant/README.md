@@ -47,19 +47,28 @@ onward (same as `enterprise-d`/`excelsior`).
 
 ## Device Pairing Notes
 
-- **ecobee thermostats (2×, HomeKit)** — `home-assistant/ecobee-climate.nix`
-  covers the two zones actually installed today, `climate.main_and_basement`
-  and `climate.upstairs`; a garage thermostat and upstairs AC are planned but
-  not installed, and will land as their own PRs once that hardware exists
-  rather than as unused code now. Unpair from Apple Home first — a HomeKit
-  accessory accepts only one controller. The setup code is on the
-  thermostat: Menu → Settings → HomeKit. After pairing, rename each climate
-  entity to match the file's entity list (or edit that list to match). Set
-  each thermostat's hold action to **Until I change it** so its own schedule
-  never overrides the automations' setpoint — Home Assistant/HomeKit has no
-  way to set this remotely, so it stays a manual per-thermostat step. Switch
-  seasons by toggling `input_boolean.climate_summer_mode` in the HA UI — it
-  applies immediately, no rebuild needed.
+- **ecobee thermostats (3×, HomeKit)** — `home-assistant/ecobee-climate.nix`
+  covers `climate.garage` (flat 14°C frost protection, no schedule), plus the
+  two zones actually installed today, `climate.main_and_basement` and
+  `climate.upstairs`; upstairs AC is planned but not installed, and will
+  land as its own PR once that hardware exists rather than as unused code
+  now. Unpair from Apple Home first — a HomeKit accessory accepts only one
+  controller. The setup code is on the thermostat: Menu → Settings →
+  HomeKit. After pairing, rename each climate entity to match the file's
+  entity list (or edit that list to match). Set each thermostat's hold
+  action to **Until I change it** (except the garage — see below) so the
+  ecobee's own built-in schedule never overrides the automations' setpoint
+  — Home Assistant/HomeKit has no way to set this remotely, so it stays a
+  manual per-thermostat step. Switch seasons by toggling
+  `input_boolean.climate_summer_mode` in the HA UI — it applies
+  immediately, no rebuild needed. The garage automation also expects
+  `binary_sensor.garage_motion` (its ecobee SmartSensor's motion entity,
+  same pairing as the thermostat itself — rename to match if pairing
+  assigns something different, same as the climate entity): it suppresses
+  the hourly/startup reassert while there's been recent motion, and
+  triggers a prompt reassert once motion's been clear for 30 minutes, so a
+  manual bump made while actually working out there survives the whole
+  visit instead of getting stomped on the next hourly tick.
 - **Presence (person entities)** — the ecobee automations key off
   `zone.home`, which needs at least one `person` entity with a device
   tracker attached. Install the HA companion app on each phone, then HA →

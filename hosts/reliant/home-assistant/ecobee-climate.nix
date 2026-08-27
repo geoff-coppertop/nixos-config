@@ -8,12 +8,11 @@
 # also keeps working through an internet outage.
 #
 # This is deliberately scoped to the hardware that actually exists today:
-# two heat-only zones, main/basement and upstairs. Two more zones are
-# planned but not installed — a garage thermostat (frost protection) and
-# an AC for upstairs (which would turn it into a real heat/cool zone) — and
-# will land as their own separate PRs once that hardware is actually in,
-# rather than as feature-flagged code with nothing behind it yet. Adding a
-# zone at that point means adding a new automation alongside these, not
+# two heat-only zones (main/basement and upstairs) plus the garage's frost
+# protection, added here once the garage thermostat was actually installed
+# rather than as feature-flagged code ahead of it. Upstairs cooling is a
+# separate follow-up PR, landing once the AC exists — adding a zone or
+# upgrading one means a new/changed automation alongside these, not
 # touching the shared helpers below.
 #
 # Pairing is a one-time interactive step per thermostat (mDNS discovery + the
@@ -95,7 +94,13 @@
 # that zone's comfort/setback branches until it elapses, so the schedule
 # doesn't fight a deliberate change a few minutes after it's made. The away
 # branches are deliberately NOT gated by it — an empty house should still
-# save energy even if a hold was left active.
+# save energy even if a hold was left active. Garage has no override
+# timer of this shape — it isn't a schedule a person would want to
+# temporarily suspend, it's a frost-protection floor — but a manual bump
+# made while actually working out there still needs to survive the visit
+# rather than getting stomped on the next hourly tick; see
+# climate_garage's own motion-gated reassert below for how that's handled
+# instead, without a separate timer/last-commanded entity pair.
 #
 # Detection compares the incoming state against a per-zone "last commanded"
 # snapshot (input_text.climate_last_commanded_*, "<hvac_mode>|<temperature>"),
@@ -257,11 +262,17 @@
     };
 
     "automation manual" = let
+      garage = "climate.garage";
       mainAndBasement = "climate.main_and_basement";
       upstairs = "climate.upstairs";
 
       wakeTime = "05:30:00";
       sleepTime = "22:00:00";
+
+      # garageTemp stays a plain constant — the garage floor isn't part of
+      # the live-adjustable set points below, matching the file header:
+      # it's a frost-protection floor, not a preference someone tunes.
+      garageTemp = 14;
 
       # Reads a set point from its input_number at evaluation time, as a
       # Jinja template string rather than a Nix number — every consumer
@@ -584,6 +595,46 @@
         ];
       };
     in [
+      {
+        id = "climate_garage";
+        alias = "Climate — garage frost protection";
+        description = "Hold the garage at a flat ${toString garageTemp}°C — reasserted hourly, on startup, and promptly once motion clears, but suppressed while there's been recent motion so a manual bump made while actually working out there survives the whole visit rather than getting stomped on the next hourly tick. Not part of the comfort schedule or seasonal, and no manual-override timer like the other zones — motion presence does that job here instead.";
+        mode = "single";
+        trigger = [
+          {
+            platform = "time_pattern";
+            minutes = "/60";
+          }
+          {
+            platform = "homeassistant";
+            event = "start";
+          }
+          # Reasserts promptly once someone's actually left, rather than
+          # waiting for the next hourly tick — same 30-minute-grace shape
+          # as zone.home's departure trigger elsewhere in this file, just
+          # scoped to this one room instead of the whole house.
+          {
+            platform = "state";
+            entity_id = "binary_sensor.garage_motion";
+            to = "off";
+            for = "00:30:00";
+          }
+        ];
+        # Gates all three triggers above, not just the motion one: an
+        # hourly or startup tick that lands while someone's actually out
+        # there working is exactly the "stomped mid-task" case this exists
+        # to avoid.
+        condition = [
+          {
+            condition = "state";
+            entity_id = "binary_sensor.garage_motion";
+            state = "off";
+          }
+        ];
+        # null: no override automation to feed for garage — see setTemp's
+        # own comment on why that's not just left unhandled.
+        action = setTemp garage garageTemp null;
+      }
       (mkHeatOnlyZone {
         id = "climate_main_and_basement";
         alias = "Climate — main/basement schedule";
