@@ -228,10 +228,15 @@ jobs:
   # The matrix is not static: the changes job above emits one {host, runner}
   # entry per host whose toplevel derivation actually moved, with the runner
   # picked from that host's own hostPlatform.system — nothing here keys off a
-  # host name. An empty list produces zero matrix jobs, which is what a
-  # docs-only change should cost.
+  # host name. When no host moved the list is empty, and a docs-only change
+  # should cost zero build jobs — but GitHub Actions does not produce zero jobs
+  # from an empty include-only matrix, it hard-errors the run with "Matrix must
+  # define at least one vector" before any step executes. The job-level `if:`
+  # below skips `build` outright in that case instead of relying on
+  # empty-matrix semantics that do not exist.
   build:
     needs: [flake-check, changes]
+    if: needs.changes.outputs.matrix != '[]'
     strategy:
       fail-fast: false
       matrix:

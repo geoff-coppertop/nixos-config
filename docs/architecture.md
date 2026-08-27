@@ -244,6 +244,7 @@ workarounds can be found and revisited without re-deriving where they live.
 - [`hosts/enterprise-d/README.md` § Known Gotchas](../hosts/enterprise-d/README.md#known-gotchas)
 - [`docs/desktop.md` § Known Gotchas](desktop.md#known-gotchas)
 - [`docs/secrets.md` § Known Gotchas](secrets.md#known-gotchas)
+- [`docs/operations.md` § Known Gotchas](operations.md#known-gotchas)
 
 ## Custom Options
 

@@ -331,3 +331,12 @@ It asks for two things:
 The default author steps mirror the [validation commands](#validation-commands)
 above and the CI jobs in the table before this section; keep the three in step
 when any of them changes.
+
+## Known Gotchas
+
+- The `build` job in `.github/workflows/ci.yml` carries an explicit
+  `if: needs.changes.outputs.matrix != '[]'` guard because GitHub Actions
+  treats an empty `include`-only matrix as a hard scheduler error ("Matrix must
+  define at least one vector", failing the run before any step) rather than
+  producing zero jobs — so a docs-only change, which selects no hosts, would
+  otherwise turn CI red. See the comment above that job for details.
