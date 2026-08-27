@@ -35,6 +35,7 @@ package policy, which is set in `flake.nix`.
 | File | Owns |
 | --- | --- |
 | `profiles/desktop/gnome.nix` | GNOME, GDM, system dconf settings — active only when `custom.desktop.environment = "gnome"` |
+| `profiles/desktop/hyprland.nix` | Hyprland, GDM, portals, hyprlock PAM — active only when `custom.desktop.environment = "hyprland"` |
 | `profiles/desktop/printing.nix` | CUPS printing, DE-independent |
 | `profiles/desktop/audio.nix` | pipewire |
 | `profiles/desktop/power.nix` | logind idle inhibitor |
@@ -68,14 +69,17 @@ For `thomasga` the concrete setup is:
 
 - Source asset: `users/thomasga/files/wallpapers/space-shuttle.jxl`
 - Conversion (DE-neutral): `users/thomasga/desktop-common.nix`
-- GNOME settings: `users/thomasga/gnome.nix`
+- GNOME settings: `users/thomasga/gnome.nix`; Hyprland `hyprpaper`:
+  `users/thomasga/hyprland.nix`
 - Resulting linked wallpaper: `~/Pictures/Wallpapers/space-shuttle.png`
 
 `users/thomasga/desktop-common.nix` converts the checked-in Fedora `.jxl` source
 to `.png` with `pkgs.libjxl` and links it to a stable path so any desktop
 environment's config can point at it without redoing the conversion.
 `users/thomasga/gnome.nix` points both `picture-uri` and `picture-uri-dark` at
-that generated PNG, avoiding any reliance on runtime JPEG XL wallpaper support.
+that generated PNG; `users/thomasga/hyprland.nix` preloads the same PNG in
+`hyprpaper`. Either way avoids any reliance on runtime JPEG XL wallpaper
+support.
 
 Any new local asset file under `users/` — an avatar, a wallpaper, a static
 image handed to `.source` or interpolated into a builder — must be wrapped
@@ -140,7 +144,8 @@ to point `icon` at the packaged 192px PNG directly.
 as a per-user systemd service, sitting on top of pipewire
 (`profiles/desktop/audio.nix`) to globally EQ the Framework 13's thin,
 down-firing speakers. It relies on `programs.dconf.enable = true`, already set
-system-wide by `profiles/desktop/gnome.nix`.
+system-wide by whichever desktop profile is active (`profiles/desktop/gnome.nix`
+or `profiles/desktop/hyprland.nix`).
 
 Four community presets from
 [ceiphr/ee-framework-presets](https://github.com/ceiphr/ee-framework-presets)
