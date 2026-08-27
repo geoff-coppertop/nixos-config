@@ -31,6 +31,23 @@
     nix-vscode-extensions.url = "github:nix-community/nix-vscode-extensions";
     nix-vscode-extensions.inputs.nixpkgs.follows = "nixpkgs";
 
+    # Declarative COSMIC desktop config for home-manager. Only consumed when
+    # custom.desktop.environment = "cosmic"; inert otherwise.
+    # git+https rather than github: shorthand so the flake can be locked from
+    # environments where the GitHub API is unreachable; functionally identical.
+    flake-parts = {
+      url = "git+https://github.com/hercules-ci/flake-parts";
+      inputs.nixpkgs-lib.follows = "nixpkgs";
+    };
+    cosmic-manager = {
+      url = "git+https://github.com/HeitorAugustoLN/cosmic-manager";
+      inputs = {
+        flake-parts.follows = "flake-parts";
+        home-manager.follows = "home-manager";
+        nixpkgs.follows = "nixpkgs";
+      };
+    };
+
     nixos-wsl = {
       url = "github:nix-community/NixOS-WSL/main";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -64,6 +81,7 @@
     nix-vscode-extensions,
     nixos-wsl,
     dotfiles,
+    cosmic-manager,
     ...
   }: let
     system = "x86_64-linux";
@@ -112,7 +130,7 @@
     };
 
     mkNixosSystem = import ./lib/nixos-system.nix {
-      inherit nixpkgs home-manager agenix lanzaboote nix-flatpak nix-vscode-extensions dotfiles;
+      inherit nixpkgs home-manager agenix lanzaboote nix-flatpak nix-vscode-extensions dotfiles cosmic-manager;
     };
 
     mkHomeConfig = {
@@ -143,6 +161,7 @@
           osConfig = null;
         };
         modules = [
+          cosmic-manager.homeManagerModules.default
           ./hosts/${machine}/home/${user}.nix
           {
             home.username = user;

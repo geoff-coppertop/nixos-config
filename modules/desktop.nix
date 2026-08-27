@@ -6,7 +6,7 @@
 # import the system file from profiles/desktop/default.nix.
 {lib, ...}: {
   options.custom.desktop.environment = lib.mkOption {
-    type = lib.types.enum ["gnome"];
+    type = lib.types.enum ["gnome" "cosmic"];
     default = "gnome";
     description = "Desktop environment / Wayland compositor to install and enable on this host.";
   };
