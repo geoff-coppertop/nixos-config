@@ -148,9 +148,17 @@ jobs:
         env:
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          # Passed through the environment, never interpolated into the script
+          # below: `${{ }}` substitution happens before bash parses the line, so
+          # the double quotes inside this raw JSON would close the shell string
+          # early and hand jq garbage. jq then exits non-zero inside an `if`
+          # condition, where `set -e` does not fire, so the failure silently
+          # took the else branch and hardcoded changed=false on every reliant
+          # PR (confirmed live on PR #146).
+          MATRIX_JSON: ${{ steps.detect.outputs.matrix }}
         run: |
           set -euo pipefail
-          if echo "${{ steps.detect.outputs.matrix }}" | jq -e 'any(.[]; .host == "reliant")' > /dev/null; then
+          if echo "$MATRIX_JSON" | jq -e 'any(.[]; .host == "reliant")' > /dev/null; then
             changed=$(python3 tools/ci_ha_config_changed.py --base "$BASE_SHA" --head "$HEAD_SHA")
           else
             echo "reliant not in the build matrix — skipping the Home Assistant package diff." >&2
@@ -259,9 +267,14 @@ jobs:
       - name: build ${{ matrix.host }} (native)
         id: buildhost
         continue-on-error: true
+        env:
+          # Same reason as MATRIX_JSON in the changes job: matrix values reach
+          # `run:` scripts through the environment, not `${{ }}` substitution
+          # into the script text.
+          HOST: ${{ matrix.host }}
         run: |
           set -o pipefail
-          nix build .#nixosConfigurations.${{ matrix.host }}.config.system.build.toplevel --no-link 2>&1 | tee /tmp/build-output.txt
+          nix build ".#nixosConfigurations.$HOST.config.system.build.toplevel" --no-link 2>&1 | tee /tmp/build-output.txt
           exit ${PIPESTATUS[0]}
 
       - name: Post failure comment
