@@ -16,6 +16,7 @@ top — theme, wallpaper, which optional apps they install — are
 | File | Provides |
 | --- | --- |
 | `profiles/desktop/gnome.nix` | GNOME, GDM, system-wide dconf, and pruning of unwanted default applications — active only when `custom.desktop.environment = "gnome"` (declared in `modules/desktop.nix`) |
+| `profiles/desktop/kde.nix` | KDE Plasma 6, SDDM, KWallet+PAM, pruning of unwanted default applications — active only when `custom.desktop.environment = "kde"` |
 | `profiles/desktop/printing.nix` | CUPS printing — DE-independent, always on |
 | `profiles/desktop/audio.nix` | pipewire with ALSA/Pulse compatibility and rtkit |
 | `profiles/desktop/power.nix` | logind idle/suspend policy, UPower critical-battery hibernate, AC and remote-session detection |
@@ -36,6 +37,19 @@ pinned to a rev, `glib-compile-schemas`, installed to
   extension itself and its keybindings is per-user (`docs/desktop.md`), same
   split as every other extension here — this profile only makes the package
   available.
+
+The KDE session (`users/thomasga/kde.nix`, via plasma-manager) provides
+GNOME-parity functionality: a bottom panel with pinned favourites, KRunner as
+the Super+Space launcher (replacing GNOME's search-light), Spectacle
+screenshots (`Print` / `Super+Shift+S`), min/max/close window buttons, single
+US layout, kscreenlocker (lock at the same 240 s as GNOME), and PowerDevil set
+to never suspend on its own — `profiles/desktop/power.nix` is untouched by
+either session, since its swayidle idle-hint bridge (KWin implements
+`ext-idle-notify-v1`) already covers KDE the same way it covers GNOME. Two
+settings are keyed to per-device hardware hashes and can't be pinned
+declaratively under KWin/Wayland, so they're one-time System Settings steps
+instead (documented in `users/thomasga/kde.nix`): per-output display scaling
+and per-device natural-scroll direction.
 
 `profiles/desktop/power.nix` is one half of this machine's suspend/hibernate
 design; the other half is `hosts/<machine>/power.nix`. They are documented

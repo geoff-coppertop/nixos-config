@@ -7,6 +7,7 @@
   imports = [
     ./audio.nix
     ./gnome.nix
+    ./kde.nix
     ./power.nix
     ./printing.nix
   ];
