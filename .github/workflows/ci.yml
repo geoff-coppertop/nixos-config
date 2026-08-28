@@ -184,6 +184,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # ha-check-hass is reliant's deployed HA package, so this job now builds
+      # the full extraComponents closure (matter, zwave_js, hue, sonos,
+      # apple_tv, ...). Same runner-disk reclaim the build job does below.
+      - name: free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" /opt/hostedtoolcache /usr/local/lib/android /usr/share/swift /usr/local/.ghcup
+          docker system prune --all --force || true
+
       - uses: cachix/install-nix-action@v27
         with:
           extra_nix_config: |

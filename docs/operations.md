@@ -298,12 +298,14 @@ justify generalizing this):
 2. If it is, `tools/ci_ha_config_changed.py` diffs the drvPaths of the three
    flake packages `tools/ha_config_check.py` actually builds
    (`packages.<system>.ha-config-reliant`, the rendered automation config;
-   `ha-check-hass` and `ha-check-colorlog`, the validator itself) between
-   base and head. Most reliant changes — Traefik, Bambuddy, Z-Wave, etc. —
-   move reliant's toplevel without touching any of these three, and are
-   correctly skipped. A nixpkgs bump that changes the `home-assistant`
-   package still trips this even when no automation file moved, since
-   `ha-check-hass`'s drvPath moves too.
+   `ha-check-hass`, reliant's *deployed* Home Assistant package, and
+   `ha-check-colorlog`, the validator's pinned dependency) between base and
+   head. Most reliant changes — Traefik, Bambuddy, Z-Wave, etc. — move
+   reliant's toplevel without touching any of these three, and are correctly
+   skipped. Because `ha-check-hass` is the deployed package rather than bare
+   `pkgs.home-assistant`, both a nixpkgs bump *and* a
+   `custom.home-assistant.extraComponents` edit move its drvPath, so either
+   trips this even when no automation file moved.
 
 Both scripts fail safe: any checkout/eval problem is treated as "changed"
 rather than risking a skipped validation.
