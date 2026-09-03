@@ -341,6 +341,55 @@ only the `extraComponents` entries present — both also need bare
 `history` needs `recorder` configured to have anything to read, so the two
 are always added together.
 
+### WiZ outdoor lights: seasonal color and power-loss recovery
+
+`hosts/reliant/home-assistant/wiz-lights.nix` covers 5 outdoor WiZ Connected
+bulbs (4 front, 1 rear) sitting behind the same two AC circuits
+`outside-lights.nix` already schedules (`switch.front_entry_lights` for the
+front group, `switch.patio_lights` for the rear bulb). **Every entity ID in
+that file is a placeholder** — the bulbs are not paired yet, and this
+automation has a hard runtime dependency on the `"wiz"` `extraComponents`
+entry (added by a separate PR) being merged and deployed first. Replace the
+placeholders once real ones exist and verify with the entity-ID check below.
+
+WiZ bulbs have no way to remember their own brightness/color-temp/color
+across a power cycle — cutting AC power (which the existing schedule already
+does daily) resets them to factory default. The file's own header comment
+has the full design; in short:
+
+- **Scheduled switch-on** applies the season's color (or warm white,
+  off-season) after a short Wi-Fi-rejoin delay.
+- **Every commanded state** (scheduled or manual, e.g. via the WiZ app) gets
+  continuously snapshotted into a shared HA scene.
+- **An unscheduled reconnect** (a mid-window Wi-Fi blip, not the tail end of
+  the scheduled switch-on) restores that snapshot instead of recomputing the
+  season fresh — so a manual tweak survives a brief drop.
+
+Seasonal palette (evening-only, riding on the same dark/window gate
+`outside-lights.nix` already applies before the switch turns on at all):
+
+| When | Colors |
+| --- | --- |
+| October | orange (single color, all seasonal lights) |
+| December | red / green |
+| Feb 1st–14th | red / pink |
+| Otherwise | warm white (~2700K) |
+
+The front group has 3 seasonal bulbs (plus 1 always-white), enough to split
+a two-color season 2/1 simultaneously; the lone rear bulb alternates between
+the pair by day instead. `color_temp_kelvin` is used for warm white rather
+than the legacy `color_temp` (mireds) field — confirmed against this flake's
+pinned nixpkgs revision (`ffb3c9b7`, ~2026-08-19) that `light.turn_on`'s
+schema at that Home Assistant version accepts only
+`color_temp_kelvin`, not `color_temp`.
+
+**Known gap**: if a bulb takes longer than the automation's post-power-on
+delay to rejoin Wi-Fi after a scheduled switch-on, it can be left at its own
+factory default until the next scheduled edge — the reconnect-restore
+automation deliberately stays out of that same window to avoid conflicting
+with the normal scheduled path. A retry loop would close this gap; a single
+delayed attempt was what was asked for.
+
 ### Wiim: community integration, not core `linkplay`
 
 Core HA's `linkplay` integration fails to complete setup against Wiim Pro
