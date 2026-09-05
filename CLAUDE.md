@@ -165,6 +165,13 @@ These must hold without reading any doc first.
   manual/structural verification is possible, then commit and push and let CI
   gate it, and say so plainly instead of repeatedly flagging the local-validation
   gap.
+- **Give commands likely to work on the first try, not clever ones.** Avoid
+  nested command substitutions and other bash-isms when the command runs
+  against a fish shell — that's the user's local shell, and `thomasga`'s shell
+  on every host via home-manager — since fish's quoting and redirection rules
+  differ and a fragile one-liner failing just costs a round trip. Prefer
+  re-running a command already shown to work over building a new pipeline to
+  extract the same information.
 
 ### Git and PRs
 
