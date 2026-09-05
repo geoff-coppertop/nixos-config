@@ -52,11 +52,11 @@ onward (same as enterprise-d).
 | --- | --- | --- |
 | AdGuard Home | `https://dns2.coppertop.ca` (proxied cross-host through reliant's Traefik — excelsior runs no Traefik of its own) | 3000 |
 | DCS start/stop control | `https://dcs.coppertop.ca` (no auth yet — same source-IP-only posture as the rows below, pending a holistic Traefik auth pass) | 9090 (page), 9091 (webhook) |
-| Factorio ("CGWANO") | in-game server browser (LAN broadcast) or direct connect to `excelsior.local:34197` / the WAN address once port-forwarded | 34197 (UDP only, no web UI) |
+| Factorio ("CGWANO") | in-game server browser (LAN broadcast), `excelsior.local:34197` on the LAN, or `factorio.coppertop.ca:34197` for remote friends once `custom.ddns` (see `docs/homelab-network.md` § Dynamic DNS) is applied on reliant and the router port-forwards UDP 34197 to this host | 34197 (UDP only, no web UI) |
 
 | Port | Protocol | Purpose | Exposure |
 | --- | --- | --- | --- |
-| 10308 | tcp+udp | DCS game traffic | LAN/WAN (firewall open; needs a router port-forward for real remote play — see Known Gotchas) |
+| 10308 | tcp+udp | DCS game traffic | LAN/WAN (firewall open; needs a router port-forward for real remote play, then remote friends connect at `dcs.coppertop.ca:10308` — same `custom.ddns` mechanism as Factorio's 34197 below; see Known Gotchas) |
 | 8088 | tcp | DCS's own remote-control WebGUI backend | LAN/WAN (firewall open; needs a router port-forward — DCS's own remote-control mechanism, not usable through Traefik/any reverse proxy — see Known Gotchas) |
 | 5002 | tcp+udp | DCS-SRS voice (separate `dcs-srs-server` container) | LAN/WAN (firewall open) |
 | 8080 | tcp | SRS REST API (`custom.dcsServer.srs.restApi.enable`, off by default) | LAN/WAN (firewall open) |
@@ -66,7 +66,7 @@ onward (same as enterprise-d).
 | 3001 | tcp | DCS webtop web desktop | 127.0.0.1 only |
 | 9090 | tcp | DCS start/stop control page (`custom.dcsServer.control`) | reliant only (firewall-restricted; proxied at `dcs.coppertop.ca`) |
 | 9091 | tcp | DCS start/stop/mission-upload webhook (`custom.dcsServer.control`) | reliant only (firewall-restricted; proxied at `dcs.coppertop.ca`) |
-| 34197 | udp | Factorio game traffic (`services.factorio.openFirewall`) | LAN/WAN (firewall open; needs a router port-forward for remote play, same as DCS's 10308) |
+| 34197 | udp | Factorio game traffic (`services.factorio.openFirewall`) | LAN/WAN (firewall open; needs a router port-forward for remote play, then remote friends connect at `factorio.coppertop.ca:34197` — same as DCS's 10308) |
 
 AdGuard's admin UI (3000) and `custom.dcsServer.control.bindAddress`
 (9090/9091) are bound to this host's real LAN IP instead of `127.0.0.1`,
@@ -248,4 +248,8 @@ Host-specific notes:
   `custom.dcsServer.environmentFiles`; `custom.backups` for
   `Saved Games/DCS.server`; router port-forwards for 10308 (+5002) if
   internet-facing; router port-forward for 34197/udp for Factorio if
-  internet-facing.
+  internet-facing. Neither port-forward is managed by this repo — once
+  either is in place, `custom.ddns` (reliant) already makes
+  `dcs.coppertop.ca`/`factorio.coppertop.ca` resolve to the current public
+  IP with no further DNS changes, since it tracks the whole
+  `*.coppertop.ca` wildcard, not a fixed list of names.

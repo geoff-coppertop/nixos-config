@@ -307,6 +307,18 @@ in {
         domain = "coppertop.ca";
       };
     };
+
+    # Keeps coppertop.ca's apex A record pointed at this residential
+    # connection's current public IP -- no static IP from the ISP.
+    # *.coppertop.ca is already a CNAME to the apex in Cloudflare, so every
+    # subdomain follows without a separate update. Reuses
+    # custom.traefik.acme's Cloudflare token above rather than minting a
+    # second credential; see docs/homelab-network.md § Dynamic DNS.
+    ddns = {
+      enable = true;
+      domain = "coppertop.ca";
+      apiTokenFile = "/run/agenix/traefik/cloudflare-api-token";
+    };
   };
 
   # dns2: excelsior runs its own independent unbound+AdGuard instance;
