@@ -286,10 +286,11 @@ in {
       # Traefik routes when their custom.* modules are enabled (see
       # modules/home-assistant.nix, modules/adsb.nix, modules/zigbee.nix,
       # modules/bambuddy.nix), which they now are, above.
-      # dns1 is this host's own AdGuard admin UI; dns2, dcs, and jellyfin are
-      # cross-host routers to excelsior (AdGuard admin UI, DCS on-demand
-      # control page, and Jellyfin respectively), defined by hand below.
-      subdomains = ["home" "dns1" "dns2" "dcs" "jellyfin" "adsb" "zigbee" "bambuddy"];
+      # dns1 is this host's own AdGuard admin UI; dns2, dcs, dcs-desktop, and
+      # jellyfin are cross-host routers to excelsior (AdGuard admin UI, DCS
+      # on-demand control page, DCS's webtop desktop, and Jellyfin
+      # respectively), defined by hand below.
+      subdomains = ["home" "dns1" "dns2" "dcs" "dcs-desktop" "jellyfin" "adsb" "zigbee" "bambuddy"];
       # Renamed from the module default "dns", carried from defiant — dns1
       # (this host) and dns2 (excelsior) pair the two AdGuard instances.
       adminSubdomain = "dns1";
@@ -362,6 +363,13 @@ in {
   # account system, so no Traefik auth concern here — the firewall
   # restriction on excelsior's side (hosts/excelsior/media.nix) still limits
   # the raw port to this host only, matching the others' pattern.
+  #
+  # dcs-desktop.coppertop.ca: excelsior's DCS webtop desktop
+  # (custom.dcsServer.desktopPort). A noVNC session, not an origin-checked
+  # API like DCS's own WebGUI (custom.dcsServer.webGuiPort) — proxying it
+  # cross-host works fine, unlike that one (see the removed webGuiProxy
+  # note above). No auth middleware, same posture as dcs/dns2: the firewall
+  # restriction on excelsior's side is the only gate.
   services.traefik.dynamicConfigOptions.http = {
     routers = {
       dns2 = {
@@ -384,6 +392,12 @@ in {
         tls = {};
       };
 
+      dcsDesktop = {
+        rule = "Host(`dcs-desktop.coppertop.ca`)";
+        service = "dcsDesktop";
+        tls = {};
+      };
+
       jellyfin = {
         rule = "Host(`jellyfin.coppertop.ca`)";
         service = "jellyfin";
@@ -395,6 +409,7 @@ in {
       dns2.loadBalancer.servers = [{url = "http://192.168.1.10:3000";}];
       dcsControlHooks.loadBalancer.servers = [{url = "http://192.168.1.10:9091";}];
       dcsControlPage.loadBalancer.servers = [{url = "http://192.168.1.10:9090";}];
+      dcsDesktop.loadBalancer.servers = [{url = "http://192.168.1.10:3001";}];
       jellyfin.loadBalancer.servers = [{url = "http://192.168.1.10:8096";}];
     };
   };

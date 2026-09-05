@@ -52,6 +52,7 @@ onward (same as enterprise-d).
 | --- | --- | --- |
 | AdGuard Home | `https://dns2.coppertop.ca` (proxied cross-host through reliant's Traefik — excelsior runs no Traefik of its own) | 3000 |
 | DCS start/stop control | `https://dcs.coppertop.ca` (no auth yet — same source-IP-only posture as the rows below, pending a holistic Traefik auth pass) | 9090 (page), 9091 (webhook) |
+| DCS webtop desktop | `https://dcs-desktop.coppertop.ca` (no auth yet, same source-IP-only posture as DCS start/stop control above) | 3001 |
 | Factorio ("CGWANO") | in-game server browser (LAN broadcast), `excelsior.local:34197` on the LAN, or `factorio.coppertop.ca:34197` for remote friends once `custom.ddns` (see `docs/homelab-network.md` § Dynamic DNS) is applied on reliant and the router port-forwards UDP 34197 to this host | 34197 (UDP only, no web UI) |
 
 | Port | Protocol | Purpose | Exposure |
@@ -63,7 +64,7 @@ onward (same as enterprise-d).
 | 3000 | tcp | AdGuard Home admin UI | reliant only (firewall-restricted; proxied at `dns2.coppertop.ca`) |
 | 53 | udp | DNS (AdGuard → unbound) | LAN/WAN (firewall open) |
 | 5335 | tcp+udp | unbound bypass (skips AdGuard filtering) | LAN/WAN (firewall open) |
-| 3001 | tcp | DCS webtop web desktop | 127.0.0.1 only |
+| 3001 | tcp | DCS webtop web desktop | reliant only (firewall-restricted; proxied at `dcs-desktop.coppertop.ca`) |
 | 9090 | tcp | DCS start/stop control page (`custom.dcsServer.control`) | reliant only (firewall-restricted; proxied at `dcs.coppertop.ca`) |
 | 9091 | tcp | DCS start/stop/mission-upload webhook (`custom.dcsServer.control`) | reliant only (firewall-restricted; proxied at `dcs.coppertop.ca`) |
 | 34197 | udp | Factorio game traffic (`services.factorio.openFirewall`) | LAN/WAN (firewall open; needs a router port-forward for remote play, then remote friends connect at `factorio.coppertop.ca:34197` — same as DCS's 10308) |
@@ -85,19 +86,24 @@ longer comes up automatically after a reboot. Start it via
 `https://dcs.coppertop.ca`. Stopping is manual only, by design — no
 idle-timeout auto-stop.
 
-The webtop desktop (3001) stays loopback-only — reach it through an SSH
-tunnel:
+The webtop desktop is reachable at `https://dcs-desktop.coppertop.ca` —
+unlike DCS's own WebGUI API, webtop is just a noVNC session, so proxying it
+cross-host works fine (see `docs/homelab-network.md` § DCS's webtop desktop
+is proxied cross-host). An SSH tunnel still works too, if you'd rather not
+rely on the no-auth proxy:
 
 ```bash
 ssh -L 3001:localhost:3001 thomasga@excelsior.local
 ```
 
-Then open `http://localhost:3001` (web desktop) for DCS's own local WebGUI
-and launcher — see Known Gotchas for why this is the only way to actually
-use DCS's WebGUI (remote access via any reverse proxy doesn't work, by
-DCS's own design). `dcs.coppertop.ca` itself now also has a mission upload
-form — no SSH tunnel needed just to get a `.miz` file onto the host — see
-`docs/homelab-network.md` § DCS On-Demand Start/Stop And Remote Control.
+Then open `http://localhost:3001` (or the `dcs-desktop.coppertop.ca` URL
+above) for DCS's own local WebGUI and launcher — see Known Gotchas for why
+this in-desktop access is the only way to actually use DCS's WebGUI itself
+(remote access to *that* via any reverse proxy doesn't work, by DCS's own
+design — the desktop being proxied doesn't change that). `dcs.coppertop.ca`
+itself now also has a mission upload form — no tunnel needed just to get a
+`.miz` file onto the host — see `docs/homelab-network.md` § DCS On-Demand
+Start/Stop And Remote Control.
 
 ## First-Time Service Setup
 

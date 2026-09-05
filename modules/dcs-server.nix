@@ -119,7 +119,13 @@ in {
     desktopPort = mkOption {
       type = types.port;
       default = 3000;
-      description = "Webtop web desktop, bound to 127.0.0.1 only — reach via ssh -L.";
+      description = "Webtop web desktop port.";
+    };
+
+    desktopBindAddress = mkOption {
+      type = types.str;
+      default = "127.0.0.1";
+      description = "Bind address for the webtop port publish. Override only when pairing with a firewall rule restricting source access (e.g. a cross-host Traefik proxy) — webtop has weak default auth. Unlike webGuiPort, webtop is a noVNC session, not an origin-checked API, so proxying it cross-host works fine (see docs/homelab-network.md).";
     };
 
     webGuiPort = mkOption {
@@ -199,9 +205,12 @@ in {
             [
               "${toString cfg.gamePort}:10308/tcp"
               "${toString cfg.gamePort}:10308/udp"
-              # Admin surfaces stay loopback-only (webtop has weak default auth);
-              # reach via: ssh -L 3000:localhost:3000 -L 8088:localhost:8088 <host>
-              "127.0.0.1:${toString cfg.desktopPort}:3000/tcp"
+              # webGuiPort stays loopback-only by default (weak default auth,
+              # and its origin-checked API can't be reverse-proxied anyway —
+              # see docs/homelab-network.md). desktopBindAddress is
+              # independently overridable: webtop is a noVNC session, so
+              # cross-host proxying it doesn't hit that same limitation.
+              "${cfg.desktopBindAddress}:${toString cfg.desktopPort}:3000/tcp"
               "${cfg.webGuiBindAddress}:${toString cfg.webGuiPort}:8088/tcp"
             ]
             ++ optionals cfg.voiceChat.enable [

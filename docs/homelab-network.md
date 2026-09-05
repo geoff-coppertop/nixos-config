@@ -282,6 +282,35 @@ reach, and `networking.firewall.allowedTCPPorts` opens 8088 broadly, the
 same way the game port already is — real remote DCS clients can come from
 any public IP, not just `reliant`'s.
 
+### DCS's webtop desktop is proxied cross-host — unlike the WebGUI above
+
+`custom.dcsServer.desktopPort` (default 3000, overridden to 3001 on
+`excelsior` — the module default collides with AdGuard's admin UI) is a
+[linuxserver.io webtop](https://docs.linuxserver.io/images/docker-webtop/)
+noVNC desktop, not the WebGUI's `/encryptedRequest` API above. noVNC is a
+plain websocket video/input stream with no origin check, so the limitation
+in § DCS's own WebGUI does not apply here — the desktop proxies cross-host
+fine. `reliant`'s `configuration.nix` proxies it at `dcs-desktop.coppertop.ca`,
+same manual-router shape as `dcs`/`dns2`/Jellyfin:
+
+```nix
+routers.dcsDesktop = {
+  rule = "Host(`dcs-desktop.coppertop.ca`)";
+  service = "dcsDesktop";
+  tls = {};
+};
+services.dcsDesktop.loadBalancer.servers = [{url = "http://192.168.1.10:3001";}];
+```
+
+`custom.dcsServer.desktopBindAddress` is bound to `excelsior`'s LAN IP (not
+loopback) and firewall-restricted to `reliant`'s IP only, same posture as
+the control page — webtop has weak default auth, and there's no Traefik
+middleware in front of it, so the firewall is the only gate. Opening a
+browser tab is now enough to reach the DCS launcher/WebGUI *from inside*
+the webtop desktop (same-origin there, so DCS's own local-connection check
+still passes) — the SSH-tunnel path (`ssh -L 3001:localhost:3001`) still
+works too, it's just no longer required.
+
 ## Jellyfin (excelsior)
 
 `excelsior` also runs `custom.jellyfin` (`modules/jellyfin.nix`), backed by a
