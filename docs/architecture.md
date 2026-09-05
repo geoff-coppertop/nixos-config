@@ -245,6 +245,7 @@ workarounds can be found and revisited without re-deriving where they live.
 - [`docs/desktop.md` § Known Gotchas](desktop.md#known-gotchas)
 - [`docs/secrets.md` § Known Gotchas](secrets.md#known-gotchas)
 - [`docs/homelab-network.md` § Known Gotchas](homelab-network.md#known-gotchas)
+- [`docs/backups.md` § Known Gotchas](backups.md#known-gotchas)
 
 ## Custom Options
 

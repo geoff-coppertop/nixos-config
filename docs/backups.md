@@ -164,6 +164,50 @@ sudo restic --repo /mnt/nas-backups/adguardhome/<hostname> ls latest | head
 `RESTIC_PASSWORD_FILE=/run/agenix/<name>/restic-password` has to be exported for
 those commands, or restic prompts for the passphrase.
 
+## Clearing A Stale restic Lock
+
+A job that is killed mid-run — most often by a `nixos-rebuild switch` restarting
+the unit while a backup is in flight — leaves an exclusive lock in the
+repository. The next run fails with:
+
+```text
+unable to create lock in backend: repository is already locked by PID 3267 on <host> by root
+```
+
+**restic will not always clear that lock for you.** It treats a lock as stale
+only when the recorded host+PID pair is verifiably dead — for a lock recorded on
+the same host, that is a liveness probe against the recorded PID. After a
+reboot, or simply after enough process churn, the kernel recycles that PID onto
+an unrelated live process, restic sees the "holder" as still running, and the
+lock persists indefinitely. `--retry-lock` does not help here: waiting five
+minutes for a holder that no longer exists just delays the same failure.
+
+Unlock it by hand and re-run the job. Every path below is derived from the entry
+name `<name>` (the attribute under `custom.backups.users`) and the host name:
+
+```bash
+sudo env RESTIC_PASSWORD_FILE=/run/agenix/<name>/restic-password \
+  RESTIC_CACHE_DIR=/var/cache/nas-backup-<name> \
+  restic --repo /mnt/nas-backups/<name>/<hostname> unlock
+sudo systemctl start nas-backup-<name>.service
+```
+
+Concretely, for `thomasga` on `enterprise-d`:
+
+```bash
+sudo env RESTIC_PASSWORD_FILE=/run/agenix/thomasga/restic-password \
+  RESTIC_CACHE_DIR=/var/cache/nas-backup-thomasga \
+  restic --repo /mnt/nas-backups/thomasga/enterprise-d unlock
+sudo systemctl start nas-backup-thomasga.service
+```
+
+Substitute `passwordFile` if the entry overrides it, and `custom.backups.nas.mountPoint`
+if the host does not use the `/mnt/nas-backups` default.
+
+Only unlock when no backup for that entry is actually running — check
+`systemctl is-active nas-backup-<name>.service` first. Unlocking underneath a
+live run is what the lock exists to prevent.
+
 ## Limitations
 
 - Snapper manages local btrfs snapshots for rollback. It is not involved in NAS
@@ -171,12 +215,22 @@ those commands, or restic prompts for the passphrase.
 - If SMB is unavailable at boot the automount fails silently, and the next timer
   invocation retries.
 - The services are `wantedBy = multi-user.target`, so a `nixos-rebuild switch`
-  restarts them and starts a backup immediately. If that interrupts a run in
-  progress, restic may leave a lock behind; restic clears its own stale locks on
-  the following run, and `restic --repo <repo> unlock` forces it.
+  restarts them and starts a backup immediately. Both restic invocations pass
+  `--retry-lock 5m`, so a run that overlaps another one waits for the lock
+  instead of failing outright. A run that is *killed* mid-flight still leaves a
+  lock behind, and that one does not clear itself — see
+  [Clearing A Stale restic Lock](#clearing-a-stale-restic-lock).
 - Service state paths are case-sensitive and not always what the service name
   suggests — AdGuard Home's is `/var/lib/AdGuardHome`, capitalized, because the
   lowercase path does not exist (confirmed on `reliant`). Confirm with `ls -l`
   on the host before adding an entry; that also shows whether the path is a
   symlink, which matters for the reason given in
   [Symlinked State Directories](#symlinked-state-directories).
+
+## Known Gotchas
+
+- `--retry-lock 5m` on both restic invocations in `modules/backups.nix` covers
+  overlapping runs but not an orphaned lock: restic's staleness check trusts the
+  recorded PID's liveness, which PID reuse across a reboot defeats, so such a
+  lock never ages out and needs
+  [Clearing A Stale restic Lock](#clearing-a-stale-restic-lock).
