@@ -63,11 +63,12 @@ Enter the development shell — required for secret editing and lint tools:
 nix develop
 ```
 
-The flake exposes five apps (defined in `lib/apps.nix`). Use these rather than
+The flake exposes six apps (defined in `lib/apps.nix`). Use these rather than
 invoking `agenix` or the scripts directly:
 
 | Command | Script | What it does |
 | --- | --- | --- |
+| `nix run .#deploy-all` | `tools/deploy_all.py` | Build every host in the flake, then switch the SSH-reachable ones |
 | `nix run .#secret-edit -- <file>` | `tools/secret_edit.py` | Edit or create an `.age` secret in a temporary buffer |
 | `nix run .#secret-rekey` | `tools/secret_rekey.py` | Re-encrypt every tracked secret after changing recipients |
 | `nix run .#install` | `tools/install.py` | Install a machine: menu, then disko or SD-card flow |
@@ -99,6 +100,74 @@ sudo nixos-rebuild switch --flake .#enterprise-d
 ```
 
 ### System updates (requires wheel)
+
+The normal path is one command, run from any machine with Nix and SSH access to
+the fleet:
+
+```bash
+nix run .#deploy-all
+```
+
+It runs `pre-commit run --all-files`, then probes each remotable host with
+`ssh -o BatchMode=yes -o ConnectTimeout=5 thomasga@<host>.local true`. The probe
+is an SSH command, not a ping, so it exercises the same path (auth included)
+that `nixos-rebuild --target-host` will use. An unreachable host is dropped from
+the run before the builds start — it can't be switched this time, so building
+its closure would be wasted — and is reported under `unreachable` in the
+summary.
+
+It then builds *every* remaining host registered in `nixosConfigurations` —
+including hosts excluded by `--only`/`--skip` — and refuses to touch any machine
+if any host fails to build. Only then does it run
+`nixos-rebuild switch --flake .#<host> --target-host thomasga@<host>.local --sudo`
+for each reachable host, prompting `Switch <host> now? [y/N]` before each one.
+The host list comes from the flake, so a newly registered machine is picked up
+with no change to the tool.
+
+If that invocation fails for a host, it is retried once with
+`--ask-sudo-password` instead of `--sudo`, which prompts locally for the
+password and passes it to the target over stdin. `--sudo` only works on a
+target that already allows passwordless privilege elevation, so this is the
+recovery path for hosts that need a password (`enterprise-d` does). The retry
+fires on any failure, not just an elevation error — nixos-rebuild's error
+wording is not an interface worth matching on — so a host failing for an
+unrelated reason simply fails twice before being reported. Watch for the
+`retrying with --ask-sudo-password` line on stderr: that is why a password
+prompt appears mid-run.
+
+Preview the whole fleet without changing anything:
+
+```bash
+nix run .#deploy-all -- --dry-run
+```
+
+| Flag | Effect |
+| --- | --- |
+| `--dry-run` | `nixos-rebuild dry-activate` on every reachable host; never switches |
+| `-y`, `--yes` | Don't prompt before each switch |
+| `--only h1,h2` | Only deploy these hosts (still builds every reachable host) |
+| `--skip h1,h2` | Leave these hosts alone |
+| `--skip-checks` | Skip the pre-commit pre-flight |
+
+Progress goes to stderr; the built/switched/skipped/unreachable/failed summary
+goes to stdout. Exit status is non-zero if any build or switch failed. An
+unreachable host is not a failure on its own — bring it up and re-run with
+`--only <host>`. If every host named by `--only` is unreachable, the run exits
+non-zero without building anything.
+
+**`holodeck-01` is the exception.** It is a WSL distro with no SSH-reachable
+remote path, so `deploy-all` never probes or attempts to reach it — it builds it
+unconditionally like any
+other host and prints the manual command as a closing reminder. Run that inside
+the WSL distro:
+
+```bash
+sudo nixos-rebuild switch --flake .#holodeck-01
+```
+
+The per-host commands below remain valid for one-off or edge-case use — a host
+that is down, a machine you are sitting at, or when you don't want the full
+fleet build:
 
 | Machine | Command | Where to run |
 | --- | --- | --- |
