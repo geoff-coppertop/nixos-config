@@ -22,10 +22,15 @@ than a ping or a TCP connect because it exercises the exact path
 but has sshd down, a stale host key, or no usable key for `thomasga` is
 correctly reported unreachable instead of passing a shallower check.
 
-Each host is first attempted with `--sudo`, which is silent on a target that
-already allows passwordless elevation. If that attempt fails, the same host is
-retried once with `--ask-sudo-password`, which prompts locally and feeds the
-password to the target over stdin.
+Each remotable host is probed with `ssh <target> sudo -n true` before the
+switch, and `--sudo` or `--ask-sudo-password` is picked from that result up
+front. A host is never retried after the real switch fails: `nixos-rebuild
+switch` exits nonzero both when sudo itself fails *and* when elevation
+succeeded but a downstream systemd unit failed to (re)start, and those are
+different problems — the second is a real deployment failure, not a privilege
+issue, and retrying it only re-runs the entire switch (redecrypting secrets,
+restarting every changed unit again) to hit the same failure again, while
+also prompting for a password that was never the actual cause.
 
 Usage:
     python3 tools/deploy_all.py [--dry-run] [--yes]
@@ -148,6 +153,34 @@ def host_reachable(host: str, root: Path) -> bool:
     return True
 
 
+def sudo_passwordless(host: str, root: Path) -> bool:
+    """True if the target's currently-running system lets REMOTE_USER sudo
+    with no password. Checked directly, up front, rather than inferred from
+    whether the real switch command fails — that exit code is also nonzero
+    when elevation worked fine but a systemd unit failed downstream."""
+    try:
+        result = subprocess.run(
+            [
+                "ssh",
+                "-o",
+                "BatchMode=yes",
+                "-o",
+                "ConnectTimeout=5",
+                remote_target(host),
+                "sudo",
+                "-n",
+                "true",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=str(root),
+            timeout=SSH_PROBE_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired:
+        return False
+    return result.returncode == 0
+
+
 def confirm(host: str) -> bool:
     answer = input(f"Switch {host} now? [y/N] ").strip().lower()
     return answer in {"y", "yes"}
@@ -237,18 +270,13 @@ def main() -> None:
             ci_log(f"{host}: declined — skipping.")
             skipped.append(host)
             continue
+        ask_password = not sudo_passwordless(host, root)
+        if ask_password:
+            ci_log(f"{host}: no passwordless sudo — you will be prompted locally.")
         ci_log(f"{host}: nixos-rebuild {action} via {remote_target(host)}...")
-        result = subprocess.run(remote_command(host, action), cwd=str(root))
-        if result.returncode != 0:
-            # Retry on *any* failure rather than matching nixos-rebuild's
-            # "did you forget to use --ask-elevate-password?" message: that
-            # wording is not a stable interface. A retry costs one extra
-            # attempt when the real cause was something else, and recovers
-            # every host that simply lacks passwordless sudo.
-            ci_log(f"{host}: retrying with --ask-sudo-password (you will be prompted locally)...")
-            result = subprocess.run(
-                remote_command(host, action, ask_password=True), cwd=str(root)
-            )
+        result = subprocess.run(
+            remote_command(host, action, ask_password=ask_password), cwd=str(root)
+        )
         if result.returncode == 0:
             switched.append(host)
         else:
