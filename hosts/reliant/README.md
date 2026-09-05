@@ -111,7 +111,7 @@ slicing sidecar as a podman container. Host-specific notes:
 | `hardware.nix` | systemd-boot, EFI, Intel microcode, generic firmware (template, not a hardware scan — see Hardware And Access below) |
 | `power.nix` | Explicit no-hibernate/no-suspend statement for this always-on headless host |
 | `disko.nix` | GPT layout: ESP, swap, plain ext4 root (no btrfs/snapper — see the comment in the file for why) |
-| `default.nix` | Imports `configuration.nix` only — no home-manager user attached yet |
+| `default.nix` | Imports `configuration.nix` and attaches `thomasga`'s home-manager config (`./home/thomasga.nix`) |
 | `secrets.nix` | `age.secrets` declarations for this host, including the Phase 2 smart-home entries — see § Secrets below |
 | `home-assistant/` | Declarative HA automations, one file per concern — mostly a copy of `hosts/defiant/home-assistant/`, plus `ecobee-climate.nix` (new here, not migrated) |
 | `provision-type` | `disko` |
@@ -330,6 +330,8 @@ Host-specific notes:
 - The machine has been physically installed and first-booted. The SSH host
   key is pinned in `lib/ssh-hosts.nix`, and the reserved LAN IP
   (`192.168.20.15`) is confirmed against its Unifi DHCP reservation.
-- No `homeConfigurations."thomasga@reliant"` entry exists in `flake.nix` yet
-  — it would import `hosts/reliant/home/thomasga.nix`, which doesn't exist.
-  `user-provisioner` adds both together when attaching a user (Phase 2).
+- `home-manager.users.thomasga` is now attached in `hosts/reliant/default.nix`
+  (`./home/thomasga.nix`, mirroring `excelsior`'s headless profile and naming
+  `ssh-id-ed25519-reliant` as its SSH identity secret), and
+  `flake.nix` has the matching `homeConfigurations."thomasga@reliant"` entry —
+  this closes out the hand-off noted above.
