@@ -60,8 +60,24 @@ _: {
         "Games" = [
           {
             "DCS World Control" = {
-              href = "https://dcs.coppertop.ca";
+              href = "https://dcs-control.coppertop.ca";
               description = "Start/stop the dedicated server";
+            };
+          }
+          {
+            "DCS World Webtop" = {
+              href = "https://dcs.coppertop.ca";
+              description = "Web desktop";
+            };
+          }
+        ];
+      }
+      {
+        "3D Printing" = [
+          {
+            "Bambuddy" = {
+              href = "https://bambuddy.coppertop.ca";
+              description = "Print monitoring and slicing";
             };
           }
         ];
