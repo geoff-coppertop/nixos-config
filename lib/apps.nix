@@ -53,6 +53,15 @@
     '';
   };
 
+  deployAll = pkgs.writeShellApplication {
+    name = "deploy-all";
+    runtimeInputs = [pkgs.python3 pkgs.nixos-rebuild pkgs.openssh pkgs.git pkgs.coreutils];
+    text = ''
+      export PYTHONPATH="${tools-src}:''${PYTHONPATH:-}"
+      exec python3 ${tools-src}/deploy_all.py "$@"
+    '';
+  };
+
   checkHaEntities = pkgs.writeShellApplication {
     name = "check-ha-entities";
     runtimeInputs = [pkgs.python3 pkgs.openssh pkgs.git pkgs.coreutils];
@@ -84,6 +93,12 @@ in {
     type = "app";
     program = "${secretRekey}/bin/secret-rekey";
     meta.description = "Rekey agenix secrets with new host keys";
+  };
+
+  deploy-all = {
+    type = "app";
+    program = "${deployAll}/bin/deploy-all";
+    meta.description = "Build every host in the flake, then switch the SSH-reachable ones";
   };
 
   check-ha-entities = {
