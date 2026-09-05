@@ -19,7 +19,9 @@ _: {
     # minting a new one. Every host mounts the same single NAS
     # (lib/nas.nix), so nas-smb-credentials needs no per-host distinction
     # either; the restic repo path already includes the hostname, so
-    # sharing these doesn't collide backup data across hosts.
+    # sharing these doesn't collide backup data across hosts. The same
+    # nas-smb-credentials entry also backs the /mnt/media CIFS mount in
+    # media.nix — media/ is a subpath of the same share as backups/.
     "thomasga/nas-smb-credentials".file = ../../secrets/thomasga/nas-smb-credentials.age;
     "adguardhome/restic-password".file = ../../secrets/adguardhome/restic-password.age;
     "thomasga/restic-password".file = ../../secrets/thomasga/restic-password.age;

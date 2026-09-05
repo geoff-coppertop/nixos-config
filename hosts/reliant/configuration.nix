@@ -286,10 +286,10 @@ in {
       # Traefik routes when their custom.* modules are enabled (see
       # modules/home-assistant.nix, modules/adsb.nix, modules/zigbee.nix,
       # modules/bambuddy.nix), which they now are, above.
-      # dns1 is this host's own AdGuard admin UI; dns2 and dcs are the
-      # cross-host routers to excelsior's AdGuard admin UI and DCS
-      # on-demand control page, defined by hand below.
-      subdomains = ["home" "dns1" "dns2" "dcs" "adsb" "zigbee" "bambuddy"];
+      # dns1 is this host's own AdGuard admin UI; dns2, dcs, and jellyfin are
+      # cross-host routers to excelsior (AdGuard admin UI, DCS on-demand
+      # control page, and Jellyfin respectively), defined by hand below.
+      subdomains = ["home" "dns1" "dns2" "dcs" "jellyfin" "adsb" "zigbee" "bambuddy"];
       # Renamed from the module default "dns", carried from defiant — dns1
       # (this host) and dns2 (excelsior) pair the two AdGuard instances.
       adminSubdomain = "dns1";
@@ -356,6 +356,12 @@ in {
   # rule-length-based priority for the unprefixed page router beat a
   # previous hardcoded priority on the hooks router alone, silently
   # routing /hooks/* to nginx (a raw 404) instead of the webhook.
+  #
+  # jellyfin.coppertop.ca: excelsior's Jellyfin media server, cross-host the
+  # same way as dns2/dcs above. Unlike those two, Jellyfin has its own real
+  # account system, so no Traefik auth concern here — the firewall
+  # restriction on excelsior's side (hosts/excelsior/media.nix) still limits
+  # the raw port to this host only, matching the others' pattern.
   services.traefik.dynamicConfigOptions.http = {
     routers = {
       dns2 = {
@@ -377,12 +383,19 @@ in {
         priority = 1;
         tls = {};
       };
+
+      jellyfin = {
+        rule = "Host(`jellyfin.coppertop.ca`)";
+        service = "jellyfin";
+        tls = {};
+      };
     };
 
     services = {
       dns2.loadBalancer.servers = [{url = "http://192.168.1.10:3000";}];
       dcsControlHooks.loadBalancer.servers = [{url = "http://192.168.1.10:9091";}];
       dcsControlPage.loadBalancer.servers = [{url = "http://192.168.1.10:9090";}];
+      jellyfin.loadBalancer.servers = [{url = "http://192.168.1.10:8096";}];
     };
   };
 

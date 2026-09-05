@@ -282,6 +282,35 @@ reach, and `networking.firewall.allowedTCPPorts` opens 8088 broadly, the
 same way the game port already is — real remote DCS clients can come from
 any public IP, not just `reliant`'s.
 
+## Jellyfin (excelsior)
+
+`excelsior` also runs `custom.jellyfin` (`modules/jellyfin.nix`), backed by a
+NAS-mounted media library (`hosts/excelsior/media.nix`). Unlike its
+self-hosted usage (the module registers its own Traefik route when
+`custom.traefik.enable` is set on the same host — see § Traefik Route
+Registration), `excelsior` runs no Traefik of its own: `reliant`'s Traefik
+proxies it cross-host, `jellyfin.coppertop.ca` → `excelsior:8096`, the same
+manual-router pattern as `dns2` and the DCS control page above:
+
+```nix
+services.traefik.dynamicConfigOptions.http = {
+  routers.jellyfin = {
+    rule = "Host(`jellyfin.coppertop.ca`)";
+    service = "jellyfin";
+    tls = {};
+  };
+  services.jellyfin.loadBalancer.servers = [{url = "http://192.168.1.10:8096";}];
+};
+```
+
+Jellyfin has its own real account system, unlike AdGuard's admin UI or the
+DCS control page, so there's no Traefik auth concern here. The port is still
+closed off at the network layer the same way as those two: `custom.jellyfin.openFirewall = false;`
+on `excelsior`, plus a `networking.firewall.extraCommands` rule scoped to
+`reliant`'s reserved LAN IP (`192.168.20.15`) admitting only that host on
+port 8096 — matching the `reliantIp` restriction already used for the DCS
+control page and AdGuard admin UI in the same file.
+
 ## Dynamic DNS
 
 `custom.ddns` (`modules/ddns.nix`) runs `ddclient` to keep `coppertop.ca`'s
