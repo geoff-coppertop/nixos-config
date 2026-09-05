@@ -176,8 +176,18 @@
           done
         done
 
-        restic --repo "$repo" backup "''${resolved_paths[@]}" "''${exclude_args[@]}"
+        # --retry-lock: the units are `wantedBy = multi-user.target`, so a
+        # `nixos-rebuild switch` starts a backup even while the timer-driven
+        # one is still running. Without it the second invocation fails
+        # immediately on the first run's lock; with it, it waits and then
+        # proceeds. This does NOT recover a lock left behind by a process that
+        # is already gone — restic decides staleness from the recorded
+        # host+PID being dead, and a PID recycled across a reboot looks alive
+        # to that check, so such a lock has to be cleared by hand. See
+        # docs/backups.md § Known Gotchas.
+        restic --repo "$repo" backup --retry-lock 5m "''${resolved_paths[@]}" "''${exclude_args[@]}"
         restic --repo "$repo" forget \
+          --retry-lock 5m \
           --keep-daily ${toString cfg.retention.daily} \
           --keep-weekly ${toString cfg.retention.weekly} \
           --keep-monthly ${toString cfg.retention.monthly} \
