@@ -240,9 +240,6 @@
         ];
       };
 
-      # Phase 1 only (docs/provisioning.md § Two Phases) — no home-manager
-      # user attached yet, so no matching homeConfigurations entry either;
-      # see hosts/reliant/default.nix.
       "reliant" = mkNixosSystem {
         system = "x86_64-linux";
         extraModules = [
@@ -267,6 +264,12 @@
       "thomasga@excelsior" = mkHomeConfig {
         user = "thomasga";
         machine = "excelsior";
+        hostSystem = "x86_64-linux";
+      };
+
+      "thomasga@reliant" = mkHomeConfig {
+        user = "thomasga";
+        machine = "reliant";
         hostSystem = "x86_64-linux";
       };
     };
