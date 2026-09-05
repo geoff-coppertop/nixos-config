@@ -9,6 +9,11 @@ _: {
     # dcs-server backup set.
     "dcs-server/restic-password".file = ../../secrets/dcs-server/restic-password.age;
 
+    # Same shape as dcs-server above — excelsior-only restic repository
+    # password for the factorio backup set. No owner: the backup service
+    # runs as root.
+    "factorio/restic-password".file = ../../secrets/factorio/restic-password.age;
+
     # All three below are job-keyed, not machine-keyed (docs/secrets.md §
     # Secret Inventory) — each reuses an existing shared entry rather than
     # minting a new one. Every host mounts the same single NAS

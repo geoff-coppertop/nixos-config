@@ -313,13 +313,18 @@ shared config. See [docs/homelab-network.md](homelab-network.md).
 
 ### Game server
 
-Enabled on `excelsior`. Not a "homelab service" in the Traefik/appliance sense
-above — a standalone game server with its own two-container split.
+Enabled on `excelsior`. Not "homelab services" in the Traefik/appliance sense
+above — standalone game servers. The two are deliberately different shapes:
+DCS is a Windows program under Wine and only exists as an OCI image, while
+Factorio is a single Linux binary with a first-class `services.factorio` module
+in nixpkgs, so `custom.factorioServer` is a thin wrapper over that rather than
+another container.
 
 | Option | What it does |
 | --- | --- |
 | `custom.dcsServer` | DCS World dedicated server (Aterfax OCI image under podman) |
 | `custom.dcsServer.srs` | DCS-SRS voice server — a separate `jaycadi/dcs-srs-server` container, not bundled with the DCS image |
+| `custom.factorioServer` | Factorio headless dedicated server — just an `enable` gate over nixpkgs' `services.factorio` (default UDP 34197). Every actual setting (`openFirewall`, `game-name`, `admins`, `extraSettingsFile`, etc.) is set directly via `services.factorio.*` on the host that needs it, not mirrored here |
 
 ## Flake Inputs
 

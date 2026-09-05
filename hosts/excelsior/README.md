@@ -2,8 +2,10 @@
 
 Headless bare-metal server running a DCS World dedicated server via the
 [Aterfax container](https://github.com/Aterfax/DCS-World-Dedicated-Server-Docker)
-under podman, a separate DCS-SRS voice server container, and a second,
-independent unbound + AdGuard Home DNS instance alongside reliant's.
+under podman, a separate DCS-SRS voice server container, a native Factorio
+headless dedicated server (`custom.factorioServer`, wrapping nixpkgs'
+`services.factorio` — no container, unlike DCS), and a second, independent
+unbound + AdGuard Home DNS instance alongside reliant's.
 
 The reusable DNS/Traefik service layer is documented in
 [docs/homelab-network.md](../../docs/homelab-network.md). Provisioning steps
@@ -50,6 +52,7 @@ onward (same as enterprise-d).
 | --- | --- | --- |
 | AdGuard Home | `https://dns2.coppertop.ca` (proxied cross-host through reliant's Traefik — excelsior runs no Traefik of its own) | 3000 |
 | DCS start/stop control | `https://dcs.coppertop.ca` (no auth yet — same source-IP-only posture as the rows below, pending a holistic Traefik auth pass) | 9090 (page), 9091 (webhook) |
+| Factorio ("CGWANO") | in-game server browser (LAN broadcast) or direct connect to `excelsior.local:34197` / the WAN address once port-forwarded | 34197 (UDP only, no web UI) |
 
 | Port | Protocol | Purpose | Exposure |
 | --- | --- | --- | --- |
@@ -63,6 +66,7 @@ onward (same as enterprise-d).
 | 3001 | tcp | DCS webtop web desktop | 127.0.0.1 only |
 | 9090 | tcp | DCS start/stop control page (`custom.dcsServer.control`) | reliant only (firewall-restricted; proxied at `dcs.coppertop.ca`) |
 | 9091 | tcp | DCS start/stop/mission-upload webhook (`custom.dcsServer.control`) | reliant only (firewall-restricted; proxied at `dcs.coppertop.ca`) |
+| 34197 | udp | Factorio game traffic (`services.factorio.openFirewall`) | LAN/WAN (firewall open; needs a router port-forward for remote play, same as DCS's 10308) |
 
 AdGuard's admin UI (3000) and `custom.dcsServer.control.bindAddress`
 (9090/9091) are bound to this host's real LAN IP instead of `127.0.0.1`,
@@ -102,6 +106,7 @@ form — no SSH tunnel needed just to get a `.miz` file onto the host — see
 | DCS World | Wait for `DCSAUTOINSTALL` to finish (tens of GB), open the launcher in the tunneled web desktop, log in with Eagle Dynamics credentials, tick "save login" + auto-login |
 | DCS-SRS | No manual step — separate `dcs-srs-server` container starts on its own |
 | AdGuard Home | Complete the setup wizard; set upstream DNS to `127.0.0.1:5335` (same as reliant) |
+| Factorio | No manual step — `services.factorio` generates a default save under `/var/lib/factorio/saves` on first start |
 
 After DCS login is saved, set `custom.dcsServer.autoStart = true;` and
 rebuild so the DCS server launches with the container.
@@ -156,6 +161,21 @@ servers — that's a router-side step, not managed by this repo.
 
 ## Known Gotchas
 
+- **`services.factorio.package` strips the Space Age/Quality/Elevated Rails
+  data directories from `factorio-headless` via `overrideAttrs`.** Confirmed
+  live: setting those three mods `enabled: false` in the runtime
+  `mods/mod-list.json` does not stick — the headless server re-enables them
+  on every start regardless (a known upstream bug,
+  [forums.factorio.com/viewtopic.php?t=117096](https://forums.factorio.com/viewtopic.php?t=117096)).
+  nixpkgs' `services.factorio` module has no dedicated option for this either
+  — `mods`/`mods-dat` don't intercept built-in expansion content. Deleting the
+  three data directories from the package output is the same technique the
+  `factoriotools/factorio` Docker image's `DLC_SPACE_AGE=false` variable uses
+  internally. Needed here because the host doesn't own Space Age but wants
+  players who don't either to be able to join. The override appends to
+  `installPhase`, not `postInstall` — confirmed live that a `postInstall`
+  override has no effect here, because upstream's `installPhase` is a raw
+  script (`mkdir`/`cp`/`patchelf`) that never calls `runHook postInstall`.
 - **`custom.dcsServer.desktopPort` is overridden to 3001.** The module
   default (3000) collides with AdGuard Home's admin UI, which also defaults
   to 3000 and is what reliant's `dns2.coppertop.ca` Traefik route depends on
@@ -227,4 +247,5 @@ Host-specific notes:
 - Optional follow-ups: web-desktop `PASSWORD=` as an agenix env file via
   `custom.dcsServer.environmentFiles`; `custom.backups` for
   `Saved Games/DCS.server`; router port-forwards for 10308 (+5002) if
+  internet-facing; router port-forward for 34197/udp for Factorio if
   internet-facing.
