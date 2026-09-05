@@ -1,4 +1,9 @@
-_: let
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}: let
   nas = import ../../lib/nas.nix;
   thomasga = import ../../users/thomasga/account.nix;
 in {
@@ -68,6 +73,16 @@ in {
           passwordFile = "/run/agenix/dcs-server/restic-password";
         };
 
+        factorio = {
+          enable = true;
+          # services.factorio's default state dir. DynamicUser makes it a
+          # symlink into /var/lib/private, which modules/backups.nix's
+          # readlink -f resolves before handing the path to restic.
+          paths = ["/var/lib/factorio"];
+          excludePatterns = [];
+          passwordFile = "/run/agenix/factorio/restic-password";
+        };
+
         # This host's own independent DNS instance (custom.dns below) runs
         # AdGuard Home — same job every other AdGuard-running host
         # (reliant) already backs up. Job-keyed, not machine-keyed
@@ -128,6 +143,8 @@ in {
       };
     };
 
+    factorioServer.enable = true;
+
     dns = {
       enable = true;
       domain = "coppertop.ca";
@@ -158,6 +175,38 @@ in {
       PasswordAuthentication = false;
       PermitRootLogin = "no";
     };
+  };
+
+  # custom.factorioServer is only an enable gate (see
+  # modules/factorio-server.nix) — every actual setting goes straight to
+  # services.factorio.* here.
+  #
+  # WAN-facing per the router port-forward noted below — access control is
+  # the firewall (LAN/WAN, same posture as DCS's game port) plus whatever
+  # in-game password players share; no factorio.com whitelist/admin list
+  # configured yet.
+  services.factorio = lib.mkIf config.custom.factorioServer.enable {
+    openFirewall = true;
+    # Upstream defaults this to false; LAN discovery is the sane default for
+    # a server WAN players only reach via direct-connect anyway (confirmed
+    # live: server-settings.json otherwise ships visibility.lan=false and the
+    # server never shows up in the in-game browser).
+    lan = true;
+    game-name = "CGWANO";
+    description = "Cool Guys Who Are Not Old build factories";
+    # Strips the Space Age expansion content so players without the DLC can
+    # join — see Known Gotchas in this host's README for why this can't be
+    # done through server-settings/mod-list.json instead. Appends to
+    # installPhase, not postInstall: upstream's installPhase is a raw script
+    # (mkdir/cp/patchelf) that never calls `runHook postInstall`, confirmed
+    # live — a postInstall override silently never ran.
+    package = pkgs.factorio-headless.overrideAttrs (old: {
+      installPhase =
+        old.installPhase
+        + ''
+          rm -rf $out/share/factorio/data/{space-age,quality,elevated-rails}
+        '';
+    });
   };
 
   # The DCS on-demand control page + webhook (custom.dcsServer.control,

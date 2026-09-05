@@ -153,11 +153,13 @@ restic repository. `passwordFile` defaults to
 
 | Secret | Backup job | Host recipients |
 | --- | --- | --- |
-| `secrets/thomasga/restic-password.age` | `thomasga` (home directory) | `enterprise-d`, `reliant` |
+| `secrets/thomasga/restic-password.age` | `thomasga` (home directory) | `enterprise-d`, `reliant`, `excelsior` |
 | `secrets/hass/restic-password.age` | `hass` | `reliant` |
 | `secrets/zigbee2mqtt/restic-password.age` | `zigbee2mqtt` | `reliant` |
 | `secrets/zwave-js/restic-password.age` | `zwave-js` | `reliant` |
 | `secrets/adguardhome/restic-password.age` | `adguardhome` | `reliant`, `excelsior` |
+| `secrets/dcs-server/restic-password.age` | `dcs-server` | `excelsior` |
+| `secrets/factorio/restic-password.age` | `factorio` | `excelsior` |
 
 Because a job-keyed secret is shared, more than one host can be a recipient of
 the same file — the restic repository path embeds the hostname

@@ -9,6 +9,7 @@
     ./debug-probes.nix
     ./desktop.nix
     ./dns.nix
+    ./factorio-server.nix
     ./flatpak.nix
     ./framework.nix
     ./fwupd.nix
