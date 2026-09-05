@@ -19,7 +19,8 @@ The two compose to give every service a real HTTPS name on the LAN.
 DNS-01 challenge, so no service is ever exposed to the internet for validation.
 The provider credentials come from an agenix secret via
 `acme.environmentFile` (for Cloudflare, a file containing
-`CF_DNS_API_TOKEN=...`).
+`CLOUDFLARE_DNS_API_TOKEN=...` -- lego's actual env var name for this
+provider; confirmed against the real secret, not assumed).
 
 The ACME cert declares `reloadServices = ["traefik.service"]`. Without it Traefik
 never learns a new certificate exists and keeps serving whatever it loaded at its
@@ -281,6 +282,53 @@ reach, and `networking.firewall.allowedTCPPorts` opens 8088 broadly, the
 same way the game port already is — real remote DCS clients can come from
 any public IP, not just `reliant`'s.
 
+## Dynamic DNS
+
+`custom.ddns` (`modules/ddns.nix`) runs `ddclient` to keep `coppertop.ca`'s
+apex A record pointed at this residential connection's current public IP —
+this ISP has no static IP. It updates only that one record: this zone's
+`*.coppertop.ca` is already a CNAME to the apex (confirmed live in the
+Cloudflare dashboard, not assumed), so every subdomain follows the apex
+automatically without a separate update of its own. That CNAME is managed
+by hand in Cloudflare, not by this module — it only needs to exist once.
+
+Since every subdomain rides the same apex update, no Cloudflare change is
+needed to add a new subdomain later — this is what lets `excelsior`'s game
+servers be reachable by friends over the internet purely by adding a router
+port-forward, with no DNS-side follow-up: see `hosts/excelsior/README.md`
+§ Services And URLs (`factorio.coppertop.ca`, `dcs.coppertop.ca`) and
+§ Provisioning § Optional follow-ups.
+
+It reuses `custom.traefik.acme`'s existing Cloudflare API token
+(`traefik/cloudflare-api-token.age`, already granting `Zone:DNS:Edit` /
+`Zone:Zone:Read` on this zone for ACME DNS-01) rather than a second secret.
+That file is formatted as an `EnvironmentFile=` line
+(`CLOUDFLARE_DNS_API_TOKEN=<token>` -- lego's actual env var name for this
+provider) for `security.acme`'s consumer, not the bare token ddclient's
+`passwordFile` wants, so `modules/ddns.nix` runs the `ddclient` service as
+the `traefik` system user (this file's existing owner) and strips the
+`CLOUDFLARE_DNS_API_TOKEN=` prefix into a private, owner-only file in its
+own runtime directory at service start — see the module for the exact
+mechanism and § Known Gotchas below for why this isn't the more obvious
+`services.ddclient.passwordFile = apiTokenFile;` one-liner.
+
+### Verifying it worked
+
+- `journalctl -u ddclient -n 50` on `reliant` — a successful run logs the
+  Cloudflare zone lookup and, only on an actual IP change, `SUCCESS` for each
+  updated record; an unchanged IP logs nothing new by design (`quiet` is
+  effectively the default posture for unnecessary updates).
+- Force a run and watch it end-to-end:
+  `sudo systemctl start ddclient.service && journalctl -u ddclient -f`.
+- Query a public resolver directly rather than the LAN's own AdGuard/unbound
+  (avoids any doubt about split-horizon DNS in `custom.dns` above, and needs
+  no external network to run from): `dig @1.1.1.1 +short coppertop.ca` and
+  `dig @1.1.1.1 +short anything.coppertop.ca` should both return this
+  network's current public IP — the subdomain query resolves through the
+  `*.coppertop.ca` CNAME to the apex, so `dig`'s `+short` output shows the
+  apex name on one line followed by the IP. Check the IP against
+  `curl -s https://ifconfig.me` run from `reliant` itself.
+
 ## Adding A New Homelab Service
 
 1. Write `modules/<service>.nix` exposing `custom.<service>`, following the
@@ -303,3 +351,42 @@ If the new service is a Home Assistant integration rather than a standalone
 appliance, also see
 [docs/smart-home.md § Choosing extraComponents](smart-home.md#choosing-extracomponents)
 and the automation-file conventions in that doc.
+
+## Known Gotchas
+
+- `custom.ddns`'s `ddclient` service does not use `services.ddclient.passwordFile`
+  pointed straight at `custom.traefik.acme.environmentFile`: that file is an
+  `EnvironmentFile=`-format line (`CLOUDFLARE_DNS_API_TOKEN=<token>`), but
+  ddclient's `passwordFile` substitutes a file's entire content verbatim as
+  the password, so the literal string `CLOUDFLARE_DNS_API_TOKEN=<token>`
+  would be sent to Cloudflare as the credential and every update would fail
+  auth. `modules/ddns.nix` strips the prefix into a private file at service
+  start instead — see § Dynamic DNS above.
+- The variable name itself, `CLOUDFLARE_DNS_API_TOKEN`, is lego's actual env
+  var for the cloudflare provider — confirmed live against the real secret's
+  content (`sudo grep -c '^CLOUDFLARE_DNS_API_TOKEN=' ...` on reliant), not
+  assumed from `modules/traefik.nix`'s option description, which previously
+  gave the wrong example (`CF_DNS_API_TOKEN`) and broke the first deploy of
+  this module's `ExecStartPre` extraction script with a silent "no line
+  found" failure — the description is now fixed to match.
+- That prefix-stripping step needed `DynamicUser = false` and a fixed
+  `User = "traefik"` on `ddclient.service`: with `DynamicUser` (the module's
+  default), the service gets a fresh, unpredictable UID per invocation, and
+  the ExecStartPre step both reading the real secret and writing the derived
+  one would have had to hand that unknown UID access to files it doesn't own.
+  Fixing the service to the `traefik` user (already the secret's owner) lets
+  every step in the chain run as the same known identity instead.
+- ddclient's `cloudflare` protocol only `PATCH`es a DNS record that already
+  exists at Cloudflare, of the same type it's expecting — it never creates
+  one. `custom.ddns` deliberately lists only the apex in `services.ddclient.domains`,
+  not `*.coppertop.ca`: that name is a CNAME in this zone, not an A record,
+  and pointing ddclient at it would fail every run with `no 'A' record at
+  Cloudflare` (confirmed against ddclient's own source, `nic_cloudflare_update`
+  in `ddclient.in` — not guessed) since no A record of that name exists to
+  match. The wildcard CNAME still needs to exist in the zone for subdomains
+  to resolve at all — it's just not something ddclient itself touches.
+- `custom.ddns` sets `usev6 = ""` deliberately, overriding the
+  `services.ddclient` module's default (which probes for and reports an IPv6
+  address). This zone tracks IPv4 only; leaving `usev6` at its default
+  produces a spurious `no 'AAAA' record at Cloudflare` failure every interval
+  for a record this setup was never asked to manage.

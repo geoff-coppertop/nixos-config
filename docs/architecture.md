@@ -244,6 +244,7 @@ workarounds can be found and revisited without re-deriving where they live.
 - [`hosts/enterprise-d/README.md` § Known Gotchas](../hosts/enterprise-d/README.md#known-gotchas)
 - [`docs/desktop.md` § Known Gotchas](desktop.md#known-gotchas)
 - [`docs/secrets.md` § Known Gotchas](secrets.md#known-gotchas)
+- [`docs/homelab-network.md` § Known Gotchas](homelab-network.md#known-gotchas)
 
 ## Custom Options
 
@@ -302,6 +303,7 @@ shared config. See [docs/homelab-network.md](homelab-network.md).
 | --- | --- |
 | `custom.dns` | unbound recursive resolver plus AdGuard Home, with split-horizon records; `adminSubdomain` names its own Traefik route when two instances share one domain |
 | `custom.traefik` | Reverse proxy with ACME wildcard certificates via a DNS-01 provider |
+| `custom.ddns` | ddclient, keeping a Cloudflare zone's apex A record pointed at this network's current public IP (subdomains follow via an existing wildcard CNAME to the apex); reuses `custom.traefik.acme`'s Cloudflare token |
 | `custom.home-assistant` | Home Assistant service, `extraComponents`, HTTP/proxy wiring |
 | `custom.mqtt` | Mosquitto broker |
 | `custom.matter` | python-matter-server |

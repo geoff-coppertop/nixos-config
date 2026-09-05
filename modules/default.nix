@@ -6,6 +6,7 @@
     ./bin-compat.nix
     ./btrfs.nix
     ./dcs-server.nix
+    ./ddns.nix
     ./debug-probes.nix
     ./desktop.nix
     ./dns.nix

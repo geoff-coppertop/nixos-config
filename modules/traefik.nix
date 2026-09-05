@@ -24,7 +24,7 @@ in {
 
       environmentFile = mkOption {
         type = types.str;
-        description = "Path to env file containing DNS provider credentials (agenix-managed). Format: VAR=value, e.g. CF_DNS_API_TOKEN=xxx.";
+        description = "Path to env file containing DNS provider credentials (agenix-managed). Format: VAR=value -- for the cloudflare provider used on reliant, lego reads CLOUDFLARE_DNS_API_TOKEN=xxx (confirmed against the real secret, not CF_DNS_API_TOKEN as an earlier version of this doc assumed).";
       };
 
       domain = mkOption {
