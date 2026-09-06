@@ -249,6 +249,26 @@ sudo nixos-rebuild dry-activate --flake .#enterprise-d
 sudo nixos-rebuild switch --flake .#enterprise-d
 ```
 
+### What these do not catch: port collisions
+
+Two modules enabled on the same host claiming the same TCP port is not a build
+error. `nix flake check` sees only the hand-written assertions in
+`modules/bambuddy.nix`; everything else evaluates and builds cleanly and then
+fails at runtime with `EADDRINUSE` in the service's journal, after a
+`nixos-rebuild switch`. It has happened three times so far.
+
+There is no command for this — the check is reading
+[docs/architecture.md § Port Registry](architecture.md#port-registry) before
+choosing a port, and updating it in the same commit that adds or moves one. If
+a service came up dead after a switch, check its journal for `EADDRINUSE`
+against that table first:
+
+```bash
+systemctl status <unit>
+journalctl -u <unit> -b --no-pager | grep -i 'address already in use'
+sudo ss -tulpn | sort -k5
+```
+
 ### Building each host
 
 ```bash

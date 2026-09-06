@@ -70,6 +70,9 @@ restating it.
 - If several users may want it, create a reusable opt-in user module under
   `users/common/` and import it from the relevant profile instead of forcing it
   globally.
+- If it binds a TCP or UDP port, pick the number against
+  [§ Port Registry](#port-registry) — never from the upstream default alone —
+  and add it there in the same commit.
 
 ## One File Per Concern
 
@@ -255,6 +258,10 @@ options, so a host configuration reads as a list of intents.
 Every `custom.*` option is declared under `modules/` — that is the module/profile
 test from § Layers applied consistently, with no exceptions today.
 
+Which of these options claim a network port, and on which host, is in
+[§ Port Registry](#port-registry) below — the catalogue here says what an
+option does, the registry says what it binds.
+
 ### System policy
 
 | Option | Declared in | What it does |
@@ -328,6 +335,113 @@ another container.
 | `custom.dcsServer` | DCS World dedicated server (Aterfax OCI image under podman) |
 | `custom.dcsServer.srs` | DCS-SRS voice server — a separate `jaycadi/dcs-srs-server` container, not bundled with the DCS image |
 | `custom.factorioServer` | Factorio headless dedicated server — just an `enable` gate over nixpkgs' `services.factorio` (default UDP 34197). Every actual setting (`openFirewall`, `game-name`, `admins`, `extraSettingsFile`, etc.) is set directly via `services.factorio.*` on the host that needs it, not mirrored here |
+
+## Port Registry
+
+Canonical, fleet-wide list of every TCP/UDP port this repo makes a host bind.
+Host READMEs link here rather than keeping their own copy.
+
+**The rule: before you hardcode, default, or override a port anywhere in this
+repo, read the table for every host that will run the module — then update this
+section in the same commit.** A port only collides with another claim on the
+*same host*, which is why the registry is host-scoped rather than one flat
+global list; two hosts reusing 3000 is fine and already the case.
+
+Nothing machine-checks this. `nix flake check` catches exactly two port
+conflicts today, both hand-written assertions in `modules/bambuddy.nix`; every
+other collision surfaces as `EADDRINUSE` in a service journal after a
+`nixos-rebuild switch`. That has happened three times on `reliant` alone:
+`custom.zwave` against AdGuard Home on 3000 (fixed by moving zwave-js to
+3001), `custom.bambuddy`'s virtual printer against that same 3000 (still
+unfixable — the printer's ports are not configurable), and a dashboard service
+whose upstream default landed on Zigbee2MQTT's 8082. Each was found by reading
+a service journal, not by review.
+
+Scope: ports a service *binds*, not ephemeral client ports. `custom.backups`,
+`custom.networkDrives`, and `custom.ddns` bind nothing — they are outbound-only
+(SMB 445 / NFS 2049 to the NAS, HTTPS to Cloudflare).
+
+"Firewall closed" below means the port is bound but `networking.firewall` opens
+nothing for it, so only the host itself (or a bind address narrower than
+`0.0.0.0`) can reach it. Traefik-fronted services are reached through 443 on
+`reliant`, never their own port.
+
+### Every host
+
+| Port | Proto | Claimed by | Bind and exposure |
+| --- | --- | --- | --- |
+| 22 | tcp | `services.openssh`, set per host | LAN; `openFirewall = true` on every host except `holodeck-01` (WSL, port not opened) |
+| 5353 | udp | avahi/mDNS — `profiles/common/networking.nix` | LAN (`services.avahi.openFirewall`) |
+
+### reliant
+
+Runs the whole homelab stack, so it has by far the densest port space — assume
+a collision here unless the table says otherwise.
+
+| Port | Proto | Claimed by | Bind and exposure |
+| --- | --- | --- | --- |
+| 53 | tcp+udp | AdGuard Home resolver — `custom.dns` | `0.0.0.0`; `modules/dns.nix` opens UDP 53 to the LAN (TCP 53 deliberately not opened) |
+| 80, 443 | tcp | Traefik entry points — `custom.traefik` | LAN/WAN, firewall open |
+| 322, 990, 2024–2026, 3000, 3002, 6000, 8883, 50000–50029 | tcp | Bambuddy virtual printer (bind/detect, RTSPS, FTPS, A1/P1S protocol, file tunnel, MQTT, FTP passive range) — hardcoded upstream in `bind_server.py`, started by the app whenever `custom.bambuddy` runs | Firewall closed. The 3000 in this row is the same 3000 AdGuard Home holds below, and neither side is configurable, so `custom.bambuddy.virtualPrinter.openFirewall` is asserted against here — see `modules/bambuddy.nix` and `hosts/reliant/README.md` § Bambuddy |
+| 1883 | tcp | Mosquitto — `custom.mqtt` | `127.0.0.1` only |
+| 3000 | tcp | AdGuard Home admin UI — `custom.dns` (upstream `services.adguardhome.port` default) | `0.0.0.0`, firewall closed; reached through Traefik at `dns1.coppertop.ca` |
+| 3001 | tcp | zwave-js websocket — `custom.zwave.port`, overridden on this host because the module default is 3000 | Firewall closed; Home Assistant connects over localhost |
+| 3003 | tcp | OrcaSlicer slicing sidecar — `custom.bambuddy.slicerSidecar.port` (podman publish) | `127.0.0.1` only |
+| 5335 | tcp+udp | unbound recursive resolver — `custom.dns` | `0.0.0.0`, firewall open: this is the deliberate LAN AdGuard-bypass |
+| 5580 | tcp | python-matter-server websocket — `custom.matter` (upstream `services.matter-server.port` default) | Firewall closed; Home Assistant connects over localhost |
+| 8000 | tcp | Bambuddy web UI / REST API — `custom.bambuddy.port` | `custom.bambuddy.listenAddress`, `127.0.0.1`; Traefik at `bambuddy.coppertop.ca` |
+| 8080 | tcp | nginx serving dump1090's skyaware UI and `aircraft.json` — `custom.adsb` (hardcoded) | `127.0.0.1`; Traefik at `adsb.coppertop.ca` |
+| 8082 | tcp | Zigbee2MQTT frontend — `custom.zigbee` (hardcoded in `modules/zigbee.nix`) | Firewall closed; Traefik at `zigbee.coppertop.ca` |
+| 8123 | tcp | Home Assistant frontend — `custom.home-assistant` (Home Assistant's own default; the module's Traefik route hardcodes it) | Firewall opens TCP 8123 to `192.168.20.0/24` only, for Sonos UPnP callbacks (`networking.firewall.extraCommands`); everything else goes through Traefik at `home.coppertop.ca` |
+| 30001–30005, 30104 | tcp | dump1090's raw/Beast/SBS feed listeners — `custom.adsb` runs it with `--net`, so these come from dump1090's own defaults | `0.0.0.0`, firewall closed |
+
+### excelsior
+
+| Port | Proto | Claimed by | Bind and exposure |
+| --- | --- | --- | --- |
+| 53 | tcp+udp | AdGuard Home resolver — `custom.dns` (this host's independent second instance) | `0.0.0.0`; UDP 53 open to the LAN |
+| 3000 | tcp | AdGuard Home admin UI — `custom.dns` | `0.0.0.0`, firewall restricted to `reliant` (`192.168.20.15`); proxied cross-host at `dns2.coppertop.ca` |
+| 3001 | tcp | DCS webtop web desktop — `custom.dcsServer.desktopPort`, overridden here because the module default is 3000 | `127.0.0.1`; reach with `ssh -L 3001:localhost:3001` |
+| 4000 | tcp | tinyMediaManager web UI — `custom.mediaManager.webPort` | `bindAddress = "0.0.0.0"` with `openFirewall = false`; firewall restricted to `reliant`; proxied at `library.coppertop.ca` |
+| 5002 | tcp+udp | DCS-SRS voice — `custom.dcsServer.srs.port` | LAN/WAN, firewall open |
+| 5335 | tcp+udp | unbound — `custom.dns` | `0.0.0.0`, firewall open (LAN bypass) |
+| 8080 | tcp | Automatic Ripping Machine web UI — `custom.autoRip.webPort` | `bindAddress = "0.0.0.0"` with `openFirewall = false`; firewall restricted to `reliant`; proxied at `rip.coppertop.ca` |
+| 8088 | tcp | DCS's own remote-control WebGUI backend — `custom.dcsServer.webGuiPort` | Bound to `192.168.1.10` (`webGuiBindAddress`) and opened broadly: it is meant to be reached by a router WAN port-forward, never a reverse proxy |
+| 8096 | tcp | Jellyfin — `custom.jellyfin` with `openFirewall = false` | Firewall restricted to `reliant`; proxied at `jellyfin.coppertop.ca` |
+| 9090 | tcp | DCS start/stop control page (nginx) — `custom.dcsServer.control.pagePort` | Bound to `192.168.1.10`, firewall restricted to `reliant`; proxied at `dcs.coppertop.ca` |
+| 9091 | tcp | DCS start/stop/mission-upload webhook — `custom.dcsServer.control.webhookPort` | Same as 9090; proxied at `dcs.coppertop.ca/hooks` |
+| 10308 | tcp+udp | DCS multiplayer game traffic — `custom.dcsServer.gamePort` | LAN/WAN, firewall open (`custom.dcsServer.openFirewall`) |
+| 34197 | udp | Factorio — `custom.factorioServer` via `services.factorio.port` | LAN/WAN, firewall open (`services.factorio.openFirewall`) |
+
+### enterprise-d
+
+| Port | Proto | Claimed by | Bind and exposure |
+| --- | --- | --- | --- |
+| 631 | tcp | CUPS — `profiles/desktop/printing.nix` | localhost; firewall closed |
+| 9943, 9944 | tcp | ALVR wireless VR streaming — `custom.vr` | LAN, firewall open |
+| 9944 | udp | ALVR — `custom.vr` | LAN, firewall open |
+| 10400, 10401, 27031–27035, 27036 | udp | Steam Remote Play / peer discovery — `custom.gaming` (`programs.steam.remotePlay.openFirewall`) | LAN, firewall open |
+| 27036, 27037 | tcp | Steam Remote Play — `custom.gaming` | LAN, firewall open |
+
+### holodeck-01
+
+Nothing beyond the baseline. It runs no `custom.*` module that binds a port.
+
+### Claimed defaults not currently bound
+
+Ports a module would take the moment an off-by-default option is switched on.
+Check this table too — every one of these is a collision waiting on one line of
+host config.
+
+| Option (default) | On which host it matters | Conflict |
+| --- | --- | --- |
+| `custom.dcsServer.srs.restApi.port` (8080, `restApi.enable` off) | `excelsior` | Would collide with `custom.autoRip.webPort` (8080), already bound there. Move one of the two *before* enabling the REST API — nothing asserts on this pair |
+| `custom.bambuddy.slicerSidecar.bambuStudio.port` (3001, `bambuStudio.enable` off) | `reliant` | Collides with `custom.zwave.port` (3001) on that host. `modules/bambuddy.nix` asserts on it |
+| `custom.bambuddy.virtualPrinter.openFirewall` (off) | `reliant` | The 3000/3002 listeners are not configurable; 3000 is AdGuard Home's admin UI. `modules/bambuddy.nix` asserts on it |
+| `custom.zwave.port` (module default 3000) | any host also running `custom.dns` | AdGuard Home's admin UI. Overridden to 3001 on `reliant` for exactly this reason |
+| `custom.dcsServer.desktopPort` (module default 3000) | any host also running `custom.dns` | Same collision; overridden to 3001 on `excelsior` |
+| `custom.dcsServer.voiceChat.port` (10309, `voiceChat.enable` off) | `excelsior` | Free today |
+| `custom.jellyfin.openFirewall = true` | `excelsior` | Also opens 8920/tcp and 1900, 7359/udp — nixpkgs' `services.jellyfin` opens four ports, not just 8096 |
 
 ## Flake Inputs
 

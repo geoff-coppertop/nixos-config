@@ -41,6 +41,12 @@ full design; host-specific facts:
   existing secret (it's just an API credential, not tied to either host's
   identity), not a new one. Confirmed live: cert issuance succeeded.
 
+**Ports: see
+[docs/architecture.md § Port Registry](../../docs/architecture.md#port-registry).**
+This host runs the densest service stack in the fleet and is where every port
+collision this repo has hit so far actually landed — check that table before
+assigning or moving any port here, and update it in the same commit.
+
 Provisioning steps are the generic `disko` flow in
 [docs/provisioning.md § Provision Types](../../docs/provisioning.md#provision-types)
 onward (same as `enterprise-d`/`excelsior`).
