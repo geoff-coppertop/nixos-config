@@ -8,7 +8,8 @@
   # Module default (8082, confirmed against nixpkgs source — not 3000)
   # collides with custom.zigbee's Zigbee2MQTT frontend, also hardcoded 8082 —
   # confirmed live on reliant (EADDRINUSE, both enabled on the same host).
-  # See docs/architecture.md § Port Registry before picking a port here again.
+  # Check the port table in hosts/<machine>/README.md for the host that will
+  # run this before picking a port here again.
   port = 8083;
 in {
   options.custom.homepage.enable =

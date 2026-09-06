@@ -14,6 +14,19 @@ there is no display server.
 | `home/thomasga.nix` | Per-machine home-manager profile (headless) |
 | `provision-type` | `wsl` |
 
+## Ports
+
+Every port this host binds — the complete list for `holodeck-01`. No `custom.*`
+module enabled here binds anything; these two come from the baseline. Check this
+table before assigning or moving a port here, and update it in the same commit
+([docs/architecture.md § Placement
+Rule](../../docs/architecture.md#placement-rule)).
+
+| Port | Protocol | Purpose | Exposure |
+| --- | --- | --- | --- |
+| 22 | tcp | SSH, `services.openssh` | Firewall closed — `openFirewall` is deliberately not set here, unlike the other three hosts. Reachable from the Windows host; whether anything on the LAN can reach it at all also depends on WSL2's networking mode, which this repo does not manage |
+| 5353 | udp | avahi/mDNS, `profiles/common/networking.nix` (`openFirewall = true`) | Firewall open, same WSL2 networking caveat as above |
+
 ## WSL Specifics
 
 ```nix

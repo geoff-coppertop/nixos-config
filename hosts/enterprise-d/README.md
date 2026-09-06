@@ -9,6 +9,28 @@
 - Plymouth boot theme package: `hosts/enterprise-d/framework-penguin-plymouth.nix`
 - Flake entry: `flake.nix`
 
+## Ports
+
+Every port this host binds, in ascending order — the complete list for
+`enterprise-d`. Check it before assigning or moving a port here, and update it
+in the same commit ([docs/architecture.md § Placement
+Rule](../../docs/architecture.md#placement-rule)).
+
+| Port | Protocol | Purpose | Exposure |
+| --- | --- | --- | --- |
+| 22 | tcp | SSH, `services.openssh` with `openFirewall = true` | LAN (firewall open); key-only auth, no password/root login |
+| 631 | tcp | CUPS, `profiles/desktop/printing.nix` (`services.printing`) | localhost only; firewall closed (`openFirewall` not set) |
+| 5353 | udp | avahi/mDNS, `profiles/common/networking.nix` (`openFirewall = true`) | LAN (firewall open) — also how CUPS discovers network printers |
+| 9943, 9944 | tcp | ALVR wireless VR streaming, `custom.vr` | LAN (firewall open) |
+| 9944 | udp | ALVR, `custom.vr` | LAN (firewall open) |
+| 10400, 10401 | udp | Steam Remote Play, `custom.gaming` (`programs.steam.remotePlay.openFirewall`) | LAN (firewall open) |
+| 27031–27035 | udp | Steam Remote Play, `custom.gaming` | LAN (firewall open) |
+| 27036 | udp | Steam peer discovery, `custom.gaming` | LAN (firewall open) |
+| 27036, 27037 | tcp | Steam Remote Play, `custom.gaming` | LAN (firewall open) |
+
+`custom.backups` and `custom.networkDrives` bind nothing — both are
+outbound-only (restic over SMB to the NAS).
+
 ## Installation
 
 ### Post-Install Checklist
