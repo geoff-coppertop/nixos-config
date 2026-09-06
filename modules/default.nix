@@ -17,6 +17,7 @@
     ./fwupd.nix
     ./gaming.nix
     ./home-assistant.nix
+    ./homepage.nix
     ./is-laptop.nix
     ./jellyfin.nix
     ./matter.nix

@@ -1,5 +1,16 @@
 {pkgs, ...}: {
-  programs.firefox.enable = true;
+  programs.firefox = {
+    enable = true;
+
+    # Open the coppertop.ca landing page at startup and via the home button.
+    # A policy (not a managed profile) so it applies without touching existing
+    # profile data. Firefox has no native custom new-tab URL — that would need
+    # an extension — so this covers startup and the home button, not new tabs.
+    policies.Homepage = {
+      URL = "https://coppertop.ca";
+      StartPage = "homepage";
+    };
+  };
 
   xdg.mimeApps = {
     enable = true;

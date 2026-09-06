@@ -3,7 +3,7 @@
   lib,
   ...
 }: let
-  inherit (lib) mkEnableOption mkIf mkMerge mkOption types;
+  inherit (lib) mkEnableOption mkIf mkMerge mkOption optional types;
   mkTraefikRoute = import ../lib/traefik-route.nix;
   cfg = config.custom.dns;
 in {
@@ -30,6 +30,12 @@ in {
       type = types.listOf types.str;
       default = [];
       description = "Subdomains to resolve to lanIp (e.g. [\"homeassistant\" \"zigbee\"]).";
+    };
+
+    apexRecord = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      description = "IP the bare domain (apex) resolves to locally, e.g. for a landing page. Null lets the apex recurse to public DNS (kept for ACME SOA discovery on the DNS host — only an A record is overridden, so SOA/NS/TXT still recurse).";
     };
 
     adminSubdomain = mkOption {
@@ -71,7 +77,9 @@ in {
           # but falls through to real recursion for everything else in the
           # zone (SOA, NS, the bare domain, any other public record).
           local-zone = ["\"${cfg.domain}.\" transparent"];
-          local-data = map (sub: "\"${sub}.${cfg.domain}. A ${cfg.lanIp}\"") cfg.subdomains;
+          local-data =
+            map (sub: "\"${sub}.${cfg.domain}. A ${cfg.lanIp}\"") cfg.subdomains
+            ++ optional (cfg.apexRecord != null) "\"${cfg.domain}. A ${cfg.apexRecord}\"";
         };
       };
 
