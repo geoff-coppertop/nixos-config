@@ -326,6 +326,19 @@ even though the UI lists "Hue" as an option regardless. Note that some
 integrations are distinct platforms needing their own entry — `google_translate`
 is separate from the core `tts` component, for instance.
 
+`wiz` (WiZ Connected smart bulbs) is the same config-flow-only shape as `hue`
+and `broadlink`: confirmed present in nixpkgs' `component-packages.nix`
+(pulling in `pywizlight`/`ifaddr`), so it's core HA and installs via
+`extraComponents` alone — no `services.home-assistant.customComponents`
+packaging like `wiim` needed. Unlike Hue, it's local-only UDP discovery/control
+(no bridge, no cloud account, no secret file). A new bulb is paired via
+Settings > Devices & Services > Add Integration > WiZ; entity IDs aren't known
+until that pairing happens (see § Declarative automations above on verifying
+entity IDs before referencing them). As of this writing there's no
+Nix-declared automation using a `light.*` entity from this integration, so
+there is no `hosts/reliant/home-assistant/wiz-lights.nix` file — only the
+`extraComponents` entry.
+
 Some components additionally need an explicit YAML block in
 `modules/home-assistant.nix`'s `services.home-assistant.config`, the same as
 `sun`/`mobile_app` there: NixOS's home-assistant module has its own fixed

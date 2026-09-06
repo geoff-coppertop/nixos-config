@@ -96,6 +96,14 @@ in {
         # Not part of default_config — same "config-flow-only" gap as "hue"
         # above, see docs/smart-home.md § Choosing extraComponents.
         "broadlink"
+        # wiz: WiZ Connected smart bulbs, local UDP discovery (pywizlight),
+        # no cloud account or secret needed. Same "config-flow-only" gap as
+        # "hue"/"broadlink" above — confirmed present in nixpkgs'
+        # component-packages.nix, so this is core HA, not a custom_components
+        # package. Paired via HA UI (Settings > Devices & Services > Add
+        # Integration > WiZ); no declarative automation yet, see
+        # docs/smart-home.md.
+        "wiz"
         # NOT "linkplay": core HA's linkplay integration fails to set up
         # against these Wiim Pro units specifically — confirmed live,
         # getMetaInfo returns the literal string "Failed" instead of JSON
