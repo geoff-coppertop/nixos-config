@@ -58,6 +58,10 @@ in {
   # Same job-keyed pattern as dcs-server above — excelsior is the only host
   # running the Factorio dedicated server.
   "factorio/restic-password.age".publicKeys = [excelsior offlineAdmin];
+  # The Factorio dedicated server's in-game join password, merged into
+  # server-settings.json via services.factorio.extraSettingsFile. excelsior
+  # only — same single-host reasoning as the restic password above.
+  "factorio/game-password.age".publicKeys = [excelsior offlineAdmin];
   # AQICN API token for the outdoor-AQI REST sensor in
   # hosts/reliant/home-assistant/climate-dashboard.nix — reliant only, not
   # shared with defiant like the hass/* secrets above, since reliant is the

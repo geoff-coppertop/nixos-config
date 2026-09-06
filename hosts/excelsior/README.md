@@ -52,7 +52,7 @@ onward (same as enterprise-d).
 | --- | --- | --- |
 | AdGuard Home | `https://dns2.coppertop.ca` (proxied cross-host through reliant's Traefik — excelsior runs no Traefik of its own) | 3000 |
 | DCS start/stop control | `https://dcs.coppertop.ca` (no auth yet — same source-IP-only posture as the rows below, pending a holistic Traefik auth pass) | 9090 (page), 9091 (webhook) |
-| Factorio ("CGWANO") | in-game server browser (LAN broadcast), `excelsior.local:34197` on the LAN, or `factorio.coppertop.ca:34197` for remote friends once `custom.ddns` (see `docs/homelab-network.md` § Dynamic DNS) is applied on reliant and the router port-forwards UDP 34197 to this host | 34197 (UDP only, no web UI) |
+| Factorio ("CGWANO") | in-game server browser (LAN broadcast), `excelsior.local:34197` on the LAN, or `factorio.coppertop.ca:34197` for remote friends once `custom.ddns` (see `docs/homelab-network.md` § Dynamic DNS) is applied on reliant and the router port-forwards UDP 34197 to this host — joining requires the in-game password (agenix secret, see Known Gotchas) | 34197 (UDP only, no web UI) |
 
 | Port | Protocol | Purpose | Exposure |
 | --- | --- | --- | --- |
@@ -176,6 +176,12 @@ servers — that's a router-side step, not managed by this repo.
   `installPhase`, not `postInstall` — confirmed live that a `postInstall`
   override has no effect here, because upstream's `installPhase` is a raw
   script (`mkdir`/`cp`/`patchelf`) that never calls `runHook postInstall`.
+- **`services.factorio.extraSettingsFile` points at the
+  `factorio/game-password` agenix secret decrypted mode 0444 (world-readable),
+  not chowned to a service user.** `services.factorio` runs with
+  `DynamicUser = true`, so there's no static UID for agenix to `chown` the
+  decrypted file to at activation time — see `docs/secrets.md` for the
+  secret's declaration and JSON shape.
 - **`custom.dcsServer.desktopPort` is overridden to 3001.** The module
   default (3000) collides with AdGuard Home's admin UI, which also defaults
   to 3000 and is what reliant's `dns2.coppertop.ca` Traefik route depends on

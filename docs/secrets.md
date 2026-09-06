@@ -166,6 +166,32 @@ the same file — the restic repository path embeds the hostname
 (`<mountPoint>/<job>/<hostname>`), so the hosts do not collide in the
 repository. Add a host only when that host actually runs the job.
 
+### Factorio server settings
+
+| Secret | Contents | Host recipients |
+| --- | --- | --- |
+| `secrets/factorio/game-password.age` | Valid JSON with exactly one key, `game_password` | `excelsior` |
+
+The Factorio dedicated server's in-game join password. It must decrypt to valid
+JSON — not a bare line like the restic passwords above — because the nixpkgs
+`services.factorio` module merges `extraSettingsFile` into the generated
+`server-settings.json` with a `jq -s add` in the unit's `ExecStartPre`. Any
+other shape, or extra keys, either fails the merge or silently overrides
+settings the module manages:
+
+```json
+{"game_password": "<password>"}
+```
+
+Declared in `hosts/excelsior/secrets.nix` with `mode = "0444"` and no `owner`.
+That is intentional: `services.factorio` runs with `DynamicUser = true`, so its
+UID does not exist when agenix decrypts secrets at activation time and there is
+no static account to `chown` the file to. World-readable is the accepted
+tradeoff for this one secret — `excelsior` is a headless game server with no
+local accounts besides the admin login, and this is how upstream's
+`extraSettingsFile` is meant to be used with a `DynamicUser` service. Do not
+copy this pattern to a secret whose consumer has a real static user.
+
 ### NAS SMB credentials
 
 `secrets/thomasga/nas-smb-credentials.age` (recipients: `enterprise-d`,

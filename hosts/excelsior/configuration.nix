@@ -183,11 +183,13 @@ in {
   # services.factorio.* here.
   #
   # WAN-facing per the router port-forward noted below — access control is
-  # the firewall (LAN/WAN, same posture as DCS's game port) plus whatever
-  # in-game password players share; no factorio.com whitelist/admin list
-  # configured yet.
+  # the firewall (LAN/WAN, same posture as DCS's game port) plus a real
+  # in-game password enforced via extraSettingsFile (agenix secret, see
+  # Known Gotchas in this host's README); no factorio.com whitelist/admin
+  # list configured yet.
   services.factorio = lib.mkIf config.custom.factorioServer.enable {
     openFirewall = true;
+    extraSettingsFile = config.age.secrets."factorio/game-password".path;
     # Upstream defaults this to false; LAN discovery is the sane default for
     # a server WAN players only reach via direct-connect anyway (confirmed
     # live: server-settings.json otherwise ships visibility.lan=false and the
