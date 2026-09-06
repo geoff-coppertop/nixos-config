@@ -50,25 +50,62 @@ in {
     ];
   };
 
-  # Order Jellyfin after the mount, but softly (wants, not requires) so a
-  # temporarily unreachable NAS does not block it from starting.
-  systemd.services.jellyfin = {
-    after = ["mnt-media.mount"];
-    wants = ["mnt-media.mount"];
+  # Order the services after the mount, but softly (wants, not requires) so a
+  # temporarily unreachable NAS does not block them from starting.
+  systemd.services = {
+    jellyfin = {
+      after = ["mnt-media.mount"];
+      wants = ["mnt-media.mount"];
+    };
+    podman-arm = {
+      after = ["mnt-media.mount"];
+      wants = ["mnt-media.mount"];
+    };
+    podman-tinymediamanager = {
+      after = ["mnt-media.mount"];
+      wants = ["mnt-media.mount"];
+    };
   };
 
-  custom.jellyfin = {
-    enable = true;
-    # No real auth of its own at the network layer beyond Jellyfin's own
-    # accounts, and this host runs no Traefik — reliant's Traefik proxies it
-    # cross-host (jellyfin.coppertop.ca), same pattern as this host's
-    # existing dns2/DCS-control routes. openFirewall stays false; the
-    # firewall rule below is the only thing that opens the port, and only to
-    # reliant.
-    openFirewall = false;
+  custom = {
+    # None of these have real auth of their own at the network layer beyond
+    # Jellyfin's own accounts (ARM/tinyMediaManager have none at all, and this
+    # repo does not add a Traefik-side middleware for them — access control
+    # for those two is handled outside this config). reliant's Traefik
+    # proxies all three cross-host, same pattern as this host's existing
+    # dns2/DCS-control routes. openFirewall stays false everywhere; the
+    # firewall rules below are the only thing that open these ports, and only
+    # to reliant.
+    jellyfin = {
+      enable = true;
+      openFirewall = false;
+    };
+
+    autoRip = {
+      enable = true;
+      openFirewall = false;
+      bindAddress = "0.0.0.0";
+      mediaDir = "/mnt/media";
+      uid = mediaUid;
+      gid = mediaGid;
+    };
+
+    # Organize existing rips (and fix ARM's output) into consistent,
+    # metadata-rich names Jellyfin scrapes cleanly. Reached at
+    # library.coppertop.ca.
+    mediaManager = {
+      enable = true;
+      openFirewall = false;
+      bindAddress = "0.0.0.0";
+      mediaDir = "/mnt/media";
+      uid = mediaUid;
+      gid = mediaGid;
+    };
   };
 
   networking.firewall.extraCommands = ''
     iptables -I nixos-fw -p tcp -s ${reliantIp} --dport 8096 -j ACCEPT
+    iptables -I nixos-fw -p tcp -s ${reliantIp} --dport 8080 -j ACCEPT
+    iptables -I nixos-fw -p tcp -s ${reliantIp} --dport 4000 -j ACCEPT
   '';
 }
