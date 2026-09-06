@@ -22,6 +22,7 @@ in {
     ./power.nix
     ./disko.nix
     ./home-assistant
+    ./homepage.nix
 
     ../../profiles/common
     # NOT: profiles/desktop — no display server
@@ -294,6 +295,8 @@ in {
       # Renamed from the module default "dns", carried from defiant — dns1
       # (this host) and dns2 (excelsior) pair the two AdGuard instances.
       adminSubdomain = "dns1";
+      # Landing page (Homepage) runs on this host; resolve the bare apex here.
+      apexRecord = lanIp;
     };
 
     traefik = {

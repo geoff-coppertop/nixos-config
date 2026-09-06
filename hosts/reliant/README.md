@@ -254,6 +254,11 @@ slicing sidecar as a podman container. Host-specific notes:
   `firewall.extraCommands` and `modules/home-assistant.nix`'s Traefik route
   registration — since nixpkgs can no longer discover it automatically. See
   [docs/smart-home.md § Firewall](../../docs/smart-home.md#firewall-openfirewall-removed-upstream).
+- **`custom.homepage`'s port (8082) collided with Zigbee2MQTT's frontend,
+  also 8082.** Confirmed live: `homepage-dashboard.service` failed
+  (`EADDRINUSE`) on the first deploy with both enabled on this host. Moved to
+  8083 in `modules/homepage.nix` — same class of conflict as
+  `zwave-js`/AdGuard (3000, above) and `bambuddy`/AdGuard (3000, § Bambuddy).
 
 ## Backups
 
