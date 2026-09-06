@@ -72,6 +72,14 @@ onward (same as `enterprise-d`/`excelsior`).
   `media_player.apple_tv_upstairs_living_room`,
   `media_player.apple_tv_basement_living_room`, and
   `media_player.apple_tv_geoff_s_office`.
+- **WiZ outdoor lights (5×, 4 front + 1 rear)** — unpaired; requires the
+  `"wiz"` `extraComponents` entry merged first. Pair each via Settings →
+  Devices & Services → Add Integration → WiZ, then update the placeholder
+  entity IDs in `home-assistant/wiz-lights.nix` and run
+  `nix run .#check-ha-entities -- reliant` to confirm them against the live
+  registry. Reconfirm the switch-to-group mapping (front entry circuit →
+  the 4 front bulbs, patio circuit → the 1 rear bulb) at the same time —
+  see `docs/smart-home.md` § WiZ outdoor lights.
 
 ## Bambuddy (3D Printing)
 
