@@ -157,6 +157,35 @@ in {
       # No custom.traefik here: Traefik stays single-instance on reliant,
       # which proxies this host's AdGuard admin UI cross-host (see
       # hosts/reliant/configuration.nix's dns2 router).
+      #
+      # This resolver otherwise knows nothing about the internal zone (no
+      # subdomains of its own), which defeats the point of handing it out as
+      # a DHCP-secondary alongside reliant's: if reliant's resolver were
+      # down, none of these names would resolve here either. Mirror
+      # reliant's own subdomains list so this resolver independently answers
+      # for the whole zone too. Every entry points at reliant's IP, not this
+      # host's own — even jellyfin, which physically runs here — because
+      # reliant's Traefik is the sole public entrypoint for all of them (its
+      # own subdomains list resolves the same names to itself for the same
+      # reason), and excelsior's firewall only accepts these ports from
+      # reliant in the first place (hosts/excelsior/media.nix and the
+      # extraCommands block below). Keep in sync with
+      # hosts/reliant/configuration.nix's subdomains list by hand — no
+      # shared source of truth yet, to keep this change small.
+      extraRecords = let
+        reliantIp = "192.168.20.15";
+      in {
+        home = reliantIp;
+        dns1 = reliantIp;
+        dns2 = reliantIp;
+        dcs = reliantIp;
+        jellyfin = reliantIp;
+        rip = reliantIp;
+        library = reliantIp;
+        adsb = reliantIp;
+        zigbee = reliantIp;
+        bambuddy = reliantIp;
+      };
     };
   };
 
