@@ -119,21 +119,29 @@ summary.
 It then builds *every* remaining host registered in `nixosConfigurations` —
 including hosts excluded by `--only`/`--skip` — and refuses to touch any machine
 if any host fails to build. Only then does it run
-`nixos-rebuild switch --flake .#<host> --target-host thomasga@<host>.local --sudo`
+`nixos-rebuild switch --flake .#<host> --target-host thomasga@<host>.local`
 for each reachable host, prompting `Switch <host> now? [y/N]` before each one.
 The host list comes from the flake, so a newly registered machine is picked up
 with no change to the tool.
 
-If that invocation fails for a host, it is retried once with
-`--ask-sudo-password` instead of `--sudo`, which prompts locally for the
-password and passes it to the target over stdin. `--sudo` only works on a
-target that already allows passwordless privilege elevation, so this is the
-recovery path for hosts that need a password (`enterprise-d` does). The retry
-fires on any failure, not just an elevation error — nixos-rebuild's error
-wording is not an interface worth matching on — so a host failing for an
-unrelated reason simply fails twice before being reported. Watch for the
-`retrying with --ask-sudo-password` line on stderr: that is why a password
-prompt appears mid-run.
+How that switch elevates is decided before it runs, not after it fails.
+Immediately before each host's switch, that host is probed with
+`ssh -o BatchMode=yes -o ConnectTimeout=5 thomasga@<host>.local sudo -n true`,
+and the switch gets `--sudo` if the probe succeeded or `--ask-sudo-password` if
+it did not. `--sudo` only works on a target that already allows passwordless
+privilege elevation; `--ask-sudo-password` prompts locally for the password and
+passes it to the target over stdin, which is the path hosts needing a password
+take (`enterprise-d` does). Watch for the
+`no passwordless sudo — you will be prompted locally` line on stderr: that is
+why a password prompt appears mid-run.
+
+The switch itself is attempted exactly once per host. There is no retry: a
+`nixos-rebuild switch` failure after the probe has already answered the sudo
+question is a real deployment failure — a unit that would not (re)start, an
+activation script that errored — not a privilege problem, and re-running the
+whole switch would only redecrypt secrets and restart every changed unit again
+to reach the same error. Such a host is reported under `failed` in the summary
+and the run exits non-zero.
 
 Preview the whole fleet without changing anything:
 
