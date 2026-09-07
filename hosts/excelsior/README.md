@@ -48,25 +48,42 @@ onward (same as enterprise-d).
 
 ## Services And URLs
 
-| Service | URL | Port behind Traefik |
-| --- | --- | --- |
-| AdGuard Home | `https://dns2.coppertop.ca` (proxied cross-host through reliant's Traefik — excelsior runs no Traefik of its own) | 3000 |
-| DCS start/stop control | `https://dcs.coppertop.ca` (no auth yet — same source-IP-only posture as the rows below, pending a holistic Traefik auth pass) | 9090 (page), 9091 (webhook) |
-| Factorio ("CGWANO") | in-game server browser (LAN broadcast), `excelsior.local:34197` on the LAN, or `factorio.coppertop.ca:34197` for remote friends once `custom.ddns` (see `docs/homelab-network.md` § Dynamic DNS) is applied on reliant and the router port-forwards UDP 34197 to this host — joining requires the in-game password (agenix secret, see Known Gotchas) | 34197 (UDP only, no web UI) |
+| Service | URL |
+| --- | --- |
+| AdGuard Home | `https://dns2.coppertop.ca` (proxied cross-host through reliant's Traefik — excelsior runs no Traefik of its own) |
+| DCS start/stop control | `https://dcs.coppertop.ca` (no auth yet — same source-IP-only posture as everything else here, pending a holistic Traefik auth pass) |
+| Jellyfin | `https://jellyfin.coppertop.ca` (proxied cross-host; its own accounts are the auth) |
+| Automatic Ripping Machine | `https://rip.coppertop.ca` (proxied cross-host, no auth of its own) |
+| tinyMediaManager | `https://library.coppertop.ca` (proxied cross-host, no auth of its own) |
+| Factorio ("CGWANO") | in-game server browser (LAN broadcast), `excelsior.local:34197` on the LAN, or `factorio.coppertop.ca:34197` for remote friends once `custom.ddns` (see `docs/homelab-network.md` § Dynamic DNS) is applied on reliant and the router port-forwards UDP 34197 to this host — joining requires the in-game password (agenix secret, see Known Gotchas) |
+
+### Ports
+
+Every port this host binds, in ascending order — the complete list for
+`excelsior`. Check it before assigning or moving a port here, and update it in
+the same commit ([docs/architecture.md § Placement
+Rule](../../docs/architecture.md#placement-rule)).
 
 | Port | Protocol | Purpose | Exposure |
 | --- | --- | --- | --- |
-| 10308 | tcp+udp | DCS game traffic | LAN/WAN (firewall open; needs a router port-forward for real remote play, then remote friends connect at `dcs.coppertop.ca:10308` — same `custom.ddns` mechanism as Factorio's 34197 below; see Known Gotchas) |
-| 8088 | tcp | DCS's own remote-control WebGUI backend | LAN/WAN (firewall open; needs a router port-forward — DCS's own remote-control mechanism, not usable through Traefik/any reverse proxy — see Known Gotchas) |
-| 5002 | tcp+udp | DCS-SRS voice (separate `dcs-srs-server` container) | LAN/WAN (firewall open) |
-| 8080 | tcp | SRS REST API (`custom.dcsServer.srs.restApi.enable`, off by default) | LAN/WAN (firewall open) |
-| 3000 | tcp | AdGuard Home admin UI | reliant only (firewall-restricted; proxied at `dns2.coppertop.ca`) |
-| 53 | udp | DNS (AdGuard → unbound) | LAN/WAN (firewall open) |
-| 5335 | tcp+udp | unbound bypass (skips AdGuard filtering) | LAN/WAN (firewall open) |
-| 3001 | tcp | DCS webtop web desktop | 127.0.0.1 only |
-| 9090 | tcp | DCS start/stop control page (`custom.dcsServer.control`) | reliant only (firewall-restricted; proxied at `dcs.coppertop.ca`) |
-| 9091 | tcp | DCS start/stop/mission-upload webhook (`custom.dcsServer.control`) | reliant only (firewall-restricted; proxied at `dcs.coppertop.ca`) |
-| 34197 | udp | Factorio game traffic (`services.factorio.openFirewall`) | LAN/WAN (firewall open; needs a router port-forward for remote play, then remote friends connect at `factorio.coppertop.ca:34197` — same as DCS's 10308) |
+| 22 | tcp | SSH, `services.openssh` with `openFirewall = true` | LAN (firewall open); key-only auth, no password/root login |
+| 53 | udp | DNS (AdGuard Home → unbound), `custom.dns` | LAN/WAN (firewall open; TCP 53 deliberately not opened) |
+| 3000 | tcp | AdGuard Home admin UI, `custom.dns` (upstream default) | Bound `0.0.0.0`, `openFirewall = false`; reliant only (firewall-restricted to `192.168.20.15`; proxied at `dns2.coppertop.ca`) |
+| 3001 | tcp | DCS webtop web desktop, `custom.dcsServer.desktopPort` — overridden from the module default (3000), which AdGuard's admin UI holds here | 127.0.0.1 only (reach with `ssh -L 3001:localhost:3001`) |
+| 4000 | tcp | tinyMediaManager web UI, `custom.mediaManager.webPort` | Bound `0.0.0.0`, `openFirewall = false`; reliant only (firewall-restricted; proxied at `library.coppertop.ca`) |
+| 5002 | tcp+udp | DCS-SRS voice (separate `dcs-srs-server` container), `custom.dcsServer.srs.port` | LAN/WAN (firewall open) |
+| 5335 | tcp+udp | unbound bypass (skips AdGuard filtering), `custom.dns` | LAN/WAN (firewall open) |
+| 5353 | udp | avahi/mDNS, `profiles/common/networking.nix` (`openFirewall = true`) | LAN (firewall open) — what makes `excelsior.local` resolve for deploys |
+| 8080 | tcp | Automatic Ripping Machine web UI, `custom.autoRip.webPort` | Bound `0.0.0.0`, `openFirewall = false`; reliant only (firewall-restricted; proxied at `rip.coppertop.ca`) |
+| 8080 | tcp | SRS REST API, `custom.dcsServer.srs.restApi.port` (`restApi.enable` off) | **Not bound today** — and its default is the 8080 `custom.autoRip.webPort` already holds above. Nothing asserts on this pair; move one of the two before enabling the REST API |
+| 8088 | tcp | DCS's own remote-control WebGUI backend, `custom.dcsServer.webGuiPort` | Bound to `192.168.1.10` and opened broadly — meant to be reached by a router WAN port-forward, not usable through Traefik/any reverse proxy (see Known Gotchas) |
+| 8096 | tcp | Jellyfin, `custom.jellyfin` with `openFirewall = false` | reliant only (firewall-restricted; proxied at `jellyfin.coppertop.ca`) |
+| 8920 (tcp), 1900 + 7359 (udp) | tcp/udp | Jellyfin's other ports — nixpkgs' `services.jellyfin` opens four ports, not just 8096 | **Not opened today** — `custom.jellyfin.openFirewall = false` here; setting it true opens these three alongside 8096 |
+| 9090 | tcp | DCS start/stop control page (nginx), `custom.dcsServer.control.pagePort` | Bound to `192.168.1.10`; reliant only (firewall-restricted; proxied at `dcs.coppertop.ca`) |
+| 9091 | tcp | DCS start/stop/status/mission-upload webhook, `custom.dcsServer.control.webhookPort` | Same as 9090 (proxied at `dcs.coppertop.ca/hooks`) |
+| 10308 | tcp+udp | DCS game traffic, `custom.dcsServer.gamePort` | LAN/WAN (firewall open; needs a router port-forward for real remote play, then remote friends connect at `dcs.coppertop.ca:10308` — via `custom.ddns` on reliant; see Known Gotchas) |
+| 10309 | tcp+udp | DCS in-game VoIP, `custom.dcsServer.voiceChat.port` (`voiceChat.enable` off) | **Not bound today** — free, no collision if it is switched on |
+| 34197 | udp | Factorio game traffic, `custom.factorioServer` via `services.factorio.openFirewall` | LAN/WAN (firewall open; same port-forward story as 10308, at `factorio.coppertop.ca:34197`) |
 
 AdGuard's admin UI (3000) and `custom.dcsServer.control.bindAddress`
 (9090/9091) are bound to this host's real LAN IP instead of `127.0.0.1`,

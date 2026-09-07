@@ -70,6 +70,11 @@ restating it.
 - If several users may want it, create a reusable opt-in user module under
   `users/common/` and import it from the relevant profile instead of forcing it
   globally.
+- If it binds a TCP or UDP port, read the port table in the README of every host
+  that will run it (`hosts/<machine>/README.md`) before picking the number —
+  never take the upstream default on trust — and add the port to each of those
+  tables in the same commit. A port only collides with another claim on the same
+  machine, so the host's own table is the complete list that matters.
 
 ## One File Per Concern
 
@@ -254,6 +259,10 @@ options, so a host configuration reads as a list of intents.
 
 Every `custom.*` option is declared under `modules/` — that is the module/profile
 test from § Layers applied consistently, with no exceptions today.
+
+Which ports an enabled option actually makes a host bind is recorded per host,
+in that host's own `hosts/<machine>/README.md` port table — the catalogue here
+says what an option does, the host README says what it binds there.
 
 ### System policy
 
