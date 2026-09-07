@@ -133,7 +133,13 @@ in {
       # broadly, same as the game port, since real remote DCS clients can
       # come from any public IP, not just reliant's.
       webGuiBindAddress = "192.168.1.10";
-      # On-demand start/stop via dcs.coppertop.ca (see
+      # Unlike webGuiPort above, webtop is a noVNC session, not an
+      # origin-checked API — reliant's Traefik can proxy it cross-host fine
+      # (dcs.coppertop.ca). Bound to this host's LAN IP, restricted
+      # to reliant's IP by the firewall rule below, same pattern as the
+      # control page and AdGuard's admin UI.
+      desktopBindAddress = "192.168.1.10";
+      # On-demand start/stop via dcs-control.coppertop.ca (see
       # docs/homelab-network.md) instead of always running. startAtBoot=false
       # means a reboot no longer brings DCS back up on its own — start it
       # through the control page.
@@ -179,6 +185,7 @@ in {
         dns1 = reliantIp;
         dns2 = reliantIp;
         dcs = reliantIp;
+        dcs-control = reliantIp;
         jellyfin = reliantIp;
         rip = reliantIp;
         library = reliantIp;
@@ -242,10 +249,11 @@ in {
   };
 
   # The DCS on-demand control page + webhook (custom.dcsServer.control,
-  # 9090/9091) and AdGuard Home's admin UI (custom.dns, port 3000) are
-  # bound to this host's own LAN IP rather than 127.0.0.1 or 0.0.0.0,
-  # specifically so reliant's Traefik can reach them cross-host
-  # (dcs.coppertop.ca, dns2.coppertop.ca) — neither has real auth of its
+  # 9090/9091), the DCS webtop desktop (custom.dcsServer.desktopPort, 3001),
+  # and AdGuard Home's admin UI (custom.dns, port 3000) are bound to this
+  # host's own LAN IP rather than 127.0.0.1 or 0.0.0.0, specifically so
+  # reliant's Traefik can reach them cross-host (dcs-control.coppertop.ca,
+  # dcs.coppertop.ca, dns2.coppertop.ca) — none has real auth of its
   # own at any layer yet (a holistic Traefik auth pass is a deliberate
   # follow-up), so the firewall is the only thing standing between them and
   # the whole LAN. Restricted to reliant's IP only, same pattern as
@@ -263,6 +271,7 @@ in {
 
     firewall.extraCommands = ''
       iptables -I nixos-fw -p tcp -s 192.168.20.15 --dport 3000 -j ACCEPT
+      iptables -I nixos-fw -p tcp -s 192.168.20.15 --dport 3001 -j ACCEPT
       iptables -I nixos-fw -p tcp -s 192.168.20.15 --dport 9090 -j ACCEPT
       iptables -I nixos-fw -p tcp -s 192.168.20.15 --dport 9091 -j ACCEPT
     '';

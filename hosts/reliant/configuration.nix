@@ -287,11 +287,12 @@ in {
       # Traefik routes when their custom.* modules are enabled (see
       # modules/home-assistant.nix, modules/adsb.nix, modules/zigbee.nix,
       # modules/bambuddy.nix), which they now are, above.
-      # dns1 is this host's own AdGuard admin UI; dns2, dcs, jellyfin, rip,
-      # and library are cross-host routers to excelsior (AdGuard admin UI,
-      # DCS on-demand control page, Jellyfin, Automatic Ripping Machine, and
-      # tinyMediaManager respectively), defined by hand below.
-      subdomains = ["home" "dns1" "dns2" "dcs" "jellyfin" "rip" "library" "adsb" "zigbee" "bambuddy"];
+      # dns1 is this host's own AdGuard admin UI; dns2, dcs, dcs-control,
+      # jellyfin, rip, and library are cross-host routers to excelsior
+      # (AdGuard admin UI, DCS's webtop desktop, DCS on-demand control page,
+      # Jellyfin, Automatic Ripping Machine, and tinyMediaManager
+      # respectively), defined by hand below.
+      subdomains = ["home" "dns1" "dns2" "dcs" "dcs-control" "jellyfin" "rip" "library" "adsb" "zigbee" "bambuddy"];
       # Renamed from the module default "dns", carried from defiant — dns1
       # (this host) and dns2 (excelsior) pair the two AdGuard instances.
       adminSubdomain = "dns1";
@@ -334,11 +335,19 @@ in {
   # is a freeform TOML type. See docs/homelab-network.md § Second DNS
   # Instance (excelsior).
   #
-  # dcs.coppertop.ca: excelsior's on-demand DCS start/stop control page +
-  # webhook (custom.dcsServer.control), cross-host and firewall-restricted
-  # to this host the same way as dns2 above, no Traefik auth yet.
-  # Starting/stopping a live session is a bigger blast radius than the
-  # read-only AdGuard panel, so this genuinely wants real auth sooner
+  # dcs.coppertop.ca: excelsior's DCS webtop desktop
+  # (custom.dcsServer.desktopPort). A noVNC session, not an origin-checked
+  # API like DCS's own WebGUI (custom.dcsServer.webGuiPort) — proxying it
+  # cross-host works fine (see the removed webGuiProxy note below). No auth
+  # middleware, same posture as dcs-control/dns2 below: the firewall
+  # restriction on excelsior's side is the only gate. Gets the bare "dcs"
+  # name because it's the one actually used day-to-day.
+  #
+  # dcs-control.coppertop.ca: excelsior's on-demand DCS start/stop control
+  # page + webhook (custom.dcsServer.control), cross-host and
+  # firewall-restricted to this host the same way as dns2 above, no Traefik
+  # auth yet. Starting/stopping a live session is a bigger blast radius than
+  # the read-only AdGuard panel, so this genuinely wants real auth sooner
   # rather than later, but that's being done holistically across all these
   # routers rather than one at a time — deliberately not added here yet.
   #
@@ -353,7 +362,7 @@ in {
   # are directly port-forwarded from the WAN to excelsior, reachable
   # without any HTTP-layer proxy in the path at all — see
   # hosts/excelsior/configuration.nix and hosts/excelsior/README.md Known
-  # Gotchas. dcs.coppertop.ca is now just the control page/webhook.
+  # Gotchas. dcs-control.coppertop.ca is now just the control page/webhook.
   # Both routers below need explicit priorities: dcsControlPage's rule
   # ("Host(...)") is a substring of dcsControlHooks's rule
   # ("Host(...) && PathPrefix(/hooks)"), and Traefik's default
@@ -362,8 +371,8 @@ in {
   # routing /hooks/* to nginx (a raw 404) instead of the webhook.
   #
   # jellyfin.coppertop.ca: excelsior's Jellyfin media server, cross-host the
-  # same way as dns2/dcs above. Unlike those two, Jellyfin has its own real
-  # account system, so no Traefik auth concern here — the firewall
+  # same way as dns2/dcs-control above. Unlike those two, Jellyfin has its
+  # own real account system, so no Traefik auth concern here — the firewall
   # restriction on excelsior's side (hosts/excelsior/media.nix) still limits
   # the raw port to this host only, matching the others' pattern.
   #
@@ -381,16 +390,22 @@ in {
       };
 
       dcsControlHooks = {
-        rule = "Host(`dcs.coppertop.ca`) && PathPrefix(`/hooks`)";
+        rule = "Host(`dcs-control.coppertop.ca`) && PathPrefix(`/hooks`)";
         service = "dcsControlHooks";
         priority = 100;
         tls = {};
       };
 
       dcsControlPage = {
-        rule = "Host(`dcs.coppertop.ca`)";
+        rule = "Host(`dcs-control.coppertop.ca`)";
         service = "dcsControlPage";
         priority = 1;
+        tls = {};
+      };
+
+      dcsDesktop = {
+        rule = "Host(`dcs.coppertop.ca`)";
+        service = "dcsDesktop";
         tls = {};
       };
 
@@ -417,6 +432,7 @@ in {
       dns2.loadBalancer.servers = [{url = "http://192.168.1.10:3000";}];
       dcsControlHooks.loadBalancer.servers = [{url = "http://192.168.1.10:9091";}];
       dcsControlPage.loadBalancer.servers = [{url = "http://192.168.1.10:9090";}];
+      dcsDesktop.loadBalancer.servers = [{url = "http://192.168.1.10:3001";}];
       jellyfin.loadBalancer.servers = [{url = "http://192.168.1.10:8096";}];
       rip.loadBalancer.servers = [{url = "http://192.168.1.10:8080";}];
       library.loadBalancer.servers = [{url = "http://192.168.1.10:4000";}];

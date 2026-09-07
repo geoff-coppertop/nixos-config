@@ -168,9 +168,12 @@ otherwise assumes.
 
 `excelsior` also runs `custom.dcsServer` (DCS World dedicated server —
 `docs/architecture.md` § Custom Options). Two related but distinct things
-live at `dcs.coppertop.ca`: an on-demand start/stop control page (proxied
-by Traefik, works remotely), and DCS's own WebGUI (does **not** work
-remotely through any proxy, by DCS's own design — see below).
+are proxied here: an on-demand start/stop control page at
+`dcs-control.coppertop.ca` (proxied by Traefik, works remotely), and DCS's
+own WebGUI (does **not** work remotely through any proxy, by DCS's own
+design — see below). The webtop desktop itself — the thing actually used
+day-to-day — gets the bare `dcs.coppertop.ca` name; see § DCS's webtop
+desktop is proxied cross-host below.
 
 ### On-demand start/stop
 
@@ -193,18 +196,18 @@ those two named units — nothing broader. Stopping is intentionally
 stopping a live session is worse than the resource cost of a forgotten
 manual stop.
 
-`reliant`'s `configuration.nix` proxies `dcs.coppertop.ca` at this control
-page/webhook, same manual-router shape as `dns2`:
+`reliant`'s `configuration.nix` proxies `dcs-control.coppertop.ca` at this
+control page/webhook, same manual-router shape as `dns2`:
 
 ```nix
 routers.dcsControlHooks = {
-  rule = "Host(`dcs.coppertop.ca`) && PathPrefix(`/hooks`)";
+  rule = "Host(`dcs-control.coppertop.ca`) && PathPrefix(`/hooks`)";
   service = "dcsControlHooks";
   priority = 100;
   tls = {};
 };
 routers.dcsControlPage = {
-  rule = "Host(`dcs.coppertop.ca`)";
+  rule = "Host(`dcs-control.coppertop.ca`)";
   service = "dcsControlPage";
   priority = 1;
   tls = {};
@@ -218,7 +221,7 @@ priority for the unprefixed page router beat a previous hardcoded priority
 on the hooks router alone, silently routing `/hooks/*` to nginx (a raw 404)
 instead of the webhook.
 
-`dcs.coppertop.ca` itself has no auth beyond the source-IP restriction —
+`dcs-control.coppertop.ca` itself has no auth beyond the source-IP restriction —
 general Traefik auth in front of it is a deliberate follow-up being done
 holistically rather than one router at a time. Starting the container via
 the control page does **not** by itself load a DCS mission — that's a
@@ -281,6 +284,37 @@ not Traefik-proxied) specifically so that WAN forward has something to
 reach, and `networking.firewall.allowedTCPPorts` opens 8088 broadly, the
 same way the game port already is — real remote DCS clients can come from
 any public IP, not just `reliant`'s.
+
+### DCS's webtop desktop is proxied cross-host — unlike the WebGUI above
+
+`custom.dcsServer.desktopPort` (default 3000, overridden to 3001 on
+`excelsior` — the module default collides with AdGuard's admin UI) is a
+[linuxserver.io webtop](https://docs.linuxserver.io/images/docker-webtop/)
+noVNC desktop, not the WebGUI's `/encryptedRequest` API above. noVNC is a
+plain websocket video/input stream with no origin check, so the limitation
+in § DCS's own WebGUI does not apply here — the desktop proxies cross-host
+fine. `reliant`'s `configuration.nix` proxies it at `dcs.coppertop.ca` — the
+bare name, since this is the desktop actually used day-to-day, with the
+start/stop control page (above) moved to the more explicit
+`dcs-control.coppertop.ca` — same manual-router shape as `dcs-control`/`dns2`/Jellyfin:
+
+```nix
+routers.dcsDesktop = {
+  rule = "Host(`dcs.coppertop.ca`)";
+  service = "dcsDesktop";
+  tls = {};
+};
+services.dcsDesktop.loadBalancer.servers = [{url = "http://192.168.1.10:3001";}];
+```
+
+`custom.dcsServer.desktopBindAddress` is bound to `excelsior`'s LAN IP (not
+loopback) and firewall-restricted to `reliant`'s IP only, same posture as
+the control page — webtop has weak default auth, and there's no Traefik
+middleware in front of it, so the firewall is the only gate. Opening a
+browser tab is now enough to reach the DCS launcher/WebGUI *from inside*
+the webtop desktop (same-origin there, so DCS's own local-connection check
+still passes) — the SSH-tunnel path (`ssh -L 3001:localhost:3001`) still
+works too, it's just no longer required.
 
 ## Jellyfin (excelsior)
 

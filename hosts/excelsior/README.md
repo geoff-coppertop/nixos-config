@@ -51,7 +51,8 @@ onward (same as enterprise-d).
 | Service | URL |
 | --- | --- |
 | AdGuard Home | `https://dns2.coppertop.ca` (proxied cross-host through reliant's Traefik — excelsior runs no Traefik of its own) |
-| DCS start/stop control | `https://dcs.coppertop.ca` (no auth yet — same source-IP-only posture as everything else here, pending a holistic Traefik auth pass) |
+| DCS webtop desktop | `https://dcs.coppertop.ca` (no auth yet — same source-IP-only posture as everything else here, pending a holistic Traefik auth pass) |
+| DCS start/stop control | `https://dcs-control.coppertop.ca` (no auth yet, same source-IP-only posture as DCS webtop desktop above) |
 | Jellyfin | `https://jellyfin.coppertop.ca` (proxied cross-host; its own accounts are the auth) |
 | Automatic Ripping Machine | `https://rip.coppertop.ca` (proxied cross-host, no auth of its own) |
 | tinyMediaManager | `https://library.coppertop.ca` (proxied cross-host, no auth of its own) |
@@ -69,7 +70,7 @@ Rule](../../docs/architecture.md#placement-rule)).
 | 22 | tcp | SSH, `services.openssh` with `openFirewall = true` | LAN (firewall open); key-only auth, no password/root login |
 | 53 | udp | DNS (AdGuard Home → unbound), `custom.dns` | LAN/WAN (firewall open; TCP 53 deliberately not opened) |
 | 3000 | tcp | AdGuard Home admin UI, `custom.dns` (upstream default) | Bound `0.0.0.0`, `openFirewall = false`; reliant only (firewall-restricted to `192.168.20.15`; proxied at `dns2.coppertop.ca`) |
-| 3001 | tcp | DCS webtop web desktop, `custom.dcsServer.desktopPort` — overridden from the module default (3000), which AdGuard's admin UI holds here | 127.0.0.1 only (reach with `ssh -L 3001:localhost:3001`) |
+| 3001 | tcp | DCS webtop web desktop, `custom.dcsServer.desktopPort` — overridden from the module default (3000), which AdGuard's admin UI holds here | Bound to `192.168.1.10` (`desktopBindAddress`); reliant only (firewall-restricted); proxied at `dcs.coppertop.ca` |
 | 4000 | tcp | tinyMediaManager web UI, `custom.mediaManager.webPort` | Bound `0.0.0.0`, `openFirewall = false`; reliant only (firewall-restricted; proxied at `library.coppertop.ca`) |
 | 5002 | tcp+udp | DCS-SRS voice (separate `dcs-srs-server` container), `custom.dcsServer.srs.port` | LAN/WAN (firewall open) |
 | 5335 | tcp+udp | unbound bypass (skips AdGuard filtering), `custom.dns` | LAN/WAN (firewall open) |
@@ -79,8 +80,8 @@ Rule](../../docs/architecture.md#placement-rule)).
 | 8088 | tcp | DCS's own remote-control WebGUI backend, `custom.dcsServer.webGuiPort` | Bound to `192.168.1.10` and opened broadly — meant to be reached by a router WAN port-forward, not usable through Traefik/any reverse proxy (see Known Gotchas) |
 | 8096 | tcp | Jellyfin, `custom.jellyfin` with `openFirewall = false` | reliant only (firewall-restricted; proxied at `jellyfin.coppertop.ca`) |
 | 8920 (tcp), 1900 + 7359 (udp) | tcp/udp | Jellyfin's other ports — nixpkgs' `services.jellyfin` opens four ports, not just 8096 | **Not opened today** — `custom.jellyfin.openFirewall = false` here; setting it true opens these three alongside 8096 |
-| 9090 | tcp | DCS start/stop control page (nginx), `custom.dcsServer.control.pagePort` | Bound to `192.168.1.10`; reliant only (firewall-restricted; proxied at `dcs.coppertop.ca`) |
-| 9091 | tcp | DCS start/stop/status/mission-upload webhook, `custom.dcsServer.control.webhookPort` | Same as 9090 (proxied at `dcs.coppertop.ca/hooks`) |
+| 9090 | tcp | DCS start/stop control page (nginx), `custom.dcsServer.control.pagePort` | Bound to `192.168.1.10`; reliant only (firewall-restricted; proxied at `dcs-control.coppertop.ca`) |
+| 9091 | tcp | DCS start/stop/status/mission-upload webhook, `custom.dcsServer.control.webhookPort` | Same as 9090 (proxied at `dcs-control.coppertop.ca/hooks`) |
 | 10308 | tcp+udp | DCS game traffic, `custom.dcsServer.gamePort` | LAN/WAN (firewall open; needs a router port-forward for real remote play, then remote friends connect at `dcs.coppertop.ca:10308` — via `custom.ddns` on reliant; see Known Gotchas) |
 | 10309 | tcp+udp | DCS in-game VoIP, `custom.dcsServer.voiceChat.port` (`voiceChat.enable` off) | **Not bound today** — free, no collision if it is switched on |
 | 34197 | udp | Factorio game traffic, `custom.factorioServer` via `services.factorio.openFirewall` | LAN/WAN (firewall open; same port-forward story as 10308, at `factorio.coppertop.ca:34197`) |
@@ -99,22 +100,27 @@ router WAN port-forward, not by Traefik — see Known Gotchas. See
 
 **`custom.dcsServer.startAtBoot = false;`** — behavior change: DCS no
 longer comes up automatically after a reboot. Start it via
-`https://dcs.coppertop.ca`. Stopping is manual only, by design — no
+`https://dcs-control.coppertop.ca`. Stopping is manual only, by design — no
 idle-timeout auto-stop.
 
-The webtop desktop (3001) stays loopback-only — reach it through an SSH
-tunnel:
+The webtop desktop is reachable at `https://dcs.coppertop.ca` —
+unlike DCS's own WebGUI API, webtop is just a noVNC session, so proxying it
+cross-host works fine (see `docs/homelab-network.md` § DCS's webtop desktop
+is proxied cross-host). An SSH tunnel still works too, if you'd rather not
+rely on the no-auth proxy:
 
 ```bash
 ssh -L 3001:localhost:3001 thomasga@excelsior.local
 ```
 
-Then open `http://localhost:3001` (web desktop) for DCS's own local WebGUI
-and launcher — see Known Gotchas for why this is the only way to actually
-use DCS's WebGUI (remote access via any reverse proxy doesn't work, by
-DCS's own design). `dcs.coppertop.ca` itself now also has a mission upload
-form — no SSH tunnel needed just to get a `.miz` file onto the host — see
-`docs/homelab-network.md` § DCS On-Demand Start/Stop And Remote Control.
+Then open `http://localhost:3001` (or the `dcs.coppertop.ca` URL
+above) for DCS's own local WebGUI and launcher — see Known Gotchas for why
+this in-desktop access is the only way to actually use DCS's WebGUI itself
+(remote access to *that* via any reverse proxy doesn't work, by DCS's own
+design — the desktop being proxied doesn't change that). `dcs-control.coppertop.ca`
+itself now also has a mission upload form — no tunnel needed just to get a
+`.miz` file onto the host — see `docs/homelab-network.md` § DCS On-Demand
+Start/Stop And Remote Control.
 
 ## First-Time Service Setup
 
@@ -132,7 +138,7 @@ Starting the container (whether via the control page or manually) does
 **not** by itself load a mission — DCS's own log
 (`Saved Games/DCS.dcs_serverrelease/Logs/dcs.log`) will show
 `Mission list is empty, server not started.` until one is configured in
-`serverSettings.lua` or loaded through the WebGUI/webtop. `dcs.coppertop.ca`
+`serverSettings.lua` or loaded through the WebGUI/webtop. `dcs-control.coppertop.ca`
 can upload a `.miz` file into `custom.dcsServer.control.missionsDir` (see
 below), but adding it to the active mission list is still a manual step in
 the tunneled webtop's WebGUI — uploading and loading are separate.
