@@ -189,10 +189,20 @@
       # actual CI run confirmed this — "The interpreter ... is externally
       # managed ... tries to modify the immutable /nix/store filesystem").
       # ha-check-colorlog below pre-supplies the exact pinned version instead,
-      # so is_installed() is satisfied and install_package() never runs. Base
-      # HA (no extraComponents) is enough: the check is scoped to the
-      # automations, which use only core triggers/actions.
-      ha-check-hass = pkgs.home-assistant;
+      # so is_installed() is satisfied and install_package() never runs.
+      #
+      # Point at reliant's *deployed* HA package rather than bare
+      # pkgs.home-assistant. The check itself would run fine on bare HA (it
+      # exercises only core triggers/actions), but tools/ci_ha_config_changed.py
+      # decides whether to run ha-config-check at all by diffing this
+      # derivation, and bare HA is invariant under
+      # custom.home-assistant.extraComponents. Confirmed live on PR #146:
+      # adding "wiz" to extraComponents left this drvPath untouched, so the
+      # check was skipped on a change that was unambiguously Home Assistant
+      # config. Using the deployed package makes extraComponents edits register
+      # as HA-relevant, alongside the nixpkgs bumps bare HA already caught.
+      # Cost: CI builds the full extraComponents closure instead of bare HA.
+      ha-check-hass = self.nixosConfigurations.reliant.config.services.home-assistant.package;
 
       # colorlog, pinned to the exact version homeassistant/scripts/
       # check_config.py requires (REQUIREMENTS = ("colorlog==6.10.1",)) rather

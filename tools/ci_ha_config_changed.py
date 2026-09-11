@@ -11,7 +11,9 @@ rendered automation/input_datetime config (packages.<system>.ha-config-reliant)
 and the Home Assistant package itself plus its check_config dependency
 (packages.<system>.ha-check-hass, packages.<system>.ha-check-colorlog) — the
 latter pair changes on a nixpkgs bump even when no automation file moved, and
-that's still worth re-validating. If none of the three drvPaths differ
+ha-check-hass is reliant's *deployed* HA package, so it also changes when
+custom.home-assistant.extraComponents changes. Both are still worth
+re-validating. If none of the three drvPaths differ
 between base and head, nothing the check exercises has changed.
 
 This script is only meant to run once the caller already knows reliant's

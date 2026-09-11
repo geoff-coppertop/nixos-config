@@ -17,9 +17,12 @@ needing a live instance.
 Building blocks, all defined per-host under `packages.<system>` in flake.nix:
   ha-config-<host>   this host's "automation manual" + input_datetime content,
                       rendered to a standalone configuration.yaml
-  ha-check-hass       base home-assistant (no extraComponents — the check is
-                      scoped to the automations, which use only core
-                      triggers/actions)
+  ha-check-hass       reliant's deployed home-assistant package,
+                      extraComponents and all. The check itself only needs
+                      core triggers/actions, but ci_ha_config_changed.py
+                      diffs this derivation to decide whether to run at all,
+                      and bare pkgs.home-assistant is invariant under
+                      extraComponents changes.
   ha-check-colorlog   colorlog, pinned to the exact version HA's own
                       `--script` runner requires
 
