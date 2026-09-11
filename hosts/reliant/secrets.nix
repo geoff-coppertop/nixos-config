@@ -1,9 +1,19 @@
 _: {
   age.secrets = {
-    "thomasga/nas-smb-credentials" = {
-      file = ../../secrets/thomasga/nas-smb-credentials.age;
-      owner = "thomasga";
-    };
+    # Dedicated NAS service account for the Backups share, used by the
+    # shared/appliance backup jobs (hass, zigbee2mqtt, zwave-js,
+    # adguardhome). No owner: the backup service runs as root, same as the
+    # restic-password entries below.
+    "backup-svc/nas-smb-credentials".file =
+      ../../secrets/backup-svc/nas-smb-credentials.age;
+
+    # The user's own personal NAS login, for the thomasga home-dir backup
+    # job only — that job keeps mounting Personal-Drive with the personal
+    # credential via the per-entry NAS override, coexisting with backup-svc
+    # above on this host. No owner: the backup mount is performed by root,
+    # matching backup-svc.
+    "thomasga/nas-smb-credentials".file =
+      ../../secrets/thomasga/nas-smb-credentials.age;
     "thomasga/restic-password".file =
       ../../secrets/thomasga/restic-password.age;
     "thomasga/ssh-id-ed25519-reliant" = {

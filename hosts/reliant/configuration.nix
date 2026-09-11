@@ -195,30 +195,47 @@ in {
       locationEnvFile = "/run/agenix/location/coordinates";
     };
 
-    # Matches enterprise-d's precedent, not excelsior's (excelsior lacking
-    # backups is an existing gap there, not the pattern to copy). Reuses
-    # enterprise-d's job-keyed "thomasga" secrets — restic-password and
-    # nas-smb-credentials are keyed to the backup job name, not the
-    # machine (docs/secrets.md § Secret Inventory), and the restic repo
-    # path already includes the hostname, so sharing these secrets across
-    # hosts doesn't collide their backup data.
+    # Reuses the job-keyed "thomasga" restic-password secret — restic
+    # passwords are keyed to the backup job name, not the machine
+    # (docs/secrets.md § Secret Inventory), and the restic repo path already
+    # includes the hostname, so sharing it across hosts doesn't collide their
+    # backup data. The SMB credential is purpose-scoped instead: backup-svc
+    # is a dedicated NAS account with access to the Backups share only.
     backups = {
       enable = true;
 
       nas = {
-        credentialsFile = "/run/agenix/thomasga/nas-smb-credentials";
+        credentialsFile = "/run/agenix/backup-svc/nas-smb-credentials";
         inherit (nas) host;
         share = nas.shares.backups;
       };
 
       # Three more backup jobs for the appliance state migrated above,
       # reusing defiant's existing job-keyed restic-password secrets (same
-      # reasoning as the thomasga job's nas-smb-credentials/restic-password
-      # below — job-keyed, not machine-keyed, and the repo path already
-      # includes the hostname). hass/zigbee2mqtt paths confirmed live on
+      # reasoning as the thomasga job's restic-password — job-keyed, not
+      # machine-keyed, and the repo path already includes the hostname).
+      # hass/zigbee2mqtt paths confirmed live on
       # this host's first boot.
       users = {
-        thomasga.enable = true;
+        # The one entry that does NOT use the host-wide backup-svc/Backups
+        # target above: a person's own home directory stays on their own NAS
+        # login against the pre-existing Personal-Drive/backups path (the
+        # same restic repository this job has always used — nas.shares.personal
+        # is the bare Personal-Drive root, a different remote location, and
+        # would silently start an unrelated empty repository). The per-entry
+        # override gets it its own CIFS mount (/mnt/nas-personal-backups)
+        # alongside the shared one, so the appliance jobs below are
+        # unaffected — see docs/backups.md § Pointing One Entry At A
+        # Different NAS Target.
+        thomasga = {
+          enable = true;
+          nas = {
+            credentialsFile = "/run/agenix/thomasga/nas-smb-credentials";
+            inherit (nas) host;
+            share = nas.shares.personalBackups;
+            mountPoint = "/mnt/nas-personal-backups";
+          };
+        };
         hass = {
           enable = true;
           paths = ["/var/lib/hass"];

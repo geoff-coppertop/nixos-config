@@ -38,9 +38,21 @@ in {
       enable = true;
 
       nas = {
+        # thomasga's home directory is this host's only backup job, and the
+        # user's personal backup deliberately stays on their own NAS login
+        # against the pre-existing Personal-Drive/backups path (the same
+        # restic repository this job has always used — nas.shares.personal
+        # is the bare Personal-Drive root, a different remote location, and
+        # would silently start an unrelated empty repository) rather than
+        # moving to the shared backup-svc account. With no appliance jobs
+        # here there is nothing to keep on the Backups share, so the
+        # host-wide target is simply the personal one — no per-entry
+        # custom.backups.users.<name>.nas override needed (that is what
+        # reliant and excelsior use, where the two coexist).
         credentialsFile = "/run/agenix/thomasga/nas-smb-credentials";
         inherit (nas) host;
-        share = nas.shares.backups;
+        share = nas.shares.personalBackups;
+        mountPoint = "/mnt/nas-personal-backups";
       };
 
       users.thomasga.enable = true;

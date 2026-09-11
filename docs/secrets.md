@@ -194,20 +194,51 @@ copy this pattern to a secret whose consumer has a real static user.
 
 ### NAS SMB credentials
 
-`secrets/thomasga/nas-smb-credentials.age` (recipients: `enterprise-d`,
-`reliant`, `excelsior` — see `## Known Gotchas` below) decrypts to:
+Each decrypts to exactly two lines:
 
 ```text
 username=nas-user
 password=nas-password
 ```
 
-This is the fleet's only NAS SMB secret. Every CIFS mount on every host uses
-it: each host's `custom.backups.nas.credentialsFile`, and `excelsior`'s
-`/mnt/media` Jellyfin library mount (`hosts/excelsior/media.nix`). Do not mint
-a per-host or per-share variant — all the shares in `lib/nas.nix` are subpaths
-of the same `Personal-Drive` share, so a second account isolates nothing
-unless it is independently ACL'd on the NAS itself.
+There are three, one per **purpose**, not per host. `lib/nas.nix` names three
+independent top-level shares on the NAS (`Personal-Drive`, `Backups`,
+`Media`), and each has its own NAS-side account with access to that share
+only. A compromised or misconfigured consumer of one therefore cannot reach
+another's data.
+
+| Secret | NAS account / share | Consumer | Host recipients |
+| --- | --- | --- | --- |
+| `secrets/backup-svc/nas-smb-credentials.age` | `backup-svc` → `Backups` | The shared/appliance backup jobs (`hass`, `zigbee2mqtt`, `zwave-js`, `adguardhome`, `dcs-server`, `factorio`) — `reliant`'s and `excelsior`'s `custom.backups.nas.credentialsFile` | `reliant`, `excelsior`, `offlineAdmin` |
+| `secrets/media-svc/nas-smb-credentials.age` | `media-svc` → `Media` | `excelsior`'s `/mnt/media` Jellyfin library mount (`hosts/excelsior/media.nix`) | `excelsior`, `offlineAdmin` |
+| `secrets/thomasga/nas-smb-credentials.age` | the user's own personal login → `Personal-Drive` | `enterprise-d`'s `custom.networkDrives.users.thomasga` desktop mount, **and** the `thomasga` home-directory backup job on every host that runs it, via the per-entry NAS override on `custom.backups.users.thomasga` | `enterprise-d`, `reliant`, `excelsior`, `holodeck-01`, `offlineAdmin` |
+
+`backup-svc` is shared across `reliant` and `excelsior` on purpose: the restic
+repository path embeds the hostname (`<mountPoint>/<job>/<hostname>`), so the
+two hosts do not collide, and a per-host SMB account would buy nothing the
+NAS-side share ACL does not already give. `enterprise-d` and `holodeck-01` are
+not recipients — neither runs any shared/appliance backup job, only
+`thomasga`, which stays on the personal login. Split a new `*-svc` account out
+only when a new *purpose* needs a different share, the way `media-svc` did.
+
+`thomasga/nas-smb-credentials.age` is a person's credential and belongs on
+nothing but that person's own mounts — their desktop personal drive
+(`Personal-Drive`) and their own home-directory backup
+(`Personal-Drive/backups`, the pre-existing repository location, see
+`lib/nas.nix`'s `personalBackups` — not the bare share root). That is why it
+is a recipient of all four hosts: the `thomasga` backup job runs on all of
+them and stays on the personal login. Do not reuse it for a machine or service
+mount; mint a `*-svc` account on the NAS instead.
+
+`reliant` and `excelsior` hold both credentials, because the NAS mount is
+configurable per backup entry rather than only per host — see
+[docs/backups.md](backups.md). `backup-svc` handles their shared/appliance
+jobs, and the personal login (declared with no `owner`, since the backup mount
+is performed by root) handles `thomasga` on the same host. `enterprise-d` and
+`holodeck-01` hold only the personal login, since neither runs anything else —
+on `enterprise-d` it is owned by `thomasga` because the desktop mount needs it,
+and root reads it for the backup mount regardless; on `holodeck-01` it has no
+owner, matching `reliant`/`excelsior`'s pattern.
 
 ### Wi-Fi passphrases
 
@@ -533,15 +564,3 @@ mechanism, not a trust oracle.
 Disk encryption (LUKS and TPM) is not agenix material and is not this doc's
 concern — see
 [docs/provisioning.md § Disk Encryption And TPM](provisioning.md#disk-encryption-and-tpm).
-
-## Known Gotchas
-
-- `secrets/thomasga/nas-smb-credentials.age` is the `thomasga` user's own
-  personal NAS login, reused as the mount credential for every host's
-  `custom.backups.nas.credentialsFile` (`enterprise-d`, `reliant`,
-  `excelsior`) and for `excelsior`'s `/mnt/media` Jellyfin mount — a personal
-  credential standing in for what should be a dedicated machine/service
-  account with its own NAS-side access scope.
-  Splitting it out has to start on the NAS itself (create a machine-scoped
-  SMB user there first); minting the corresponding `.age` secret here is
-  the easy half, not the blocker.

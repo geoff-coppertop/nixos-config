@@ -35,13 +35,12 @@ in {
       enable = true;
 
       nas = {
-        # Reuses the shared thomasga/nas-smb-credentials secret rather than
-        # minting a new one — every host mounts the same NAS (lib/nas.nix),
-        # so there's no reason for per-host SMB credentials. Matches
-        # enterprise-d/reliant's precedent, not a prior version of this
-        # file's own separate excelsior-only secret (that was the gap
-        # reliant's own comment already flagged as not the pattern to copy).
-        credentialsFile = "/run/agenix/thomasga/nas-smb-credentials";
+        # backup-svc is a dedicated NAS account scoped to the Backups share,
+        # shared by every host that backs up (the restic repo path embeds the
+        # hostname, so hosts don't collide). Deliberately not this host's
+        # media-svc credential (hosts/excelsior/media.nix) and not the user's
+        # personal login: purpose-scoped, not host-scoped.
+        credentialsFile = "/run/agenix/backup-svc/nas-smb-credentials";
         inherit (nas) host;
         share = nas.shares.backups;
       };
@@ -52,7 +51,26 @@ in {
         # headless server thomasga rarely touches directly. Reuses the
         # existing shared thomasga/restic-password secret rather than
         # minting a new one — same job-keyed pattern as adguardhome below.
-        thomasga.enable = true;
+        #
+        # The one entry that does NOT use the host-wide backup-svc/Backups
+        # target above: a person's own home directory stays on their own NAS
+        # login against the pre-existing Personal-Drive/backups path (the
+        # same restic repository this job has always used — nas.shares.personal
+        # is the bare Personal-Drive root, a different remote location, and
+        # would silently start an unrelated empty repository). The per-entry
+        # override gets it its own CIFS mount (/mnt/nas-personal-backups)
+        # alongside the shared one, so the dcs-server/factorio/adguardhome
+        # jobs are unaffected — see docs/backups.md § Pointing One Entry At
+        # A Different NAS Target.
+        thomasga = {
+          enable = true;
+          nas = {
+            credentialsFile = "/run/agenix/thomasga/nas-smb-credentials";
+            inherit (nas) host;
+            share = nas.shares.personalBackups;
+            mountPoint = "/mnt/nas-personal-backups";
+          };
+        };
 
         dcs-server = {
           enable = true;

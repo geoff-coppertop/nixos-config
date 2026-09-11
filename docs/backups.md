@@ -68,18 +68,38 @@ custom.backups = {
 
   nas = {
     host = "192.168.1.x"; # or a hostname, if DNS resolves it
-    share = "backups";
-    credentialsFile = "/run/agenix/thomasga/nas-smb-credentials";
+    share = "Backups";
+    credentialsFile = "/run/agenix/backup-svc/nas-smb-credentials";
   };
 
-  users.thomasga.enable = true;
+  users.adguardhome.enable = true;
 };
 ```
+
+That `nas` block is the host's **default** NAS target: every entry under
+`users.*` uses it unless the entry overrides it. Jobs on one host are not
+required to share a single target — see
+[Pointing One Entry At A Different NAS Target](#pointing-one-entry-at-a-different-nas-target).
+
+Shared and appliance backup jobs authenticate with **`backup-svc`**, a
+dedicated NAS account scoped to the `Backups` share. The restic repository path
+embeds the hostname, so hosts sharing that account do not collide. `media-svc`
+is separate again for `excelsior`'s Jellyfin library — see
+[docs/secrets.md § NAS SMB credentials](secrets.md#nas-smb-credentials).
+
+A **person's own home-directory backup is the exception**: it keeps using that
+person's own NAS login against `Personal-Drive`, not the shared service
+account. On a host where that is the only backup job the host-wide `nas` block
+is simply set to the personal credential and share; on a host where it sits
+next to appliance jobs, the entry carries its own NAS target — see
+[Pointing One Entry At A Different NAS Target](#pointing-one-entry-at-a-different-nas-target).
 
 Use `nas.protocol = "nfs"` and omit `credentialsFile` to switch to NFS.
 
 `lib/nas.nix` holds the shared NAS constants (`ip`, `host`, `shares`); prefer
-importing it over hardcoding the address.
+importing it over hardcoding the address. `shares` names three independent
+top-level shares — `Personal-Drive`, `Backups`, `Media` — each with its own
+NAS-side account.
 
 **3. Rebuild the host.**
 
@@ -99,6 +119,100 @@ custom.backups.users = {
 
 `passwordFile` defaults to `/run/agenix/<name>/restic-password`; override it only
 if the secret does not follow that convention.
+
+## Pointing One Entry At A Different NAS Target
+
+`custom.backups.users.<name>.nas` is an optional per-entry override of the
+host-wide `custom.backups.nas` block. It takes the same six attributes
+(`host`, `share`, `protocol`, `credentialsFile`, `mountPoint`, `mountOptions`)
+and the same defaults, and is `null` by default — an entry that does not set
+it behaves exactly as before, using the host's shared mount.
+
+Use it when **one job on a host needs a different NAS account, share, or host
+than the rest of the machine**. The concrete case: `reliant` and `excelsior`
+run appliance jobs (`hass`, `zigbee2mqtt`, `zwave-js`, `adguardhome`,
+`dcs-server`, `factorio`) under the shared `backup-svc` account on the
+`Backups` share, while the same hosts also back up `thomasga`'s home directory,
+which must stay on that person's own NAS login against `Personal-Drive`. Both
+kinds of job coexist on one host:
+
+```nix
+custom.backups = {
+  enable = true;
+
+  # Host default: the shared service account, used by every entry below that
+  # does not override it.
+  nas = {
+    credentialsFile = "/run/agenix/backup-svc/nas-smb-credentials";
+    inherit (nas) host;
+    share = nas.shares.backups;
+  };
+
+  users = {
+    thomasga = {
+      enable = true;
+      nas = {
+        credentialsFile = "/run/agenix/thomasga/nas-smb-credentials";
+        inherit (nas) host;
+        # The pre-existing home-directory repository location, not the bare
+        # Personal-Drive share — see lib/nas.nix's personalBackups comment.
+        share = nas.shares.personalBackups;
+        mountPoint = "/mnt/nas-personal-backups";
+      };
+    };
+
+    adguardhome = {
+      enable = true;
+      paths = ["/var/lib/AdGuardHome"];
+      excludePatterns = [];
+    };
+  };
+};
+```
+
+What an override changes for that entry:
+
+- It gets its **own CIFS/NFS mount**, with its own credentials and device path,
+  separate from the host-wide one. The mount point defaults to
+  `/mnt/nas-<share, lowercased>` — the same derivation the host-wide block
+  uses — so it is named after what it actually holds, not after which entry
+  or module slot asked for it. That default only works cleanly for a bare
+  share name; `nas.shares.personalBackups` is `Personal-Drive/backups` (a
+  share plus a subpath, predating the top-level `Backups` share and not to be
+  confused with it), so the example above sets `mountPoint` explicitly to
+  `/mnt/nas-personal-backups` rather than let it derive a slash into the
+  path. Set `mountPoint` explicitly whenever the derived name would collide,
+  contain a slash, or you just want something else.
+- Its restic repository moves with it, to
+  `<mountPoint>/<name>/<hostname>` — so `/mnt/nas-personal-backups/thomasga/reliant`
+  in the example above. The status and unlock commands below need that path,
+  not `/mnt/nas-backups/...`.
+- **Get the `share` value right the first time.** The mount point is only a
+  local label — what actually matters is which remote path the restic
+  repository lands in. Pointing an override at the wrong share (even one
+  that looks similar, like the bare `Personal-Drive` root instead of
+  `Personal-Drive/backups`) doesn't fail loudly: restic just finds no
+  existing repository there and silently creates a brand-new, empty one,
+  orphaning the real history at the old path. There is no assertion that can
+  catch this — a wrong-but-well-formed share is indistinguishable from a
+  deliberate new one. Confirm the target with `restic snapshots` (checking
+  dates, not just that it lists *something*) before trusting a job's first
+  post-change run.
+- The `host`/`share`/`credentialsFile` assertions are enforced against the
+  override, so a half-filled block fails evaluation with a
+  `custom.backups.users.<name>.nas.…` message rather than mounting garbage.
+
+Everything else — schedule, retention, password file, path canonicalisation —
+is unchanged and still host-wide.
+
+On a host where the personal home-directory job is the *only* backup job
+(`enterprise-d`, `holodeck-01`), no override is needed: set the host-wide `nas`
+block to the personal credential and `nas.shares.personalBackups` directly
+(same caveat about the exact share value applies there too).
+
+The secret side is `secrets-warden`'s: an overriding entry's
+`credentialsFile` needs that host to be a recipient of the secret and to
+declare the matching `age.secrets` entry, or the mount fails at runtime.
 
 ## Symlinked State Directories
 
@@ -152,8 +266,10 @@ sudo systemctl start nas-backup-thomasga.service
 # View the backup log
 journalctl -u nas-backup-thomasga.service
 
-# List restic snapshots on the NAS
-sudo restic --repo /mnt/nas-backups/thomasga/<hostname> snapshots
+# List restic snapshots on the NAS — thomasga always mounts
+# Personal-Drive/backups (host-wide on enterprise-d/holodeck-01, an override
+# on reliant/excelsior) at /mnt/nas-personal-backups, never /mnt/nas-backups
+sudo restic --repo /mnt/nas-personal-backups/thomasga/<hostname> snapshots
 
 # Confirm a job is actually storing data, not an empty tree. A snapshot whose
 # listing stops at the top-level path with nothing under it is the symlink
@@ -163,6 +279,11 @@ sudo restic --repo /mnt/nas-backups/adguardhome/<hostname> ls latest | head
 
 `RESTIC_PASSWORD_FILE=/run/agenix/<name>/restic-password` has to be exported for
 those commands, or restic prompts for the passphrase.
+
+Every entry's `--repo` path is `<its mount point>/<name>/<hostname>` — the
+host-wide default (`/mnt/nas-backups`, `Backups` share) for an entry with no
+override, or its own mount point (like `/mnt/nas-personal-backups` above) for
+one that has a `custom.backups.users.<name>.nas` block.
 
 ## Clearing A Stale restic Lock
 
@@ -197,12 +318,16 @@ Concretely, for `thomasga` on `enterprise-d`:
 ```bash
 sudo env RESTIC_PASSWORD_FILE=/run/agenix/thomasga/restic-password \
   RESTIC_CACHE_DIR=/var/cache/nas-backup-thomasga \
-  restic --repo /mnt/nas-backups/thomasga/enterprise-d unlock
+  restic --repo /mnt/nas-personal-backups/thomasga/enterprise-d unlock
 sudo systemctl start nas-backup-thomasga.service
 ```
 
-Substitute `passwordFile` if the entry overrides it, and `custom.backups.nas.mountPoint`
-if the host does not use the `/mnt/nas-backups` default.
+Substitute `passwordFile` if the entry overrides it, and the entry's own mount
+point if it does not use the host-wide `/mnt/nas-backups` default — either
+because the host sets `custom.backups.nas.mountPoint` explicitly, or because
+the entry has its own `custom.backups.users.<name>.nas` block with its own
+`mountPoint` (see
+[Pointing One Entry At A Different NAS Target](#pointing-one-entry-at-a-different-nas-target)).
 
 Only unlock when no backup for that entry is actually running — check
 `systemctl is-active nas-backup-<name>.service` first. Unlocking underneath a
