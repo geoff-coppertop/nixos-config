@@ -14,20 +14,32 @@
 # intentionally not persisted across a restart — after a reboot the lights
 # simply track current presence.
 #
-# The presence sensors are Aqara FP1e mmWave sensors bridged into Home Assistant
-# through an Aqara M2 hub over Matter (custom.matter + the "matter"
-# extraComponent, both in hosts/reliant/configuration.nix). HA exposes the FP1e
-# occupancy as a binary_sensor.* (on = detected). A room's lights may be a
-# light.* or a switch.* entity; the on/off service is derived from the entity's
-# own domain (light.turn_on / switch.turn_on / ...), so either wiring works
-# unchanged.
+# `presence` just needs to be a binary_sensor.* that reports on/off — the
+# automation itself doesn't care whether "off" means the room emptied
+# (continuous occupancy sensing) or the sensor's own hardware clear timer
+# expired (a classic motion sensor). Two kinds are in use:
 #
-# Geoff's Office uses its real, commissioned entity IDs. For a room added before
-# its FP1e is commissioned, the real occupancy entity ID isn't known until the
-# M2 hub is paired and the sensor appears in Home Assistant, so use a placeholder
-# `presence` and update it after commissioning. Copied from
-# hosts/defiant/home-assistant/presence-lighting.nix — re-verify these entity
-# IDs against the running instance on this host once activated.
+# - Aqara FP1e mmWave sensors bridged in through an Aqara M2 hub over Matter
+#   (custom.matter + the "matter" extraComponent, both in
+#   hosts/reliant/configuration.nix). These hold binary_sensor "on" for as
+#   long as someone is actually present, and clear to "off" almost
+#   immediately once the room is empty — `linger` is then effectively the
+#   whole "stay lit after leaving" delay.
+# - Zigbee PIR motion sensors via Zigbee2MQTT (mqtt extraComponent). These
+#   clear to "off" only after their own internal occupancy timeout (commonly
+#   60-120s, configurable per device in Zigbee2MQTT), so the real "dark
+#   delay" after the last actual motion is that sensor timeout *plus*
+#   `linger` — pick a shorter `linger` for these than for a continuous
+#   presence sensor if stacking the two would overshoot.
+#
+# A room's lights may be a light.* or a switch.* entity; the on/off service
+# is derived from the entity's own domain (light.turn_on / switch.turn_on /
+# ...), so either wiring works unchanged.
+#
+# Geoff's Office uses its real, commissioned FP1e entity IDs (originally
+# copied from hosts/defiant/home-assistant/presence-lighting.nix). The
+# Utility Room entry uses its real, commissioned Zigbee PIR motion sensor and
+# switch.
 #
 # Declared under the "automation manual" key (not bare "automation") so these
 # coexist with any UI-created automations, matching
@@ -112,6 +124,12 @@
         slug = "geoffs_office";
         presence = "binary_sensor.geoff_s_office_presence_occupancy";
         lights = "light.geoff_s_office_lights";
+      }
+      {
+        room = "Utility Room";
+        slug = "utility_room";
+        presence = "binary_sensor.motion_sensor_utility_room_occupancy";
+        lights = "switch.utility_room";
       }
     ];
 }
