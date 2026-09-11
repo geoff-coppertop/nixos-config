@@ -14,11 +14,37 @@ in {
   # is a recipient. The restic repo path already disambiguates by hostname.
   # excelsior is a recipient too — its home dir is backed up for consistency
   # with the rest of the fleet even though it's rarely used directly.
-  # excelsior is also a recipient of both: its home dir is backed up for
-  # consistency with the rest of the fleet, and it mounts the same NAS
-  # (lib/nas.nix) so the SMB credential needs no per-host distinction.
-  "thomasga/restic-password.age".publicKeys = [enterprise-d reliant excelsior offlineAdmin];
-  "thomasga/nas-smb-credentials.age".publicKeys = [enterprise-d reliant excelsior offlineAdmin];
+  # holodeck-01 was missing from this list entirely despite running the same
+  # job — its age.secrets declared no entry for this file either, so the
+  # password never existed at runtime and backups there were silently broken.
+  "thomasga/restic-password.age".publicKeys = [enterprise-d reliant excelsior holodeck-01 offlineAdmin];
+
+  # NAS SMB logins, one per NAS-side account, each scoped to the share that
+  # account can reach. Recipient lists follow that scope, not the fleet:
+  #
+  # - backup-svc: the dedicated NAS service account for the Backups share.
+  #   Only hosts that run a shared/appliance backup job against it are
+  #   recipients — reliant (hass, zigbee2mqtt, zwave-js, adguardhome) and
+  #   excelsior (adguardhome, dcs-server, factorio). enterprise-d and
+  #   holodeck-01 only ever run the thomasga job, which uses the personal
+  #   login below instead, so neither needs backup-svc at all.
+  # - media-svc: the dedicated NAS service account for the Media share.
+  #   excelsior only — it is the sole host mounting /mnt/media
+  #   (hosts/excelsior/media.nix).
+  # - thomasga: the user's own personal NAS login, for the Personal-Drive
+  #   share. Two consumers, both genuinely personal: enterprise-d's
+  #   personal-drive desktop mount (custom.networkDrives), and the user's own
+  #   home-directory backup job (custom.backups.users.thomasga) on every host
+  #   that runs it — enterprise-d, reliant, excelsior and holodeck-01. That
+  #   job stays on the personal login against Personal-Drive; only the
+  #   shared/appliance jobs (hass, zigbee2mqtt, zwave-js, adguardhome,
+  #   dcs-server, factorio) use backup-svc against Backups. Both credentials
+  #   coexist on the same host via the per-entry NAS override in
+  #   modules/backups.nix, so a host can mount each job against the share its
+  #   own account can reach.
+  "backup-svc/nas-smb-credentials.age".publicKeys = [reliant excelsior offlineAdmin];
+  "media-svc/nas-smb-credentials.age".publicKeys = [excelsior offlineAdmin];
+  "thomasga/nas-smb-credentials.age".publicKeys = [enterprise-d reliant excelsior holodeck-01 offlineAdmin];
   "thomasga/ssh-id-ed25519-enterprise-d.age".publicKeys = [enterprise-d offlineAdmin];
   "thomasga/github-token.age".publicKeys = [enterprise-d offlineAdmin];
   "thomasga/garmin-username.age".publicKeys = [enterprise-d offlineAdmin];

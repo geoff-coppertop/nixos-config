@@ -29,6 +29,17 @@ in {
       enable = true;
 
       nas = {
+        # thomasga's home directory is this host's only backup job, and the
+        # user's personal backup stays on their own NAS login against the
+        # pre-existing Personal-Drive/backups path (the same restic
+        # repository this job has always used — nas.shares.personal is the
+        # bare Personal-Drive root, a different remote location, and would
+        # silently start an unrelated empty repository) rather than the
+        # shared backup-svc account. Nothing else backs up here, so the
+        # host-wide target is the personal one; no per-entry
+        # custom.backups.users.<name>.nas override is needed (that is what
+        # reliant and excelsior use, where personal and appliance jobs share
+        # a host).
         credentialsFile = "/run/agenix/thomasga/nas-smb-credentials";
         # Addressed by IP rather than by name, unlike enterprise-d and reliant.
         # Those two resolve nas.host through a networking.hosts entry, which
@@ -37,7 +48,8 @@ in {
         # The fact still comes from lib/nas.nix either way, which is the point:
         # move the NAS and every host follows.
         host = nas.ip;
-        share = nas.shares.backups;
+        share = nas.shares.personalBackups;
+        mountPoint = "/mnt/nas-personal-backups";
       };
 
       users.thomasga.enable = true;

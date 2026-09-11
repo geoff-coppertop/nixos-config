@@ -9,13 +9,17 @@
     concatMapStringsSep
     escapeShellArg
     filterAttrs
+    flatten
     mapAttrs'
+    mapAttrsToList
     mkEnableOption
     mkIf
+    mkMerge
     mkOption
     nameValuePair
     optional
     optionalAttrs
+    toLower
     types
     ;
 
@@ -23,17 +27,86 @@
 
   enabledUsers = filterAttrs (_: userCfg: userCfg.enable) cfg.users;
 
-  nasDevice =
-    if cfg.nas.protocol == "cifs"
-    then "//${cfg.nas.host}/${cfg.nas.share}"
-    else "${cfg.nas.host}:${cfg.nas.share}";
+  # Entries that carry their own `nas` override, and therefore get their own
+  # mount rather than sharing the host-wide one.
+  overridingUsers = filterAttrs (_: userCfg: userCfg.nas != null) enabledUsers;
 
-  nasFsType =
-    if cfg.nas.protocol == "cifs"
+  # The NAS coordinates that apply to one entry: its own override when it has
+  # one, otherwise the host-wide block.
+  nasFor = userCfg:
+    if userCfg.nas != null
+    then userCfg.nas
+    else cfg.nas;
+
+  # The local mount point for one NAS target. Named after the *share*, not
+  # after which module slot (host-wide vs. per-entry override) or which job
+  # uses it — a host's mix of jobs against a share can change over time, but
+  # what a given share is called does not, so this is the one naming scheme
+  # that stays accurate no matter how the entries using it change. Explicit
+  # `mountPoint` always wins when set.
+  effectiveMountPoint = nas:
+    if nas.mountPoint != null
+    then nas.mountPoint
+    else "/mnt/nas-${toLower nas.share}";
+
+  # The option set describing one NAS target. Used verbatim for the host-wide
+  # `custom.backups.nas` block and for each entry's optional override, so the
+  # two always have the same shape.
+  mkNasOptions = {
+    protocol = mkOption {
+      type = types.enum ["cifs" "nfs"];
+      default = "cifs";
+      description = "Transport used to mount the NAS share.";
+    };
+
+    host = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      description = "Hostname or IP address of the NAS.";
+    };
+
+    share = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      description = "Share or export name on the NAS.";
+    };
+
+    mountPoint = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      description = ''
+        Local mount point used for the NAS share. Defaults to
+        `/mnt/nas-<share, lowercased>` when unset, so the mount point always
+        names the share it actually holds regardless of which entries use it;
+        override only if that derived name collides or you want something
+        else.
+      '';
+    };
+
+    credentialsFile = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      description = "Path to an SMB credentials file, typically provided by agenix.";
+    };
+
+    mountOptions = mkOption {
+      type = types.listOf types.str;
+      default = [];
+      description = "Extra mount options appended to the NAS filesystem mount.";
+    };
+  };
+
+  nasDevice = nas:
+    if nas.protocol == "cifs"
+    then "//${nas.host}/${nas.share}"
+    else "${nas.host}:${nas.share}";
+
+  nasFsType = nas:
+    if nas.protocol == "cifs"
     then "cifs"
     else "nfs";
 
-  nasMountOptions =
+  nasMountOptions = nas:
     [
       "nofail"
       "noauto"
@@ -41,21 +114,57 @@
       "x-systemd.idle-timeout=10min"
       "x-systemd.mount-timeout=15s"
     ]
-    ++ optional (cfg.nas.protocol == "cifs") "vers=3.0"
-    ++ optional (cfg.nas.protocol == "cifs" && cfg.nas.credentialsFile != null)
-    "credentials=${cfg.nas.credentialsFile}"
-    ++ cfg.nas.mountOptions;
+    ++ optional (nas.protocol == "cifs") "vers=3.0"
+    ++ optional (nas.protocol == "cifs" && nas.credentialsFile != null)
+    "credentials=${nas.credentialsFile}"
+    ++ nas.mountOptions;
+
+  mkNasFileSystem = nas: {
+    device = nasDevice nas;
+    fsType = nasFsType nas;
+    options = nasMountOptions nas;
+  };
+
+  # Assertions that must hold for any NAS target, host-wide or per-entry. The
+  # per-entry copies exist so a half-filled override fails evaluation with a
+  # pointed message instead of quietly producing `///` as a device path.
+  nasAssertions = optionPath: nas: [
+    {
+      assertion = nas.host != null;
+      message = "${optionPath}.host must be set when NAS backups are enabled.";
+    }
+    {
+      assertion = nas.share != null;
+      message = "${optionPath}.share must be set when NAS backups are enabled.";
+    }
+    {
+      assertion = nas.protocol != "cifs" || nas.credentialsFile != null;
+      message = "${optionPath}.credentialsFile must be set for CIFS NAS backups.";
+    }
+  ];
+
+  mkOverrideAssertions = userName: userCfg:
+    nasAssertions "custom.backups.users.${userName}.nas" userCfg.nas;
+
+  overrideAssertions = flatten (mapAttrsToList mkOverrideAssertions overridingUsers);
+
+  mkOverrideFileSystem = _: userCfg: {${effectiveMountPoint userCfg.nas} = mkNasFileSystem userCfg.nas;};
+
+  # One extra mount per entry that overrides the host-wide NAS target.
+  overrideFileSystems = mapAttrsToList mkOverrideFileSystem overridingUsers;
 
   # Emit a bash array literal. The values are only ever expanded at runtime on
   # the host being backed up, never resolved at eval time — see the comment on
   # the resolution loop in `script` below.
   shellArray = name: values: "declare -a ${name}=(${concatMapStringsSep " " escapeShellArg values})";
 
-  repoPath = userName: "${cfg.nas.mountPoint}/${userName}/${config.networking.hostName}";
+  repoPath = userName: userCfg: "${effectiveMountPoint (nasFor userCfg)}/${userName}/${config.networking.hostName}";
 
   serviceName = userName: "nas-backup-${userName}";
 
-  mkBackupService = userName: userCfg:
+  mkBackupService = userName: userCfg: let
+    mountPoint = effectiveMountPoint (nasFor userCfg);
+  in
     nameValuePair (serviceName userName) {
       description = "Back up ${userName} to the NAS with restic";
       wantedBy = ["multi-user.target"];
@@ -89,10 +198,10 @@
       script = ''
         set -eu
 
-        mount ${escapeShellArg cfg.nas.mountPoint} >/dev/null 2>&1 || true
+        mount ${escapeShellArg mountPoint} >/dev/null 2>&1 || true
 
-        if ! mountpoint -q ${escapeShellArg cfg.nas.mountPoint}; then
-          echo "NAS mount ${cfg.nas.mountPoint} is unavailable; skipping backup"
+        if ! mountpoint -q ${escapeShellArg mountPoint}; then
+          echo "NAS mount ${mountPoint} is unavailable; skipping backup"
           exit 0
         fi
 
@@ -101,7 +210,7 @@
           exit 0
         fi
 
-        repo=${escapeShellArg (repoPath userName)}
+        repo=${escapeShellArg (repoPath userName userCfg)}
         export RESTIC_PASSWORD_FILE=${escapeShellArg userCfg.passwordFile}
 
         mkdir -p "$repo"
@@ -217,43 +326,7 @@ in {
       description = "systemd calendar expression for NAS backup timers.";
     };
 
-    nas = {
-      protocol = mkOption {
-        type = types.enum ["cifs" "nfs"];
-        default = "cifs";
-        description = "Transport used to mount the NAS share.";
-      };
-
-      host = mkOption {
-        type = types.nullOr types.str;
-        default = null;
-        description = "Hostname or IP address of the NAS.";
-      };
-
-      share = mkOption {
-        type = types.nullOr types.str;
-        default = null;
-        description = "Share or export name on the NAS.";
-      };
-
-      mountPoint = mkOption {
-        type = types.str;
-        default = "/mnt/nas-backups";
-        description = "Local mount point used for the NAS share.";
-      };
-
-      credentialsFile = mkOption {
-        type = types.nullOr types.str;
-        default = null;
-        description = "Path to an SMB credentials file, typically provided by agenix.";
-      };
-
-      mountOptions = mkOption {
-        type = types.listOf types.str;
-        default = [];
-        description = "Extra mount options appended to the NAS filesystem mount.";
-      };
-    };
+    nas = mkNasOptions;
 
     retention = {
       daily = mkOption {
@@ -316,38 +389,48 @@ in {
               resolved prefix.
             '';
           };
+
+          nas = mkOption {
+            type = types.nullOr (types.submodule {
+              options = mkNasOptions;
+            });
+            default = null;
+            description = ''
+              Optional per-entry NAS target, same shape as the host-wide
+              `custom.backups.nas` block. Leave it `null` (the default) and the
+              entry uses the host-wide mount. Set it when this one job needs a
+              different NAS account, share or host than the rest of the
+              machine — for example a personal home-directory backup going to
+              the person's own share while the appliance jobs on the same host
+              use a shared service account. An entry with an override gets its
+              own mount — named `/mnt/nas-<share, lowercased>` by default, same
+              derivation as the host-wide block — and its own restic
+              repository underneath it.
+            '';
+          };
         };
       }));
     };
   };
 
   config = mkIf cfg.enable {
-    assertions = [
-      {
-        assertion = cfg.nas.host != null;
-        message = "custom.backups.nas.host must be set when NAS backups are enabled.";
-      }
-      {
-        assertion = cfg.nas.share != null;
-        message = "custom.backups.nas.share must be set when NAS backups are enabled.";
-      }
-      {
-        assertion = enabledUsers != {};
-        message = "Enable at least one entry under custom.backups.users when NAS backups are enabled.";
-      }
-      {
-        assertion = cfg.nas.protocol != "cifs" || cfg.nas.credentialsFile != null;
-        message = "custom.backups.nas.credentialsFile must be set for CIFS NAS backups.";
-      }
-    ];
+    assertions =
+      nasAssertions "custom.backups.nas" cfg.nas
+      ++ [
+        {
+          assertion = enabledUsers != {};
+          message = "Enable at least one entry under custom.backups.users when NAS backups are enabled.";
+        }
+      ]
+      ++ overrideAssertions;
 
     environment.systemPackages = [pkgs.restic];
 
-    fileSystems.${cfg.nas.mountPoint} = {
-      device = nasDevice;
-      fsType = nasFsType;
-      options = nasMountOptions;
-    };
+    # The host-wide mount, plus one extra mount per entry that overrides it.
+    # mkMerge rather than `//` so an override that collides with the host-wide
+    # mount point, or with another override's, is a loud conflict instead of a
+    # silently dropped definition.
+    fileSystems = mkMerge ([{${effectiveMountPoint cfg.nas} = mkNasFileSystem cfg.nas;}] ++ overrideFileSystems);
 
     systemd.services = mapAttrs' mkBackupService enabledUsers;
     systemd.timers = mapAttrs' mkBackupTimer enabledUsers;

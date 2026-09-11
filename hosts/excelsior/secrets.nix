@@ -26,15 +26,28 @@ _: {
       mode = "0444";
     };
 
-    # All three below are job-keyed, not machine-keyed (docs/secrets.md §
-    # Secret Inventory) — each reuses an existing shared entry rather than
-    # minting a new one. Every host mounts the same single NAS
-    # (lib/nas.nix), so nas-smb-credentials needs no per-host distinction
-    # either; the restic repo path already includes the hostname, so
-    # sharing these doesn't collide backup data across hosts. The same
-    # nas-smb-credentials entry also backs the /mnt/media CIFS mount in
-    # media.nix — media/ is a subpath of the same share as backups/.
+    # Two dedicated NAS service accounts, one per share, replacing the reused
+    # personal thomasga login: backup-svc for the Backups share
+    # (custom.backups.nas in configuration.nix) and media-svc for the Media
+    # share (/mnt/media in media.nix). Each is ACL'd to its own share on the
+    # NAS, so excelsior's Jellyfin mount can no longer reach backup data and
+    # vice versa. No owner on either: both mounts are performed by root.
+    "backup-svc/nas-smb-credentials".file = ../../secrets/backup-svc/nas-smb-credentials.age;
+    "media-svc/nas-smb-credentials".file = ../../secrets/media-svc/nas-smb-credentials.age;
+
+    # The user's own personal NAS login, for the thomasga home-dir backup job
+    # only — that job keeps mounting Personal-Drive with the personal
+    # credential via the per-entry NAS override, coexisting with backup-svc
+    # above. The shared/appliance jobs (adguardhome, dcs-server, factorio)
+    # stay on backup-svc. No owner: the mount is performed by root, matching
+    # the two entries above.
     "thomasga/nas-smb-credentials".file = ../../secrets/thomasga/nas-smb-credentials.age;
+
+    # Both restic-password entries below are job-keyed, not machine-keyed
+    # (docs/secrets.md § Secret Inventory) — each reuses an existing shared
+    # entry rather than minting a new one. The restic repo path already
+    # includes the hostname, so sharing these doesn't collide backup data
+    # across hosts.
     "adguardhome/restic-password".file = ../../secrets/adguardhome/restic-password.age;
     "thomasga/restic-password".file = ../../secrets/thomasga/restic-password.age;
   };

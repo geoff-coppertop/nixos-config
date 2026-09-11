@@ -248,7 +248,6 @@ workarounds can be found and revisited without re-deriving where they live.
 - [`hosts/excelsior/README.md` § Known Gotchas](../hosts/excelsior/README.md#known-gotchas)
 - [`hosts/enterprise-d/README.md` § Known Gotchas](../hosts/enterprise-d/README.md#known-gotchas)
 - [`docs/desktop.md` § Known Gotchas](desktop.md#known-gotchas)
-- [`docs/secrets.md` § Known Gotchas](secrets.md#known-gotchas)
 - [`docs/homelab-network.md` § Known Gotchas](homelab-network.md#known-gotchas)
 - [`docs/backups.md` § Known Gotchas](backups.md#known-gotchas)
 
@@ -271,7 +270,7 @@ says what an option does, the host README says what it binds there.
 | `custom.isLaptop` | `modules/is-laptop.nix` | Gates AC-power-sensitive maintenance jobs (NAS backups, auto-upgrade, Flatpak auto-update) |
 | `custom.nix.gc.keepGenerations` | `modules/nix-gc.nix` | How many system and home-manager profile generations the weekly nix-gc run keeps (default `10`); lower it on hosts with little disk headroom, such as an SD-card-booted Pi |
 | `custom.users` | `modules/users.nix` | Declares user accounts, groups, and SSH authorized keys |
-| `custom.backups` | `modules/backups.nix` | Per-entry restic backups to the NAS over SMB or NFS |
+| `custom.backups` | `modules/backups.nix` | Per-entry restic backups to the NAS over SMB or NFS; `users.<name>.nas` optionally overrides the host-wide NAS target for one entry |
 | `custom.wifi.enable` | `modules/wifi.nix` | NetworkManager `ensureProfiles` Wi-Fi profiles |
 | `custom.networkDrives` | `modules/network-drives.nix` | Per-user SMB share as a lazy, keyring-free CIFS `x-systemd.automount`; adds GTK bookmarks and Dolphin Places entries |
 | `custom.ssh.identitySecret` | `users/common/` | Names the agenix secret holding a user's SSH login key |

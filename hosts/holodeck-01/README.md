@@ -79,8 +79,10 @@ normally.
 ## Backups
 
 Backs up `thomasga`'s home directory to the NAS at `192.168.1.21`, share
-`Personal-Drive/backups`, using
-`/run/agenix/thomasga/nas-smb-credentials`. `custom.isLaptop` is unset, so
-backups are not AC-gated on this host.
+`Personal-Drive`, using
+`/run/agenix/thomasga/nas-smb-credentials` (the user's own personal NAS
+login — this host has no shared/appliance backup jobs, so `backup-svc` is
+never involved). `custom.isLaptop` is unset, so backups are not AC-gated on
+this host.
 
 See [docs/backups.md](../../docs/backups.md).

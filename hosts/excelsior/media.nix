@@ -29,11 +29,13 @@ in {
   };
 
   # credentials= is the decrypted agenix secret, read by root at mount time.
-  # Reuses the shared thomasga/nas-smb-credentials secret rather than minting a
-  # per-host one — the media share is a subpath of the same Personal-Drive
-  # share this host already mounts for backups (lib/nas.nix), so a separate
-  # credential buys no isolation unless the NAS ACLs it independently. Same
-  # path the custom.backups.nas block in configuration.nix uses.
+  # media-svc is a dedicated NAS account scoped to the Media share only,
+  # deliberately separate from the backup-svc account this host's
+  # custom.backups.nas block uses for the Backups share (lib/nas.nix). Media
+  # and Backups are independent top-level shares with independent NAS-side
+  # ACLs, so a compromised or misconfigured media pipeline (Jellyfin, ARM,
+  # tinyMediaManager — none of which have meaningful auth of their own) cannot
+  # reach backup data, and a backup job cannot rewrite the library.
   fileSystems."/mnt/media" = {
     device = "//${nas.host}/${nas.shares.media}";
     fsType = "cifs";
@@ -41,7 +43,7 @@ in {
       "nofail"
       "_netdev"
       "vers=3.0"
-      "credentials=/run/agenix/thomasga/nas-smb-credentials"
+      "credentials=/run/agenix/media-svc/nas-smb-credentials"
       "uid=${toString mediaUid}"
       "gid=${toString mediaGid}"
       "file_mode=0664"

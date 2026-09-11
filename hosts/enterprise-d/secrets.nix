@@ -1,9 +1,15 @@
 {
   age.secrets = {
+    # The user's own personal NAS login. Two personal uses here: the
+    # personal-drive desktop mount (custom.networkDrives) and the thomasga
+    # home-dir backup job, which keeps mounting Personal-Drive with this
+    # credential via the per-entry NAS override. Owned by thomasga for the
+    # desktop mount; root can read it regardless for the backup mount.
     "thomasga/nas-smb-credentials" = {
       file = ../../secrets/thomasga/nas-smb-credentials.age;
       owner = "thomasga";
     };
+
     "thomasga/restic-password".file =
       ../../secrets/thomasga/restic-password.age;
     "thomasga/ssh-id-ed25519-enterprise-d" = {
