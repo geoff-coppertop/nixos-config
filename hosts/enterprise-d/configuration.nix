@@ -19,6 +19,9 @@ in {
   custom = {
     users.thomasga = thomasga // {groups = ["wheel" "networkmanager" "plugdev"];};
 
+    # The one line that swaps the entire desktop stack: "gnome" or "cosmic".
+    desktop.environment = "cosmic";
+
     wifi.enable = true;
     gaming.enable = true;
     flatpak.enable = true;

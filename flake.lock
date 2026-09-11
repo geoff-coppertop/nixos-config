@@ -25,6 +25,32 @@
         "type": "github"
       }
     },
+    "cosmic-manager": {
+      "inputs": {
+        "flake-parts": [
+          "flake-parts"
+        ],
+        "home-manager": [
+          "home-manager"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1780178896,
+        "narHash": "sha256-98aHwiGZcvb0VJUGE+lCS/zuGdFAlNvm8keIimuLOK0=",
+        "ref": "refs/heads/main",
+        "rev": "1630bbf792a95baffbd3169885580cd53a7027d8",
+        "revCount": 186,
+        "type": "git",
+        "url": "https://github.com/HeitorAugustoLN/cosmic-manager"
+      },
+      "original": {
+        "type": "git",
+        "url": "https://github.com/HeitorAugustoLN/cosmic-manager"
+      }
+    },
     "crane": {
       "locked": {
         "lastModified": 1781825982,
@@ -128,6 +154,26 @@
         "owner": "NixOS",
         "repo": "flake-compat",
         "type": "github"
+      }
+    },
+    "flake-parts": {
+      "inputs": {
+        "nixpkgs-lib": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1785627969,
+        "narHash": "sha256-4dtXQk/NMePegK/nWp5NSeuZKLATItOq61lpEvmXqGw=",
+        "ref": "refs/heads/main",
+        "rev": "427bf4bd9435fdf21321c8cc628c24efc14c0f7a",
+        "revCount": 483,
+        "type": "git",
+        "url": "https://github.com/hercules-ci/flake-parts"
+      },
+      "original": {
+        "type": "git",
+        "url": "https://github.com/hercules-ci/flake-parts"
       }
     },
     "gitignore": {
@@ -297,8 +343,10 @@
     "root": {
       "inputs": {
         "agenix": "agenix",
+        "cosmic-manager": "cosmic-manager",
         "disko": "disko",
         "dotfiles": "dotfiles",
+        "flake-parts": "flake-parts",
         "home-manager": "home-manager",
         "lanzaboote": "lanzaboote",
         "nix-flatpak": "nix-flatpak",

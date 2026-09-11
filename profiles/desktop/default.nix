@@ -6,6 +6,7 @@
   # itself is declared in modules/desktop.nix.
   imports = [
     ./audio.nix
+    ./cosmic.nix
     ./gnome.nix
     ./power.nix
     ./printing.nix
