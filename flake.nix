@@ -8,6 +8,13 @@
     disko.inputs.nixpkgs.follows = "nixpkgs";
     home-manager.url = "github:nix-community/home-manager/master";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
+    plasma-manager = {
+      url = "github:nix-community/plasma-manager";
+      inputs = {
+        nixpkgs.follows = "nixpkgs";
+        home-manager.follows = "home-manager";
+      };
+    };
     agenix = {
       url = "github:ryantm/agenix";
       inputs = {
@@ -58,6 +65,7 @@
     nixpkgs,
     disko,
     home-manager,
+    plasma-manager,
     agenix,
     lanzaboote,
     nix-flatpak,
@@ -112,7 +120,7 @@
     };
 
     mkNixosSystem = import ./lib/nixos-system.nix {
-      inherit nixpkgs home-manager agenix lanzaboote nix-flatpak nix-vscode-extensions dotfiles;
+      inherit nixpkgs home-manager plasma-manager agenix lanzaboote nix-flatpak nix-vscode-extensions dotfiles;
     };
 
     mkHomeConfig = {
@@ -143,6 +151,7 @@
           osConfig = null;
         };
         modules = [
+          plasma-manager.homeModules.plasma-manager
           ./hosts/${machine}/home/${user}.nix
           {
             home.username = user;

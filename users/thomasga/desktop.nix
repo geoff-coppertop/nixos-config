@@ -11,6 +11,7 @@
     ./ghostty.nix
     ./desktop-common.nix
     ./gnome.nix
+    ./kde.nix
     ./ssh.nix
     ./ssh-key.nix
     ./vscode.nix
