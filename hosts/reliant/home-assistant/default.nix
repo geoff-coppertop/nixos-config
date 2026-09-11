@@ -35,5 +35,6 @@
     ./climate-dashboard.nix
     ./outdoor-aqi.nix
     ./kids-wake-lights.nix
+    ./wiz-lights.nix
   ];
 }
