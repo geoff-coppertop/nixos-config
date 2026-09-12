@@ -400,7 +400,12 @@ justify generalizing this):
 1. If `reliant` isn't in the `changes` matrix above, its toplevel didn't
    change at all, so nothing about its Home Assistant config could have
    either — the check is skipped with no further evaluation
-   (`ha-reliant-changed=false`).
+   (`ha-reliant-changed=false`). The matrix JSON reaches that test as a
+   `MATRIX_JSON` env var on the step, never interpolated as `${{ ... }}`
+   inside the shell script: the matrix is quote-heavy JSON, and substituting
+   it into a shell string mangles it before `jq` ever sees it (which is
+   exactly how this layer silently answered "not in the matrix" on every run
+   until it was fixed).
 2. If it is, `tools/ci_ha_config_changed.py` diffs the drvPaths of the three
    flake packages `tools/ha_config_check.py` actually builds
    (`packages.<system>.ha-config-reliant`, the rendered automation config;
