@@ -373,6 +373,73 @@ is packaged separately in `pkgs/pywiim.nix`, built against
 so its transitive dependencies share Home Assistant's own Python environment
 rather than risking a second, conflicting copy.
 
+### Office AV: CEC handles volume, not power
+
+The office Apple TV (`media_player.apple_tv_geoff_s_office`) feeds a Yamaha
+HTR-4063 receiver, which feeds a projector, both over HDMI. Confirmed live,
+CEC (Apple TV Settings > Remotes and Devices > Volume Control > Auto, with
+HDMI Control enabled on the receiver) correctly handles volume for this
+chain — no Home Assistant or Nix config involved. Also confirmed live, CEC
+does **not** cascade power on this hardware: putting the Apple TV to sleep
+does not power off the receiver or the projector, even though the Apple TV
+is CEC-wired directly to the receiver rather than through the projector — so
+this isn't a pass-through gap, CEC power simply doesn't propagate here.
+
+`hosts/reliant/home-assistant/appletv-av.nix` drives power instead, via IR
+commands sent through a Broadlink RM4 mini (`broadlink` component, already in
+`extraComponents`), entity `remote.geoff_s_office_wi_fi_universal_remote`,
+whenever the Apple TV's `media_player` state transitions between off/standby
+and an active state.
+
+All four commands (both devices' on and off) are baked into the Nix file as
+raw `remote.send_command` `b64:` codes rather than referenced by
+device/command name, even though the projector's remote has ordinary
+discrete Power On/Standby buttons that `remote.learn_command` could capture
+cleanly. A device/command name only resolves against whatever's been learned
+into the RM4's own `.storage` on the running instance — that state isn't
+declared anywhere, so a fresh Home Assistant instance (a reinstall, a lost
+`/var/lib/hass`) would silently carry a broken automation until someone
+remembered to manually re-learn all four commands. The projector's two codes
+are exactly what `remote.learn_command` captured, copied out of storage
+verbatim — see `hosts/reliant/README.md` § Device Pairing Notes for the
+learning steps used to produce them. The receiver's required actual
+reverse-engineering, covered next.
+
+### Receiver power: reverse-engineered discrete NEC codes, not a learned toggle
+
+The receiver's own remote has only a single power **toggle** button — no
+discrete on/off exists to learn via `remote.learn_command`. Blindly sending
+that same learned toggle for both "on" and "off" would desync Home
+Assistant's assumed state from the receiver's real state the first time they
+ever disagreed (e.g. after any manual power-button press), with no way to
+detect or correct the drift — a Broadlink RM4 has no return channel, so it
+never knows the receiver's actual state.
+
+Confirmed live instead: the receiver's underlying NEC command table has
+genuine discrete `PowerOn`/`PowerOff` codes, even though the stock remote
+never exposes a button for them. Found by decoding a `remote.learn_command`
+capture of the toggle button — NEC's address/complement-checksum structure
+makes the address byte (`0x7E`) and the toggle's own command byte (`0x2A`)
+recoverable with certainty, not a guess — then cross-referencing that against
+a known Yamaha RX-V IR code table for the same address family, which listed
+discrete `PowerOn = 0x7E` / `PowerOff = 0x7F` alongside a toggle command
+byte that matched the decoded one almost exactly (off by one bit in a
+transcription of that table, not a real mismatch, since a valid NEC
+complement byte is always `0xFF ^ command` regardless of what the source
+recorded). Both discrete codes were synthesized as raw NEC frames — reusing
+the receiver's own captured timing and address bits, swapping only the
+command byte — and tested directly against the hardware before trusting
+them: `PowerOn` sent while off turned it on, `PowerOff` sent while on turned
+it off and, sent again, left it off (ruling out a second toggle).
+
+Because no remote button sends these, they can't be captured with
+`remote.learn_command` — `appletv-av.nix` sends them via
+`remote.send_command`'s raw-injection form (`command = "b64:...";` with no
+`device`) instead of a learned device/command pair. If this receiver is ever
+replaced, this whole derivation has to be redone from scratch for the new
+unit's own address/command bytes — nothing here is portable to different
+hardware, even another Yamaha model, without reverse-engineering it again.
+
 ## Radio Networks
 
 ### Zigbee
