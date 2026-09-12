@@ -214,7 +214,13 @@ Conventions the skeleton encodes:
 
 Where several rooms or devices share one pattern, write a `mk*` function and
 `map` it over a list rather than repeating the block — `presence-lighting.nix`
-does this for per-room presence lighting. `kids-wake-lights.nix` extends the
+does this for per-room presence lighting. Its `mkPresenceLighting` also takes
+an optional `door` binary_sensor (a Zigbee Parasoll contact sensor, wired in
+for the Utility Room): when set, the door opening becomes an extra "instant
+on" trigger alongside the `choose` condition's presence check, without
+gating the off side — motion alone still decides when the lights go off
+after `linger`, so propping the door open doesn't keep the lights on
+indefinitely. `kids-wake-lights.nix` extends the
 same pattern with per-room `input_boolean`/`input_datetime` helpers declared
 alongside the automations, so a value like a wake time is adjustable live from
 Settings > Devices & Services > Helpers without touching Nix or rebuilding —

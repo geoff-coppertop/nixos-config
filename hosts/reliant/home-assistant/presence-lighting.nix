@@ -41,6 +41,17 @@
 # Utility Room entry uses its real, commissioned Zigbee PIR motion sensor and
 # switch.
 #
+# The Utility Room also has a Parasoll door/window contact sensor on the
+# door (binary_sensor.utility_room_parasoll_contact, device_class "door":
+# "on" = open, "off" = closed) wired in via the optional `door` parameter.
+# When set, opening the door is an extra "instant on" trigger — useful
+# because the motion sensor's own occupancy timeout means the first second
+# or two of someone stepping in isn't necessarily covered yet. The door does
+# NOT gate the off side: it's purely an additional way to turn lights on,
+# not a second presence source. Motion alone still decides when lights go
+# off after `linger`, since someone could prop the door open without that
+# meaning "keep the lights on forever."
+#
 # Declared under the "automation manual" key (not bare "automation") so these
 # coexist with any UI-created automations, matching
 # services.home-assistant.configWritable = true. NixOS merges this list with the
@@ -58,46 +69,72 @@
       slug,
       presence,
       lights,
+      door ? null,
       linger ? "00:05:00",
     }: let
       domain = builtins.head (lib.splitString "." lights);
+      onCondition =
+        if door == null
+        then {
+          condition = "state";
+          entity_id = presence;
+          state = "on";
+        }
+        else {
+          condition = "or";
+          conditions = [
+            {
+              condition = "state";
+              entity_id = presence;
+              state = "on";
+            }
+            {
+              condition = "state";
+              entity_id = door;
+              state = "on";
+            }
+          ];
+        };
     in {
       id = "presence_lighting_${slug}";
       alias = "${room} lights follow presence";
-      description = "Turn on ${room}'s lights while presence is detected and off ${linger} after it clears. Re-evaluated on presence edges and on Home Assistant startup.";
+      description = "Turn on ${room}'s lights while presence is detected${lib.optionalString (door != null) " or the door is open"} and off ${linger} after presence clears. Re-evaluated on presence edges${lib.optionalString (door != null) ", the door opening,"} and on Home Assistant startup.";
       mode = "single";
-      trigger = [
-        # Presence detected -> lights should be on.
-        {
+      trigger =
+        [
+          # Presence detected -> lights should be on.
+          {
+            platform = "state";
+            entity_id = presence;
+            to = "on";
+          }
+          # Presence has been clear for the full linger window -> lights off.
+          {
+            platform = "state";
+            entity_id = presence;
+            to = "off";
+            for = linger;
+          }
+          # Restore the correct state after a reboot or config reload.
+          {
+            platform = "homeassistant";
+            event = "start";
+          }
+        ]
+        ++ lib.optional (door != null) {
+          # Door opened -> instant on, independent of motion. Does not gate
+          # the off side; see the header comment.
           platform = "state";
-          entity_id = presence;
+          entity_id = door;
           to = "on";
-        }
-        # Presence has been clear for the full linger window -> lights off.
-        {
-          platform = "state";
-          entity_id = presence;
-          to = "off";
-          for = linger;
-        }
-        # Restore the correct state after a reboot or config reload.
-        {
-          platform = "homeassistant";
-          event = "start";
-        }
-      ];
+        };
       action = [
         {
           choose = [
             {
-              # Presence currently detected -> lights on.
-              conditions = [
-                {
-                  condition = "state";
-                  entity_id = presence;
-                  state = "on";
-                }
-              ];
+              # Presence currently detected (or the door is currently open,
+              # when `door` is set) -> lights on.
+              conditions = [onCondition];
               sequence = [
                 {
                   service = "${domain}.turn_on";
@@ -107,7 +144,7 @@
             }
           ];
           # No presence (cleared past the linger, or startup with the room
-          # empty) -> lights off.
+          # empty and door closed) -> lights off.
           default = [
             {
               service = "${domain}.turn_off";
@@ -130,6 +167,7 @@
         slug = "utility_room";
         presence = "binary_sensor.motion_sensor_utility_room_occupancy";
         lights = "switch.utility_room";
+        door = "binary_sensor.utility_room_parasoll_contact";
       }
     ];
 }
