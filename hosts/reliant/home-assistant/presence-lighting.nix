@@ -124,6 +124,7 @@
         slug = "geoffs_office";
         presence = "binary_sensor.geoff_s_office_presence_occupancy";
         lights = "light.geoff_s_office_lights";
+        linger = "00:05:01";
       }
       {
         room = "Utility Room";
