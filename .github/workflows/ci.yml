@@ -143,14 +143,23 @@ jobs:
       # whether the change was HA-relevant at all (it might just be Traefik,
       # Bambuddy, Z-Wave, etc.) or a nixpkgs bump that touched the Home
       # Assistant package itself.
+      #
+      # MATRIX_JSON comes in as an env var rather than a `${{ }}` expression
+      # interpolated into the script below. The matrix is JSON full of double
+      # quotes ([{"host":"reliant",...}]); substituted straight into a
+      # double-quoted shell string those quotes collide with the shell's own
+      # quoting, jq gets handed mangled input, `jq -e` exits non-zero and every
+      # run silently took the else branch — ha-config-check was skipped on
+      # every PR from the day this scoping was added until this was fixed.
       - name: detect whether reliant's Home Assistant config changed
         id: detect-ha
         env:
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          MATRIX_JSON: ${{ steps.detect.outputs.matrix }}
         run: |
           set -euo pipefail
-          if echo "${{ steps.detect.outputs.matrix }}" | jq -e 'any(.[]; .host == "reliant")' > /dev/null; then
+          if printf '%s' "$MATRIX_JSON" | jq -e 'any(.[]; .host == "reliant")' > /dev/null; then
             changed=$(python3 tools/ci_ha_config_changed.py --base "$BASE_SHA" --head "$HEAD_SHA")
           else
             echo "reliant not in the build matrix — skipping the Home Assistant package diff." >&2
