@@ -391,6 +391,17 @@ commands sent through a Broadlink RM4 mini (`broadlink` component, already in
 whenever the Apple TV's `media_player` state transitions between off/standby
 and an active state.
 
+A third automation in the same file is an independent vacancy safety net:
+if `binary_sensor.geoff_s_office_presence_occupancy` (the same Aqara FP1e
+sensor `presence-lighting.nix` uses for this room's lights, at a 5-minute
+linger there) shows no presence for 20 minutes, it puts the Apple TV to
+sleep and sends both devices' PowerOff codes regardless of Apple TV state.
+The other two automations only react to the Apple TV's own state, so
+leaving the room mid-playback without pausing or sleeping it would
+otherwise never trigger a shutoff. Unconditional and not state-tracked —
+overlapping with the Apple-TV-triggered power-off automation is harmless,
+since a discrete PowerOff sent twice is a no-op.
+
 All four commands (both devices' on and off) are baked into the Nix file as
 raw `remote.send_command` `b64:` codes rather than referenced by
 device/command name, even though the projector's remote has ordinary

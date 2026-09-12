@@ -59,8 +59,24 @@
 # power is driven explicitly through the Broadlink RM4 via these two
 # automations instead.
 #
-# Entity IDs used here: media_player.apple_tv_geoff_s_office and
-# remote.geoff_s_office_wi_fi_universal_remote (both confirmed against the
+# A third automation, appletv_office_vacancy_shutdown, is an independent
+# safety net: if binary_sensor.geoff_s_office_presence_occupancy (the same
+# Aqara FP1e occupancy sensor presence-lighting.nix uses for the room's
+# lights, at a 5-minute linger there) has been clear for 20 minutes, put the
+# Apple TV to sleep and send both devices' PowerOff codes regardless of
+# Apple TV state. This exists because the other two automations only react
+# to the Apple TV's own state — if someone leaves mid-playback without
+# pausing or sleeping it, neither one ever fires. 20 minutes (vs. the
+# lights' 5) is deliberately long enough that sitting still watching
+# something doesn't trip it; unconditional and not state-tracked, so
+# overlapping with the Apple-TV-triggered power-off automation around the
+# same time is harmless — a discrete PowerOff sent twice is a no-op. Presence
+# returning before the 20 minutes elapse cancels the pending run via the same
+# `for` mechanism as the other two automations, no extra logic needed.
+#
+# Entity IDs used here: media_player.apple_tv_geoff_s_office,
+# remote.geoff_s_office_wi_fi_universal_remote, and
+# binary_sensor.geoff_s_office_presence_occupancy (all confirmed against the
 # live entity registry).
 #
 # Declared under the "automation manual" key (not bare "automation") so these
@@ -128,6 +144,41 @@ in {
         }
       ];
       action = [
+        {
+          service = "remote.send_command";
+          target.entity_id = ["remote.geoff_s_office_wi_fi_universal_remote"];
+          data.command = epsonPowerliteHomeCinema3020PowerOffCode;
+        }
+        {
+          # Stagger the two sends so both IR bursts from the one RM4 blaster
+          # don't collide.
+          delay = "00:00:01";
+        }
+        {
+          service = "remote.send_command";
+          target.entity_id = ["remote.geoff_s_office_wi_fi_universal_remote"];
+          data.command = yamahaHtr4063PowerOffCode;
+        }
+      ];
+    }
+    {
+      id = "appletv_office_vacancy_shutdown";
+      alias = "Office AV: shut everything off when the room has been empty 20 minutes";
+      description = "Safety net independent of Apple TV state: put the Apple TV to sleep and power off the receiver and projector via Broadlink IR once the office has shown no presence for 20 minutes.";
+      mode = "single";
+      trigger = [
+        {
+          platform = "state";
+          entity_id = "binary_sensor.geoff_s_office_presence_occupancy";
+          to = "off";
+          for = "00:20:00";
+        }
+      ];
+      action = [
+        {
+          service = "media_player.turn_off";
+          target.entity_id = ["media_player.apple_tv_geoff_s_office"];
+        }
         {
           service = "remote.send_command";
           target.entity_id = ["remote.geoff_s_office_wi_fi_universal_remote"];
