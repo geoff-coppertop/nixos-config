@@ -58,6 +58,17 @@
 # remains as the max/fallback wait that fires regardless of door state, so a
 # door propped open doesn't keep the lights on forever.
 #
+# That "regardless of door state" guarantee is why the action dispatches on
+# *which trigger fired* (via each trigger's `id`) rather than re-checking
+# current presence/door state for every firing: if the off-side triggers
+# re-evaluated "is presence or door currently on" the way the on-side
+# triggers do, a door left open would make that check true again right as
+# the linger/doorClosedLinger trigger fires, turning the lights back on
+# instead of off — the exact bug this dispatch avoids. Only the
+# `homeassistant` start trigger (which isn't tied to a specific edge) falls
+# through to the current-state check, to restore the correct state after a
+# reboot.
+#
 # Declared under the "automation manual" key (not bare "automation") so these
 # coexist with any UI-created automations, matching
 # services.home-assistant.configWritable = true. NixOS merges this list with the
@@ -102,6 +113,8 @@
             }
           ];
         };
+      onTriggerIds = ["presence_on"] ++ lib.optional (door != null) "door_on";
+      offTriggerIds = ["presence_off_linger"] ++ lib.optional (door != null) "door_closed_linger";
     in {
       id = "presence_lighting_${slug}";
       alias = "${room} lights follow presence";
@@ -115,15 +128,17 @@
         [
           # Presence detected -> lights should be on.
           {
+            id = "presence_on";
             platform = "state";
             entity_id = presence;
             to = "on";
           }
-          # Presence has been clear for the full linger window -> lights off.
-          # For a room with `door` set, this is the max/fallback wait that
-          # fires even if the door stays open; the shorter door-aware trigger
-          # below usually fires first.
+          # Presence has been clear for the full linger window -> lights off,
+          # forced by trigger id below regardless of current door state. For
+          # a room with `door` set, this is the max/fallback wait; the
+          # shorter door-aware trigger below usually fires first.
           {
+            id = "presence_off_linger";
             platform = "state";
             entity_id = presence;
             to = "off";
@@ -131,6 +146,7 @@
           }
           # Restore the correct state after a reboot or config reload.
           {
+            id = "startup";
             platform = "homeassistant";
             event = "start";
           }
@@ -138,6 +154,7 @@
         ++ lib.optional (door != null) {
           # Door opened -> instant on, independent of motion. Does not gate
           # the off side; see the header comment.
+          id = "door_on";
           platform = "state";
           entity_id = door;
           to = "on";
@@ -146,6 +163,7 @@
           # Presence clear and the door (also) closed, continuously, for the
           # shorter doorClosedLinger -> lights off sooner than the plain
           # linger fallback above (person left and shut the door).
+          id = "door_closed_linger";
           platform = "template";
           value_template = "{{ is_state('${presence}', 'off') and is_state('${door}', 'off') }}";
           for = doorClosedLinger;
@@ -154,8 +172,44 @@
         {
           choose = [
             {
-              # Presence currently detected (or the door is currently open,
-              # when `door` is set) -> lights on.
+              # An on-edge trigger fired (presence detected, or the door
+              # just opened) -> lights on, unconditionally.
+              conditions = [
+                {
+                  condition = "trigger";
+                  id = onTriggerIds;
+                }
+              ];
+              sequence = [
+                {
+                  service = "${domain}.turn_on";
+                  target.entity_id = lights;
+                }
+              ];
+            }
+            {
+              # An off-edge trigger fired (linger or doorClosedLinger
+              # elapsed) -> lights off, unconditionally. Must not re-check
+              # current door/presence state here: for a propped-open door,
+              # the door is still "on" right as this fires, which would
+              # otherwise send this to the on-branch below and the lights
+              # would never turn off.
+              conditions = [
+                {
+                  condition = "trigger";
+                  id = offTriggerIds;
+                }
+              ];
+              sequence = [
+                {
+                  service = "${domain}.turn_off";
+                  target.entity_id = lights;
+                }
+              ];
+            }
+            {
+              # Neither edge trigger -> this is the startup trigger;
+              # re-derive desired state from current presence/door state.
               conditions = [onCondition];
               sequence = [
                 {
@@ -165,9 +219,7 @@
               ];
             }
           ];
-          # No presence (cleared past the linger or the shorter
-          # doorClosedLinger, or startup with the room empty and door
-          # closed) -> lights off.
+          # Startup with the room empty (and door closed, when set) -> off.
           default = [
             {
               service = "${domain}.turn_off";
