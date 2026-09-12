@@ -106,6 +106,31 @@ onward (same as `enterprise-d`/`excelsior`).
   `media_player.apple_tv_upstairs_living_room`,
   `media_player.apple_tv_basement_living_room`, and
   `media_player.apple_tv_geoff_s_office`.
+- **Broadlink RM4 mini (office AV IR blaster)** — in HA → Integrations, add
+  it (config-flow, discovers the RM4 automatically on the LAN); it lands as
+  `remote.geoff_s_office_wi_fi_universal_remote`. `home-assistant/appletv-av.nix`
+  bakes all four commands in as raw `b64:` codes rather than referencing
+  device/command names, so nothing here depends on this pairing's live
+  `.storage` state — but that only matters again if the projector or the
+  receiver is ever physically replaced, since the codes are specific to
+  each unit's own remote/protocol, not to this RM4 or this pairing:
+  - **Projector replaced**: learn its two commands, one press per command
+    aimed at its own remote while the RM4's learn light is on: Developer
+    Tools → Actions → `remote.learn_command`, for `device: projector,
+    command: PowerOn` and `PowerOff`. Then pull the two codes straight out
+    of storage (`ssh <host> sudo cat
+    /var/lib/hass/.storage/broadlink_remote_<mac>_codes`) and paste them
+    into `epsonPowerliteHomeCinema3020PowerOnCode`/`epsonPowerliteHomeCinema3020PowerOffCode` in the Nix file.
+  - **Receiver replaced**: its remote almost certainly won't share this
+    exact unit's NEC address/command bytes even if it's another Yamaha —
+    see `docs/smart-home.md` § Receiver power for how
+    `yamahaHtr4063PowerOnCode`/`yamahaHtr4063PowerOffCode` were derived; the whole
+    reverse-engineering exercise has to be redone from scratch for the new
+    unit.
+  This integration only ever drives receiver/projector *power* — Apple TV
+  volume for the same office AV chain goes through CEC instead (Apple TV
+  Settings → Remotes and Devices → Volume Control → Auto), not through this
+  integration.
 
 ## Bambuddy (3D Printing)
 
