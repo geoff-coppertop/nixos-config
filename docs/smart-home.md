@@ -217,10 +217,15 @@ Where several rooms or devices share one pattern, write a `mk*` function and
 does this for per-room presence lighting. Its `mkPresenceLighting` also takes
 an optional `door` binary_sensor (a Zigbee Parasoll contact sensor, wired in
 for the Utility Room): when set, the door opening becomes an extra "instant
-on" trigger alongside the `choose` condition's presence check, without
-gating the off side — motion alone still decides when the lights go off
-after `linger`, so propping the door open doesn't keep the lights on
-indefinitely. `kids-wake-lights.nix` extends the
+on" trigger alongside the `choose` condition's presence check. On the off
+side, `door` doesn't gate the same way — motion alone still decides *that*
+lights should go off — but it does change *how long that takes*: a second,
+template-based trigger fires `doorClosedLinger` (a short wait, e.g. one
+minute) after presence has cleared and the door has also closed, for the
+"left and shut the door behind them" case, while the plain
+`presence -> off, for = linger` trigger remains as the longer max/fallback
+wait that fires regardless of door state, so propping the door open doesn't
+keep the lights on indefinitely. `kids-wake-lights.nix` extends the
 same pattern with per-room `input_boolean`/`input_datetime` helpers declared
 alongside the automations, so a value like a wake time is adjustable live from
 Settings > Devices & Services > Helpers without touching Nix or rebuilding —

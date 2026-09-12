@@ -12,7 +12,9 @@
 # reload restores the correct state rather than waiting for the next presence
 # edge. The five-minute linger lives in the off-trigger's `for`; it is
 # intentionally not persisted across a restart — after a reboot the lights
-# simply track current presence.
+# simply track current presence. For a room with a `door` sensor, `linger` is
+# the max/fallback wait (used when the door stays open) and the shorter
+# `doorClosedLinger` is the wait once the door has also closed — see below.
 #
 # `presence` just needs to be a binary_sensor.* that reports on/off — the
 # automation itself doesn't care whether "off" means the room emptied
@@ -47,10 +49,14 @@
 # When set, opening the door is an extra "instant on" trigger — useful
 # because the motion sensor's own occupancy timeout means the first second
 # or two of someone stepping in isn't necessarily covered yet. The door does
-# NOT gate the off side: it's purely an additional way to turn lights on,
-# not a second presence source. Motion alone still decides when lights go
-# off after `linger`, since someone could prop the door open without that
-# meaning "keep the lights on forever."
+# NOT gate the off side the same way it gates the on side: it's an additional
+# way to turn lights on, not a second presence source, so motion alone still
+# decides on. For off, once `door` is set, the door does shorten the wait:
+# presence clearing and the door being (or becoming) closed together for
+# `doorClosedLinger` turns lights off quickly (person left and shut the door
+# behind them), while the plain `presence -> off, for = linger` trigger
+# remains as the max/fallback wait that fires regardless of door state, so a
+# door propped open doesn't keep the lights on forever.
 #
 # Declared under the "automation manual" key (not bare "automation") so these
 # coexist with any UI-created automations, matching
@@ -71,6 +77,7 @@
       lights,
       door ? null,
       linger ? "00:05:00",
+      doorClosedLinger ? "00:01:00",
     }: let
       domain = builtins.head (lib.splitString "." lights);
       onCondition =
@@ -98,7 +105,11 @@
     in {
       id = "presence_lighting_${slug}";
       alias = "${room} lights follow presence";
-      description = "Turn on ${room}'s lights while presence is detected${lib.optionalString (door != null) " or the door is open"} and off ${linger} after presence clears. Re-evaluated on presence edges${lib.optionalString (door != null) ", the door opening,"} and on Home Assistant startup.";
+      description = "Turn on ${room}'s lights while presence is detected${lib.optionalString (door != null) " or the door is open"} and off ${
+        if door == null
+        then "${linger} after presence clears"
+        else "${doorClosedLinger} after presence clears and the door is closed, or after ${linger} regardless of door state"
+      }. Re-evaluated on presence edges${lib.optionalString (door != null) ", the door opening or closing,"} and on Home Assistant startup.";
       mode = "single";
       trigger =
         [
@@ -109,6 +120,9 @@
             to = "on";
           }
           # Presence has been clear for the full linger window -> lights off.
+          # For a room with `door` set, this is the max/fallback wait that
+          # fires even if the door stays open; the shorter door-aware trigger
+          # below usually fires first.
           {
             platform = "state";
             entity_id = presence;
@@ -127,6 +141,14 @@
           platform = "state";
           entity_id = door;
           to = "on";
+        }
+        ++ lib.optional (door != null) {
+          # Presence clear and the door (also) closed, continuously, for the
+          # shorter doorClosedLinger -> lights off sooner than the plain
+          # linger fallback above (person left and shut the door).
+          platform = "template";
+          value_template = "{{ is_state('${presence}', 'off') and is_state('${door}', 'off') }}";
+          for = doorClosedLinger;
         };
       action = [
         {
@@ -143,8 +165,9 @@
               ];
             }
           ];
-          # No presence (cleared past the linger, or startup with the room
-          # empty and door closed) -> lights off.
+          # No presence (cleared past the linger or the shorter
+          # doorClosedLinger, or startup with the room empty and door
+          # closed) -> lights off.
           default = [
             {
               service = "${domain}.turn_off";
@@ -168,6 +191,7 @@
         presence = "binary_sensor.motion_sensor_utility_room_occupancy";
         lights = "switch.utility_room";
         door = "binary_sensor.utility_room_parasoll_contact";
+        doorClosedLinger = "00:01:00";
       }
     ];
 }
