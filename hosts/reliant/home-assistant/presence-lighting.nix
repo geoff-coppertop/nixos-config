@@ -12,7 +12,9 @@
 # reload restores the correct state rather than waiting for the next presence
 # edge. The five-minute linger lives in the off-trigger's `for`; it is
 # intentionally not persisted across a restart — after a reboot the lights
-# simply track current presence.
+# simply track current presence. For a room with a `door` sensor, `linger` is
+# the max/fallback wait (used when the door stays open) and the shorter
+# `doorClosedLinger` is the wait once the door has also closed — see below.
 #
 # `presence` just needs to be a binary_sensor.* that reports on/off — the
 # automation itself doesn't care whether "off" means the room emptied
@@ -41,6 +43,32 @@
 # Utility Room entry uses its real, commissioned Zigbee PIR motion sensor and
 # switch.
 #
+# The Utility Room also has a Parasoll door/window contact sensor on the
+# door (binary_sensor.utility_room_parasoll_contact, device_class "door":
+# "on" = open, "off" = closed) wired in via the optional `door` parameter.
+# When set, opening the door is an extra "instant on" trigger — useful
+# because the motion sensor's own occupancy timeout means the first second
+# or two of someone stepping in isn't necessarily covered yet. The door does
+# NOT gate the off side the same way it gates the on side: it's an additional
+# way to turn lights on, not a second presence source, so motion alone still
+# decides on. For off, once `door` is set, the door does shorten the wait:
+# presence clearing and the door being (or becoming) closed together for
+# `doorClosedLinger` turns lights off quickly (person left and shut the door
+# behind them), while the plain `presence -> off, for = linger` trigger
+# remains as the max/fallback wait that fires regardless of door state, so a
+# door propped open doesn't keep the lights on forever.
+#
+# That "regardless of door state" guarantee is why the action dispatches on
+# *which trigger fired* (via each trigger's `id`) rather than re-checking
+# current presence/door state for every firing: if the off-side triggers
+# re-evaluated "is presence or door currently on" the way the on-side
+# triggers do, a door left open would make that check true again right as
+# the linger/doorClosedLinger trigger fires, turning the lights back on
+# instead of off — the exact bug this dispatch avoids. Only the
+# `homeassistant` start trigger (which isn't tied to a specific edge) falls
+# through to the current-state check, to restore the correct state after a
+# reboot.
+#
 # Declared under the "automation manual" key (not bare "automation") so these
 # coexist with any UI-created automations, matching
 # services.home-assistant.configWritable = true. NixOS merges this list with the
@@ -58,44 +86,98 @@
       slug,
       presence,
       lights,
+      door ? null,
       linger ? "00:05:00",
+      doorClosedLinger ? "00:01:00",
     }: let
       domain = builtins.head (lib.splitString "." lights);
+      onCondition =
+        if door == null
+        then {
+          condition = "state";
+          entity_id = presence;
+          state = "on";
+        }
+        else {
+          condition = "or";
+          conditions = [
+            {
+              condition = "state";
+              entity_id = presence;
+              state = "on";
+            }
+            {
+              condition = "state";
+              entity_id = door;
+              state = "on";
+            }
+          ];
+        };
+      onTriggerIds = ["presence_on"] ++ lib.optional (door != null) "door_on";
+      offTriggerIds = ["presence_off_linger"] ++ lib.optional (door != null) "door_closed_linger";
     in {
       id = "presence_lighting_${slug}";
       alias = "${room} lights follow presence";
-      description = "Turn on ${room}'s lights while presence is detected and off ${linger} after it clears. Re-evaluated on presence edges and on Home Assistant startup.";
+      description = "Turn on ${room}'s lights while presence is detected${lib.optionalString (door != null) " or the door is open"} and off ${
+        if door == null
+        then "${linger} after presence clears"
+        else "${doorClosedLinger} after presence clears and the door is closed, or after ${linger} regardless of door state"
+      }. Re-evaluated on presence edges${lib.optionalString (door != null) ", the door opening or closing,"} and on Home Assistant startup.";
       mode = "single";
-      trigger = [
-        # Presence detected -> lights should be on.
-        {
+      trigger =
+        [
+          # Presence detected -> lights should be on.
+          {
+            id = "presence_on";
+            platform = "state";
+            entity_id = presence;
+            to = "on";
+          }
+          # Presence has been clear for the full linger window -> lights off,
+          # forced by trigger id below regardless of current door state. For
+          # a room with `door` set, this is the max/fallback wait; the
+          # shorter door-aware trigger below usually fires first.
+          {
+            id = "presence_off_linger";
+            platform = "state";
+            entity_id = presence;
+            to = "off";
+            for = linger;
+          }
+          # Restore the correct state after a reboot or config reload.
+          {
+            id = "startup";
+            platform = "homeassistant";
+            event = "start";
+          }
+        ]
+        ++ lib.optional (door != null) {
+          # Door opened -> instant on, independent of motion. Does not gate
+          # the off side; see the header comment.
+          id = "door_on";
           platform = "state";
-          entity_id = presence;
+          entity_id = door;
           to = "on";
         }
-        # Presence has been clear for the full linger window -> lights off.
-        {
-          platform = "state";
-          entity_id = presence;
-          to = "off";
-          for = linger;
-        }
-        # Restore the correct state after a reboot or config reload.
-        {
-          platform = "homeassistant";
-          event = "start";
-        }
-      ];
+        ++ lib.optional (door != null) {
+          # Presence clear and the door (also) closed, continuously, for the
+          # shorter doorClosedLinger -> lights off sooner than the plain
+          # linger fallback above (person left and shut the door).
+          id = "door_closed_linger";
+          platform = "template";
+          value_template = "{{ is_state('${presence}', 'off') and is_state('${door}', 'off') }}";
+          for = doorClosedLinger;
+        };
       action = [
         {
           choose = [
             {
-              # Presence currently detected -> lights on.
+              # An on-edge trigger fired (presence detected, or the door
+              # just opened) -> lights on, unconditionally.
               conditions = [
                 {
-                  condition = "state";
-                  entity_id = presence;
-                  state = "on";
+                  condition = "trigger";
+                  id = onTriggerIds;
                 }
               ];
               sequence = [
@@ -105,9 +187,39 @@
                 }
               ];
             }
+            {
+              # An off-edge trigger fired (linger or doorClosedLinger
+              # elapsed) -> lights off, unconditionally. Must not re-check
+              # current door/presence state here: for a propped-open door,
+              # the door is still "on" right as this fires, which would
+              # otherwise send this to the on-branch below and the lights
+              # would never turn off.
+              conditions = [
+                {
+                  condition = "trigger";
+                  id = offTriggerIds;
+                }
+              ];
+              sequence = [
+                {
+                  service = "${domain}.turn_off";
+                  target.entity_id = lights;
+                }
+              ];
+            }
+            {
+              # Neither edge trigger -> this is the startup trigger;
+              # re-derive desired state from current presence/door state.
+              conditions = [onCondition];
+              sequence = [
+                {
+                  service = "${domain}.turn_on";
+                  target.entity_id = lights;
+                }
+              ];
+            }
           ];
-          # No presence (cleared past the linger, or startup with the room
-          # empty) -> lights off.
+          # Startup with the room empty (and door closed, when set) -> off.
           default = [
             {
               service = "${domain}.turn_off";
@@ -130,6 +242,8 @@
         slug = "utility_room";
         presence = "binary_sensor.motion_sensor_utility_room_occupancy";
         lights = "switch.utility_room";
+        door = "binary_sensor.utility_room_parasoll_contact";
+        doorClosedLinger = "00:01:00";
       }
     ];
 }

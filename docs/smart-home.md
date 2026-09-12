@@ -214,7 +214,28 @@ Conventions the skeleton encodes:
 
 Where several rooms or devices share one pattern, write a `mk*` function and
 `map` it over a list rather than repeating the block — `presence-lighting.nix`
-does this for per-room presence lighting. `kids-wake-lights.nix` extends the
+does this for per-room presence lighting. Its `mkPresenceLighting` also takes
+an optional `door` binary_sensor (a Zigbee Parasoll contact sensor, wired in
+for the Utility Room): when set, the door opening becomes an extra "instant
+on" trigger. On the off side, `door` doesn't gate the same way — motion
+alone still decides *that* lights should go off — but it does change *how
+long that takes*: a second, template-based trigger fires `doorClosedLinger`
+(a short wait, e.g. one minute) after presence has cleared and the door has
+also closed, for the "left and shut the door behind them" case, while the
+plain `presence -> off, for = linger` trigger remains as the longer
+max/fallback wait that fires regardless of door state, so propping the door
+open doesn't keep the lights on indefinitely.
+
+That last guarantee is why the `choose` action dispatches on *which trigger
+fired* (`condition: trigger, id: [...]`, matched against an `id` set on every
+trigger) instead of re-checking current presence/door state on every firing:
+re-checking state would mean a still-open door reads as "on" right as the
+`linger` fallback fires, sending that firing to the on-branch and the lights
+would never turn off — confirmed live on `reliant` (lights stuck on past
+both `linger` and `doorClosedLinger` with the door propped open) before this
+dispatch was added. Only the `homeassistant` start trigger, which isn't
+tied to a specific on/off edge, falls through to a current-state check, to
+restore the correct state after a reboot. `kids-wake-lights.nix` extends the
 same pattern with per-room `input_boolean`/`input_datetime` helpers declared
 alongside the automations, so a value like a wake time is adjustable live from
 Settings > Devices & Services > Helpers without touching Nix or rebuilding —
