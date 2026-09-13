@@ -107,12 +107,140 @@ such check) worked.
 When the target service's own listen port is itself a configurable option
 (rather than fixed, like dump1090's), pass the live option value —
 `port = config.services.<foo>.port;` — not a literal. `modules/dns.nix`'s own
-AdGuard route does this (`config.services.adguardhome.port`, upstream default
-3000): a hardcoded `3000` would silently decouple the route from the real port
-the moment that option is ever overridden, which is a real prerequisite for
-another module on `reliant` — `custom.bambuddy`'s virtual-printer feature
-hardcodes ports 3000/3002 upstream and can't be enabled on this host until
-AdGuard moves off 3000, see `hosts/reliant/README.md` § Bambuddy.
+AdGuard route does this (`config.services.adguardhome.port`): a hardcoded
+`3000` would silently decouple the route from the real port the moment that
+option is ever overridden — and `reliant` overrides it:
+`custom.bambuddy`'s virtual-printer feature hardcodes ports 3000/3002
+upstream and cannot be enabled while AdGuard's admin UI holds 3000, so
+`hosts/reliant/configuration.nix` sets `services.adguardhome.port = 3004;`.
+Because the route reads the option live, that move needed no change here.
+See `hosts/reliant/README.md` § Bambuddy.
+
+## Dedicated Bind IPs For LAN-Emulation Services
+
+Some services don't just serve HTTP behind Traefik — they emulate a whole
+other LAN device (FTP/MQTT/SSDP/bind listeners of their own) and need a real,
+dedicated IP separate from the host's own, because their protocol handshakes
+assume exclusive ownership of well-known ports on whatever address they bind.
+BambuBuddy's virtual-printer feature (`custom.bambuddy.virtualPrinter`,
+`modules/bambuddy.nix`) is the first instance of this on `reliant`: each
+virtual printer needs its own bind IP so OrcaSlicer/Bambu Studio's "send to
+printer" can find something that looks like a real Bambu printer on the LAN.
+
+`reliant` configures one, for exactly that. An earlier attempt used the
+obvious NixOS option and broke the LAN twice in one night in two different
+ways, so **the working shape is deliberately not the obvious one**. Read
+both traps below before copying either.
+
+The shape that works — a plain systemd unit, in the host's own
+`configuration.nix`:
+
+```nix
+systemd.services.bambuddy-bind-ip = {
+  wantedBy = ["multi-user.target"];
+  after = ["network.target"];
+  serviceConfig = {
+    Type = "oneshot";
+    RemainAfterExit = true;
+    ExecStart = "${pkgs.iproute2}/bin/ip addr replace 192.168.20.40/24 dev enp3s0 preferred_lft 0";
+    ExecStop = "-${pkgs.iproute2}/bin/ip addr del 192.168.20.40/24 dev enp3s0";
+  };
+};
+```
+
+The shape that does **not** work, and what it costs:
+
+```nix
+networking.interfaces.enp3s0.ipv4.addresses = [
+  {
+    address = "192.168.20.40";
+    prefixLength = 24;
+  }
+];
+```
+
+### Trap 1: it silently disables DHCP
+
+**`useDHCP = true` is mandatory here, not decoration.** Setting
+`ipv4.addresses` on an interface silently *disables* DHCP on it unless
+`useDHCP` is set explicitly: `networking.interfaces.<name>.useDHCP` defaults
+to `null`, and nixpkgs resolves `null` as "DHCP enabled only if
+`ipv4.addresses` is empty" (`nixos/modules/tasks/network-interfaces.nix` —
+read it before trusting any other description of this, including this one).
+It is not additive by default, and nothing warns you.
+
+Omitting it took `reliant` off the network the first time this pattern was
+used. The host lost its DHCP-assigned primary (`192.168.20.15`) the instant
+the change activated, and with it the default route and nameservers, which
+DHCP was the only source of — the repo sets no `networking.defaultGateway`
+anywhere. What is left is a host reachable only from its own `/24`, with a
+junk link-local default route via a podman veth, answering nothing from any
+other subnet. A power cycle does not help, because the broken generation is
+the one that boots. See `hosts/reliant/README.md` § Known Gotchas.
+
+Given a DHCP reservation keyed to the interface's MAC (which is how
+`192.168.20.15` is assigned), restoring `useDHCP = true` brings the primary
+address, gateway and nameservers all back on the next activation with no
+other change.
+
+### Trap 2: it hijacks source-address selection
+
+Fixing trap 1 leaves a subtler break. With two addresses in the same `/24`,
+whichever was added **first** becomes the primary for that subnet, and the
+kernel uses it as the default source address for on-subnet traffic.
+`network-addresses-<if>.service` runs at boot before dhcpcd gets its lease,
+so the *static* address wins — the host starts sourcing all LAN-local
+traffic from the secondary IP:
+
+```console
+$ ip route get 192.168.20.84
+192.168.20.84 dev enp3s0 src 192.168.20.40
+```
+
+The default route is unaffected (dhcpcd pins `src` on it), so anything
+*routed* still looks right — which is exactly why this hides. Only same-subnet
+traffic moves, and that is where the appliance layer lives.
+
+Confirmed live: this broke every Matter device on `reliant`, with
+`matter-server` logging `Unable to establish CASE session with Node 1` —
+Matter's secure session handshake is address-sensitive, and the controller
+was suddenly talking to already-commissioned nodes from an address they had
+no session with. Anything else holding controller state by address (Sonos
+UPnP callbacks, HomeKit, Apple TV) is exposed the same way.
+
+The fix is to stop the secondary being selectable as a source at all: mark
+it deprecated with `preferred_lft 0`, which removes it from source-address
+candidacy while leaving it fully usable for inbound connections and explicit
+binds. That cannot be expressed through the NixOS option — checked against
+the pinned nixpkgs' `nixos/modules/tasks/network-interfaces.nix`, the
+address submodule accepts only `address` and `prefixLength`, no lifetime or
+flags — which is why the working shape above is a systemd unit instead.
+Skipping `ipv4.addresses` entirely has the happy side effect of making trap 1
+unreachable too, since `useDHCP` is never disturbed.
+
+**Deprecation is only safe for a consumer that binds explicitly.** Verified
+for this one against upstream's `virtual_printer/ssdp_server.py`: it binds
+its socket to `bind_ip` and pins `IP_ADD_MEMBERSHIP` to the same address,
+and `manager.py` passes `bind_ip` to every other listener — so nothing in the
+virtual printer asks the kernel to choose a source address. A service that
+sends from a wildcard socket and expects this address to be the source would
+break under `preferred_lft 0`, and needs a different answer.
+
+Pick the secondary address from **outside** the DHCP pool, or the server will
+eventually lease it to something else and you get an address conflict. On
+`reliant`'s iot network the pool is `.51`–`.254`, so `.40` is safe. The
+secondary IP is a plain host-specific fact (which subnet, which free
+address), not a reusable `custom.*` option — it belongs directly in the
+host's `configuration.nix`, not in a module.
+
+A dedicated IP alone does not dodge a port collision with a service that
+binds `0.0.0.0` — see the AdGuard/3000 fact immediately above and
+`hosts/reliant/README.md` § Bambuddy: AdGuard's admin UI defaults to
+`0.0.0.0:3000`, which claims port 3000 on *every* address on the host,
+including a freshly added secondary one. The fix there was moving AdGuard's
+own port, not adding the IP — the two are independent prerequisites for
+`custom.bambuddy.virtualPrinter.openFirewall`, not substitutes for each
+other.
 
 ## Second DNS Instance (excelsior)
 

@@ -55,6 +55,22 @@ in {
     home-assistant.customComponents = [
       (pkgs.callPackage ../../pkgs/home-assistant-wiim.nix {})
     ];
+
+    # Moved off the nixpkgs module's own default (3000) because the virtual
+    # printer declared below hardcodes 3000/3002 for its bind/detect
+    # handshake and isn't configurable on either side — see
+    # modules/bambuddy.nix's assertion, which blocks
+    # virtualPrinter.openFirewall until this moves. Same class of collision,
+    # same fix shape as custom.zwave.port's move to 3001 below. 3004 is free:
+    # checked against every port already in use on this host (53, 5335, 3000,
+    # 3001, 3003, 8000, 8080, 8082, 8123, 1883). modules/dns.nix's own
+    # Traefik route for the admin UI reads this option's live value, so
+    # nothing else needs updating for dns1.coppertop.ca to keep working.
+    #
+    # It lives here rather than in the Home Assistant PR that first carried
+    # it: its only consumer is the virtual printer, and every piece of this
+    # feature that shipped ahead of its consumer caused an outage.
+    adguardhome.port = 3004;
   };
 
   custom = {
@@ -180,14 +196,15 @@ in {
       # Already the module default; stated explicitly because server-side
       # slicing is the reason this host runs Bambuddy rather than nothing.
       slicerSidecar.enable = true;
-      # NOT virtualPrinter.openFirewall: the virtual printer binds 3000/3002
-      # unconditionally and neither port is configurable, while this host's
-      # AdGuard Home admin UI already owns 3000 (see custom.dns below, and the
-      # assertion in modules/bambuddy.nix). Turning the feature on here means
-      # moving AdGuard's UI port first. Until that happens the virtual printer
-      # declared below runs but is unreachable from the LAN — the module warns
-      # about exactly this pairing at eval time. See hosts/reliant/README.md
-      # § Bambuddy.
+      # Opens the virtual printer's LAN ports (bind/detect, FTPS, MQTT, RTSPS
+      # and the FTP passive range — modules/bambuddy.nix enumerates them).
+      # Without it the virtual printer declared below runs and looks healthy
+      # in Bambuddy's UI while refusing every slicer connection, which is the
+      # whole point of the feature. Safe to turn on only because
+      # services.adguardhome.port moved to 3004 above: the two collided on
+      # 3000, and modules/bambuddy.nix asserts on that pairing rather than
+      # letting it fail at bind time.
+      virtualPrinter.openFirewall = true;
 
       # Real printers are deliberately absent: the P2S was added by hand
       # before this existed, so provisioning already treats it as present and
@@ -520,6 +537,11 @@ in {
     # stack over.
     hostName = "reliant";
 
+    # The virtual printer's dedicated bind IP is deliberately NOT declared
+    # here as networking.interfaces.enp3s0.ipv4.addresses — see the unit
+    # below, and docs/homelab-network.md § Dedicated Bind IPs For
+    # LAN-Emulation Services for the two outages that shape drove.
+
     # Confirmed live: this host's own custom.backups.nas mount fails without
     # it ("mount error: could not resolve address for unas-pro: Unknown
     # error") — the NAS hostname isn't mDNS-resolvable here, it's a static
@@ -556,6 +578,49 @@ in {
   # boot.loader.systemd-boot.configurationLimit (also 5). Revisit both once
   # real disk usage is known.
   custom.nix.gc.keepGenerations = 5;
+
+  # The virtual printer's dedicated bind IP (custom.bambuddy.virtualPrinters
+  # above references it as bindIp). Deliberately a hand-rolled unit rather
+  # than networking.interfaces.enp3s0.ipv4.addresses, because both of that
+  # option's failure modes cost this host an outage — see
+  # docs/homelab-network.md § Dedicated Bind IPs For LAN-Emulation Services:
+  #
+  #   1. Setting ipv4.addresses flips networking.interfaces.<name>.useDHCP
+  #      from its null default to "off", silently dropping the DHCP-assigned
+  #      primary, the default route and the nameservers. Never touching that
+  #      option means the trap cannot fire at all.
+  #   2. A second address in the same /24 becomes the subnet's primary if it
+  #      is added first (and network-addresses-<if>.service does run before
+  #      dhcpcd gets its lease), so the kernel picks it as the source address
+  #      for all on-subnet traffic. That broke every Matter device on this
+  #      host. preferred_lft 0 marks the address deprecated from birth, which
+  #      removes it from source-address candidacy while leaving it fully
+  #      usable for inbound connections and explicit binds.
+  #
+  # Deprecation is safe for this consumer specifically, confirmed against
+  # upstream's virtual_printer/ssdp_server.py: it binds its socket to bind_ip
+  # explicitly and pins IP_ADD_MEMBERSHIP to it, and manager.py passes bind_ip
+  # to every other listener, so nothing here relies on the kernel choosing a
+  # source address. Do not reuse this pattern for a service that sends from a
+  # wildcard socket and expects this address to be the source.
+  #
+  # `ip addr replace` rather than `add`: idempotent, so a restart or a re-run
+  # after the address already exists is a no-op instead of an error.
+  systemd.services.bambuddy-bind-ip = {
+    description = "Deprecated secondary address for Bambuddy's virtual printer";
+    wantedBy = ["multi-user.target"];
+    before = ["bambuddy.service"];
+    after = ["network.target"];
+
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStart = "${pkgs.iproute2}/bin/ip addr replace 192.168.20.40/24 dev enp3s0 preferred_lft 0";
+      # Tolerates the address already being gone, so a stop during shutdown
+      # or a re-switch never leaves the unit failed.
+      ExecStop = "-${pkgs.iproute2}/bin/ip addr del 192.168.20.40/24 dev enp3s0";
+    };
+  };
 
   system.stateVersion = "25.11";
 }

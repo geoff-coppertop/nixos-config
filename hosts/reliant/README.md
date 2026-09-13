@@ -58,10 +58,10 @@ Rule](../../docs/architecture.md#placement-rule)).
 | 80, 443 | tcp | Traefik entry points (`web`/`websecure`), `custom.traefik` | LAN/WAN (firewall open) — every proxied service is reached through 443 here, never its own port |
 | 322, 990, 2024–2026, 3000, 3002, 6000, 8883, 50000–50029 | tcp | Bambuddy virtual printer — bind/detect, RTSPS camera, FTPS, A1/P1S protocol, file tunnel, MQTT, FTP passive range (sized by `virtualPrinter.count`, 3 here). Ports are hardcoded upstream (`bind_server.py`), and the listeners start once an **enabled** virtual-printer row exists — `custom.bambuddy.virtualPrinters` declares one here | Bound on `192.168.20.40` (the row's `bindIp`), not `0.0.0.0` — `virtual_printer/manager.py` passes `bind_ip` through to every listener. Opened to the LAN by `virtualPrinter.openFirewall`, which is what lets a slicer reach them. Its 3000 no longer collides with AdGuard, which moves to 3004 in this same change; see § Bambuddy |
 | 1883 | tcp | Mosquitto MQTT broker, `custom.mqtt` | 127.0.0.1 only |
-| 3000 | tcp | AdGuard Home admin UI, `custom.dns` (upstream default) | Bound `0.0.0.0`, `openFirewall = false`; reached through Traefik at `dns1.coppertop.ca` |
 | 3001 | tcp | zwave-js websocket, `custom.zwave.port` — overridden here because the module default (3000) is AdGuard's admin UI | Firewall closed; Home Assistant connects over localhost |
 | 3001 | tcp | BambuStudio sidecar, `custom.bambuddy.slicerSidecar.bambuStudio.port` (`bambuStudio.enable` off) | **Not bound today** — and its default is the 3001 zwave-js already holds above; `modules/bambuddy.nix` asserts on that pair, so enabling it needs an explicit `port` here first |
 | 3003 | tcp | OrcaSlicer slicing sidecar (podman publish), `custom.bambuddy.slicerSidecar.port` | 127.0.0.1 only; called only by Bambuddy on this host |
+| 3004 | tcp | AdGuard Home admin UI, `custom.dns` — moved off the module's default (3000) because the virtual printer above hardcodes 3000/3002 and can't be reconfigured on either side; `modules/bambuddy.nix` asserts on the pair | Bound `0.0.0.0`, `openFirewall = false`; reached through Traefik at `dns1.coppertop.ca`, whose route reads this option's live value |
 | 5335 | tcp+udp | unbound recursive resolver, `custom.dns` | LAN (firewall open) — the deliberate AdGuard-bypass |
 | 5353 | udp | avahi/mDNS, `profiles/common/networking.nix` (`openFirewall = true`) | LAN (firewall open) — what makes `reliant.local` resolve for deploys |
 | 5580 | tcp | python-matter-server websocket, `custom.matter` (upstream default) | Firewall closed; Home Assistant connects over localhost |
@@ -153,12 +153,19 @@ slicing sidecar as a podman container. Host-specific notes:
   patched OrcaSlicer CLI inside it), which is fine here and would not be on an
   ARM host. `SLICER_API_URL` is set from the module, so nothing needs entering
   in Settings → Slicer.
-- **The virtual-printer feature is off at the firewall on this host and cannot
-  simply be turned on.** It binds ports 3000/3002 unconditionally — hardcoded
-  in upstream's `bind_server.py`, because a slicer looks for a real printer on
-  exactly those ports — and 3000 is already AdGuard Home's admin UI here.
-  `modules/bambuddy.nix` asserts on that combination rather than letting it
-  fail at bind time; moving `services.adguardhome.port` is the prerequisite.
+- **The virtual-printer feature is on, and its two prerequisites landed in
+  the same change as the printer itself.** It binds ports 3000/3002
+  unconditionally — hardcoded in upstream's `bind_server.py`, because a
+  slicer looks for a real printer on exactly those ports — which is why
+  `services.adguardhome.port` moved to 3004 (`modules/bambuddy.nix` asserts
+  on that pair rather than letting it fail at bind time), and why `enp3s0`
+  carries the dedicated bind IP `192.168.20.40`. That address is added by the
+  `bambuddy-bind-ip` unit rather than `networking.interfaces`, and marked
+  `preferred_lft 0`; both of those are load-bearing, see § Known Gotchas and
+  [docs/homelab-network.md § Dedicated Bind IPs For LAN-Emulation
+  Services](../../docs/homelab-network.md#dedicated-bind-ips-for-lan-emulation-services).
+  Nothing here shipped ahead of its consumer this time — every piece of it
+  that did, previously, caused an outage.
 - Data (SQLite database, 3MF/print archive) lives in `/var/lib/bambuddy`,
   owned by a fixed `bambuddy` system user. Logs are in `/var/log/bambuddy`.
 
@@ -263,6 +270,17 @@ in `hosts/reliant/secrets.nix`.
   with `defiant` — cutover repointed Unifi's DHCP-advertised DNS server at
   this IP directly rather than reassigning `defiant`'s reservation).
   Consumed by `custom.dns.lanIp` — see § Services above.
+- A second address, `192.168.20.40/24`, for
+  `custom.bambuddy.virtualPrinters`' `bindIp`. It is **not** declared through
+  `networking.interfaces.enp3s0.ipv4.addresses` — the `bambuddy-bind-ip`
+  systemd unit adds it with `preferred_lft 0` instead. Both details are
+  scars: the option form silently disables DHCP on the interface, and an
+  ordinary (non-deprecated) second address in the same `/24` becomes the
+  subnet's primary and hijacks source-address selection, which broke every
+  Matter device on this host. See § Known Gotchas and
+  [docs/homelab-network.md § Dedicated Bind IPs For LAN-Emulation
+  Services](../../docs/homelab-network.md#dedicated-bind-ips-for-lan-emulation-services).
+  The iot DHCP pool is `.51`–`.254`, so `.40` sits safely outside it.
 - Headless. `profiles/desktop` is deliberately **not** imported — there is no
   display server. `profiles/dev` is also not imported — the appliance
   service set migrated in this PR (Home Assistant, Zigbee2MQTT, Z-Wave JS,
