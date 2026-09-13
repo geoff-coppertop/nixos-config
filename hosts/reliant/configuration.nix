@@ -54,6 +54,11 @@ in {
     # customComponents instead of extraComponents.
     home-assistant.customComponents = [
       (pkgs.callPackage ../../pkgs/home-assistant-wiim.nix {})
+      # hass-oidc-auth: the HACS component backing custom.home-assistant.oidc
+      # below (that option only renders the auth_oidc: configuration.yaml
+      # block; this is what actually installs the integration's Python
+      # package into HA's closure) -- see docs/smart-home.md § OIDC Login.
+      (pkgs.callPackage ../../pkgs/home-assistant-oidc-auth.nix {})
     ];
   };
 
@@ -135,6 +140,31 @@ in {
       # met/weather forecast derived from it) in sync with this repo's own
       # coordinates instead of whatever was typed into onboarding by hand.
       locationEnvFile = "/run/agenix/location/coordinates";
+
+      # Real SSO via Authelia's OIDC provider (custom.authelia.oidc in
+      # modules/authelia.nix, homelab-network's module) instead of the
+      # forward-auth middleware every other gated subdomain uses -- HA
+      # already has its own real login, so forward-auth would just be a
+      # redundant second one. See docs/smart-home.md § OIDC Login and
+      # docs/homelab-network.md § OIDC Provider for the full design.
+      oidc = {
+        enable = true;
+        # clientId/discoveryUrl left at their defaults -- both already
+        # resolve correctly for this host (home-assistant, and
+        # auth.coppertop.ca's discovery URL composed from
+        # custom.authelia.subdomain/custom.traefik.acme.domain, both set
+        # below).
+        #
+        # clientSecretFile: NOT YET REAL. secrets-warden still needs to
+        # create this secret -- see hosts/reliant/README.md § Secrets for
+        # exactly what value it needs and how to generate it. Deploying
+        # with this path missing crash-loops home-assistant.service
+        # (systemd fails the unit outright when an EnvironmentFile= target
+        # doesn't exist), so do NOT enable this block in a real
+        # nixos-rebuild switch until that secret exists and reliant is a
+        # rekeyed recipient of it.
+        clientSecretFile = "/run/agenix/home-assistant/oidc-client-secret";
+      };
     };
 
     mqtt.enable = true;

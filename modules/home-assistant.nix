@@ -42,6 +42,81 @@ in {
         General), same as before this option existed.
       '';
     };
+
+    oidc = {
+      enable = mkEnableOption ''
+        Home Assistant's side of Authelia SSO: the third-party
+        hass-oidc-auth HACS component (pkgs/home-assistant-oidc-auth.nix,
+        wired in via services.home-assistant.customComponents in the
+        consuming host's configuration.nix — this option only renders the
+        auth_oidc: configuration.yaml block) plus HA's own auth_oidc config,
+        pointed at Authelia running as an OpenID Connect 1.0 provider
+        (custom.authelia.oidc in modules/authelia.nix, homelab-network's
+        module). Deliberately not forward-auth — see docs/smart-home.md
+        § OIDC Login for why HA gets real SSO via this mechanism instead of
+        the authelia@file middleware every other gated subdomain uses.
+      '';
+
+      clientId = mkOption {
+        type = types.str;
+        default = "home-assistant";
+        description = ''
+          hass-oidc-auth's auth_oidc.client_id. Must match
+          custom.authelia.oidc.homeAssistant.clientId on whichever host
+          runs Authelia — both default to the same literal
+          ("home-assistant") for exactly this reason, the same symmetric
+          relationship custom.authelia.oidc.homeAssistant.redirectUri has
+          with this module's own hardcoded "home" Traefik subdomain.
+        '';
+      };
+
+      discoveryUrl = mkOption {
+        type = types.str;
+        default = "https://${config.custom.authelia.subdomain}.${config.custom.traefik.acme.domain}/.well-known/openid-configuration";
+        description = ''
+          hass-oidc-auth's auth_oidc.discovery_url — Authelia's OIDC
+          discovery endpoint. Defaults to composing
+          custom.authelia.subdomain and custom.traefik.acme.domain (both
+          homelab-network options, read here purely as values — this
+          module doesn't otherwise depend on custom.authelia), which is
+          correct whenever Authelia and Home Assistant share the same
+          Traefik/ACME domain, as they do on reliant.
+        '';
+      };
+
+      clientSecretFile = mkOption {
+        type = types.str;
+        description = ''
+          Path to an agenix-managed file holding the RAW (pre-hash) OIDC
+          client secret shared with Authelia — the plaintext value hass-
+          oidc-auth's own auth_oidc.client_secret needs. This is the
+          mirror image of custom.authelia.oidc.homeAssistant.clientSecretHashFile
+          over on the Authelia side, which stores only a pbkdf2-sha512
+          hash of the same value: both are generated together via
+          `nix run nixpkgs#authelia -- crypto hash generate pbkdf2 --variant sha512 --random`,
+          the raw output going here and the digest going there. Wired as
+          an EnvironmentFile (read by systemd itself as root before the
+          home-assistant unit's own user/sandboxing applies, same
+          reasoning as locationEnvFile above), exposed to configuration.yaml
+          via HA's own `!env_var` YAML tag rather than the `!secret`/
+          secrets.yaml mechanism hass-oidc-auth's own docs show, to stay
+          consistent with this repo's existing secret-wiring convention
+          (see docs/smart-home.md § Core location for why `!env_var` works
+          here at all).
+
+          As an EnvironmentFile, its contents must be a `HASS_OIDC_CLIENT_SECRET=<value>`
+          line (the exact env-var name this module's auth_oidc.client_secret
+          reads via `!env_var`), not the bare secret value on its own — same
+          KEY=VALUE shape as locationEnvFile's LOCATION_LAT/LON/ELEVATION
+          lines above.
+
+          No secret exists at this path yet — secrets-warden needs to
+          generate the shared pair above and create a new agenix secret
+          (e.g. home-assistant/oidc-client-secret) for the raw half. See
+          hosts/reliant/README.md § Secrets.
+        '';
+      };
+    };
   };
 
   config = mkIf cfg.enable (mkMerge [
@@ -137,15 +212,45 @@ in {
               longitude = "!env_var LOCATION_LON";
               elevation = "!env_var LOCATION_ELEVATION";
             };
+          }
+          // optionalAttrs cfg.oidc.enable {
+            # hass-oidc-auth's own config key, domain "auth_oidc" (matching
+            # its manifest.json) — confirmed against its real YAML
+            # configuration guide, not guessed
+            # (github.com/christiaangoossens/hass-oidc-auth/blob/main/docs/configuration.md).
+            # public = false / confidential-client on Authelia's side
+            # (modules/authelia.nix's homeAssistantOidcClientFile hardcodes
+            # `public: false`) is what makes client_secret required here —
+            # a public-client setup would omit it entirely. `!env_var`
+            # here is the same mechanism as LOCATION_LAT/LON/ELEVATION
+            # above, not hass-oidc-auth's own documented `!secret`/
+            # secrets.yaml route — chosen to match this repo's existing
+            # convention rather than introducing a second secret-wiring
+            # mechanism, and it works because `!word rest` unquoting is a
+            # property of the shared annotatedyaml loader, not scoped to
+            # any particular integration's config block.
+            auth_oidc = {
+              client_id = cfg.oidc.clientId;
+              discovery_url = cfg.oidc.discoveryUrl;
+              client_secret = "!env_var HASS_OIDC_CLIENT_SECRET";
+            };
           };
       };
     }
 
     # EnvironmentFile is read by systemd itself (root) before the service's
     # own user/sandboxing applies — same reasoning as modules/adsb.nix's
-    # identical locationEnvFile wiring, and the same secret file.
+    # identical locationEnvFile wiring, and the same secret file. Each
+    # branch contributes a list rather than a bare string so the two can
+    # coexist: nixpkgs' systemd freeform "unit option" type concat-merges
+    # list-valued definitions of the same key instead of requiring them to
+    # be equal, which is only true when every definition is itself a list.
     (mkIf (cfg.locationEnvFile != null) {
-      systemd.services.home-assistant.serviceConfig.EnvironmentFile = cfg.locationEnvFile;
+      systemd.services.home-assistant.serviceConfig.EnvironmentFile = [cfg.locationEnvFile];
+    })
+
+    (mkIf cfg.oidc.enable {
+      systemd.services.home-assistant.serviceConfig.EnvironmentFile = [cfg.oidc.clientSecretFile];
     })
 
     # Self-register Traefik route

@@ -77,7 +77,13 @@ for the full design.
   [docs/homelab-network.md § OIDC Provider](../../docs/homelab-network.md#oidc-provider)
   for the full design and the exact values HA's own config needs. Installing
   `hass-oidc-auth` and HA's own `auth_oidc` config block is `smart-home`'s
-  side of this, not covered here.
+  side of this — wired in `modules/home-assistant.nix`'s
+  `custom.home-assistant.oidc` and this host's own `configuration.nix`, see
+  [docs/smart-home.md § OIDC Login](../../docs/smart-home.md#oidc-login-authelia-sso)
+  — but **not yet functional**: it's still missing the one secret
+  (`home-assistant/oidc-client-secret`) and the real package hash for the
+  `hass-oidc-auth` HACS component, both listed in § Secrets and § Known
+  Gotchas below.
 - **TODO: real household lldap accounts.** `custom.lldap.bootstrap.users`
   today only has Authelia's own LDAP bind service account
   (`authelia`, in the built-in `lldap_strict_readonly` group). Adding a real
@@ -367,6 +373,20 @@ slicing sidecar as a podman container. Host-specific notes:
   `firewall.extraCommands` and `modules/home-assistant.nix`'s Traefik route
   registration — since nixpkgs can no longer discover it automatically. See
   [docs/smart-home.md § Firewall](../../docs/smart-home.md#firewall-openfirewall-removed-upstream).
+- **Home Assistant's OIDC SSO (`custom.home-assistant.oidc`) is wired but
+  not deployable yet — two real gaps, not guesses.** (1)
+  `pkgs/home-assistant-oidc-auth.nix`'s `fetchFromGitHub.hash` is a
+  `lib.fakeHash` placeholder — no local Nix toolchain was available to
+  compute the real NAR hash when this was added; a build attempt will fail
+  loudly on the mismatch, and the real hash from that error needs to
+  replace it before deploying (same recovery step as
+  `docs/smart-home.md` § Matter's PAA cert re-pin). (2) `configuration.nix`
+  already points `custom.home-assistant.oidc.clientSecretFile` at
+  `/run/agenix/home-assistant/oidc-client-secret`, which does not exist yet
+  — `home-assistant.service` will fail to start outright the moment this is
+  deployed until `secrets-warden` creates it (see § Secrets above for the
+  exact value and format needed). Do not `nixos-rebuild switch` this change
+  until both are resolved.
 - **`custom.homepage`'s port (8082) collided with Zigbee2MQTT's frontend,
   also 8082.** Confirmed live: `homepage-dashboard.service` failed
   (`EADDRINUSE`) on the first deploy with both enabled on this host. Moved to
@@ -465,6 +485,14 @@ new, from `secrets-warden`:**
 | `authelia/oidc-issuer-private-key` | `authelia-main` | `custom.authelia.oidc.issuerPrivateKeyFile` — Authelia's OIDC issuer signing key (RSA, PKCS#8/PKCS#1, ≥2048 bits). Generate with `openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048`. Read via nixpkgs' own `secrets.oidcIssuerPrivateKeyFile` — unlike the LDAP bind password, this one **does** go through systemd `LoadCredential`, so `authelia-main` ownership is still required but for the credential-copy step, not a raw env var. |
 | `authelia/oidc-hmac-secret` | `authelia-main` | `custom.authelia.oidc.hmacSecretFile` — signs OIDC JWTs. Generate with `openssl rand -base64 64 \| tr -d '\n=+/' \| head -c 64`. Also via `LoadCredential` (`secrets.oidcHmacSecretFile`). |
 | `authelia/oidc-client-secret-home-assistant-hash` | `authelia-main` | `custom.authelia.oidc.homeAssistant.clientSecretHashFile` — **not** a raw secret: Authelia only ever stores a pbkdf2-sha512 hash of Home Assistant's OIDC client secret. Generate both the raw secret and its hash together with `nix run nixpkgs#authelia -- crypto hash generate pbkdf2 --variant sha512 --random`; only the digest goes in this file. The raw secret goes into Home Assistant's own `auth_oidc.client_secret` — that's `smart-home`'s side, not managed by this file or this secret. Read directly at runtime via Authelia's own Go-template `secret` function, the same env-var-style direct read as `authelia/ldap-bind-password` (not `LoadCredential`) — see docs/homelab-network.md § OIDC Provider. |
+
+**Home Assistant's own OIDC config (`smart-home`'s side of the same SSO
+feature) needs one more, not yet created — this is the outstanding blocker
+for turning the feature on:**
+
+| Secret | Owner (agenix) | Consumer |
+| --- | --- | --- |
+| `home-assistant/oidc-client-secret` | none (default root) — same reasoning as `location/coordinates` above: this is an `EnvironmentFile`, read by systemd itself as root before `home-assistant.service` drops to its own user, not read by the `hass` user directly | `custom.home-assistant.oidc.clientSecretFile` (`modules/home-assistant.nix`) — the **raw** (pre-hash) half of the exact same shared secret `authelia/oidc-client-secret-home-assistant-hash` above stores the digest of. Generate both together with the one command in that row; the raw output (not the digest) goes here. **File contents must be `HASS_OIDC_CLIENT_SECRET=<raw value>`** (an `EnvironmentFile` line, not the bare value) — same KEY=VALUE shape as `location/coordinates`. `hosts/reliant/configuration.nix` already references `/run/agenix/home-assistant/oidc-client-secret`; until this secret exists and reliant is a recipient, `home-assistant.service` fails to start outright (`EnvironmentFile=` with a missing target is a hard systemd failure, not a soft warning) — do not deploy `custom.home-assistant.oidc.enable = true` before this exists. |
 
 ## Provisioning
 
