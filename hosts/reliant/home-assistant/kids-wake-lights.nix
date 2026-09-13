@@ -132,7 +132,7 @@
     ...
   }: {
     id = "kids_wake_lights_sleep_${slug}";
-    alias = "${room} — bedtime lights";
+    alias = "${room}: bedtime lights";
     description = "At ${room}'s bedtime (input_datetime.${slug}_bedtime), dim the lights to a very low dark blue as a go-to-sleep signal.";
     mode = "single";
     trigger = [
@@ -166,7 +166,7 @@
     ...
   }: dayType: days: {
     id = "kids_wake_lights_wake_${slug}_${dayType}";
-    alias = "${room} — ${dayType} wake lights";
+    alias = "${room}: ${dayType} wake lights";
     description = "At ${room}'s ${dayType} wake time (input_datetime.${slug}_wake_${dayType}), turn the lights on to bright neutral white for ${wakeDuration}, then off.";
     mode = "single";
     trigger = [
@@ -228,7 +228,7 @@
     inWakeWindow = "(${wakeToday} <= ${nowTime} < (today_at(${wakeToday}) + timedelta(hours=${toString wakeDurationHours})).strftime('%H:%M:%S'))";
   in {
     id = "kids_wake_lights_startup_${slug}";
-    alias = "${room} — restore wake/sleep light state on startup";
+    alias = "${room}: restore wake/sleep light state on startup";
     description = "On Home Assistant startup, re-derive whether ${room} should currently be in its sleep, bright-wake, or off state from the bedtime/wake helpers and set the lights accordingly. Best-effort: does not resume a partially-elapsed bright window's remaining time.";
     mode = "single";
     trigger = [

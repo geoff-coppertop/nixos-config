@@ -1,7 +1,7 @@
-# Home Assistant automation for reliant: office AV receiver + projector power
-# follows the office Apple TV.
+# Home Assistant automation for reliant: Geoff's Office AV receiver +
+# projector power follows the Apple TV in Geoff's Office.
 #
-# Powers the receiver and projector on when the office Apple TV wakes (goes
+# Powers the receiver and projector on when the Apple TV in Geoff's Office wakes (goes
 # from off/standby to an active playback state), and off immediately when it
 # goes back to off/standby. No debounce/hysteresis on the power-off trigger:
 # the Apple TV is the receiver's only input in this room, so there's nothing
@@ -63,7 +63,7 @@
 # power is driven explicitly through the Broadlink RM4 via these two
 # automations instead.
 #
-# A third automation, appletv_office_vacancy_shutdown, is an independent
+# A third automation, appletv_geoffs_office_vacancy_shutdown, is an independent
 # safety net: if binary_sensor.geoff_s_office_presence_occupancy (the same
 # Aqara FP1e occupancy sensor presence-lighting.nix uses for the room's
 # lights, at a 5-minute linger there) has been clear for 20 minutes, put the
@@ -105,9 +105,9 @@ let
 in {
   services.home-assistant.config."automation manual" = [
     {
-      id = "appletv_office_power_on_av";
-      alias = "Office AV: receiver + projector power on with Apple TV";
-      description = "Power on the office receiver and projector via Broadlink IR when the office Apple TV wakes.";
+      id = "appletv_geoffs_office_power_on_av";
+      alias = "Geoff's Office: receiver + projector power on with Apple TV";
+      description = "Power on the receiver and projector in Geoff's Office via Broadlink IR when its Apple TV wakes.";
       mode = "single";
       trigger = [
         {
@@ -135,9 +135,9 @@ in {
       ];
     }
     {
-      id = "appletv_office_power_off_av";
-      alias = "Office AV: receiver + projector power off with Apple TV";
-      description = "Power off the office receiver and projector via Broadlink IR immediately when the office Apple TV goes to off/standby.";
+      id = "appletv_geoffs_office_power_off_av";
+      alias = "Geoff's Office: receiver + projector power off with Apple TV";
+      description = "Power off the receiver and projector in Geoff's Office via Broadlink IR immediately when its Apple TV goes to off/standby.";
       mode = "single";
       trigger = [
         {
@@ -165,9 +165,9 @@ in {
       ];
     }
     {
-      id = "appletv_office_vacancy_shutdown";
-      alias = "Office AV: shut everything off when the room has been empty 20 minutes";
-      description = "Safety net independent of Apple TV state: put the Apple TV to sleep and power off the receiver and projector via Broadlink IR once the office has shown no presence for 20 minutes.";
+      id = "appletv_geoffs_office_vacancy_shutdown";
+      alias = "Geoff's Office: shut everything off when the room has been empty 20 minutes";
+      description = "Safety net independent of Apple TV state: put the Apple TV to sleep and power off the receiver and projector via Broadlink IR once Geoff's Office has shown no presence for 20 minutes.";
       mode = "single";
       trigger = [
         {

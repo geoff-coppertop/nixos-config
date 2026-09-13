@@ -106,7 +106,7 @@ onward (same as `enterprise-d`/`excelsior`).
   `media_player.apple_tv_upstairs_living_room`,
   `media_player.apple_tv_basement_living_room`, and
   `media_player.apple_tv_geoff_s_office`.
-- **Broadlink RM4 mini (office AV IR blaster)** — in HA → Integrations, add
+- **Broadlink RM4 mini (Geoff's Office AV IR blaster)** — in HA → Integrations, add
   it (config-flow, discovers the RM4 automatically on the LAN); it lands as
   `remote.geoff_s_office_wi_fi_universal_remote`. `home-assistant/appletv-av.nix`
   bakes all four commands in as raw `b64:` codes rather than referencing
@@ -128,7 +128,7 @@ onward (same as `enterprise-d`/`excelsior`).
     reverse-engineering exercise has to be redone from scratch for the new
     unit.
   This integration only ever drives receiver/projector *power* — Apple TV
-  volume for the same office AV chain goes through CEC instead (Apple TV
+  volume for that same AV chain in Geoff's Office goes through CEC instead (Apple TV
   Settings → Remotes and Devices → Volume Control → Auto), not through this
   integration.
 

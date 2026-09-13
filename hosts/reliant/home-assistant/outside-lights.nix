@@ -64,7 +64,7 @@ in {
     "automation manual" = [
       {
         id = "outside_lights_arrival_departure";
-        alias = "Outside lights for arrival/departure (when dark)";
+        alias = "Outside Lights: arrival/departure (when dark)";
         description = "Keep the outside lights on during the morning departure and evening arrival windows while the sun is below the horizon, and off otherwise. Re-evaluated on each window boundary, at sunset/sunrise, and on Home Assistant startup. Skips its run entirely during a manual-override hold-off (see the companion automation below).";
         mode = "single";
         trigger = [
@@ -168,7 +168,7 @@ in {
 
       {
         id = "outside_lights_manual_override_capture";
-        alias = "Outside lights manual override capture";
+        alias = "Outside Lights: manual override capture";
         description = "Records a non-automation change to the outside lights that disagrees with what the schedule would have set, so the arrival/departure automation holds off for ${toString manualOverrideHoldOffHours}h before touching them again.";
         mode = "single";
         trigger = [

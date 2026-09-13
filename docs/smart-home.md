@@ -129,7 +129,7 @@ hosts/reliant/home-assistant/
 ├── default.nix           # imports each concern file below
 ├── outside-lights.nix    # arrival/departure outside lights
 ├── door-locks.nix        # nightly door lock
-└── presence-lighting.nix # presence-driven office lighting
+└── presence-lighting.nix # presence-driven room lighting
 ```
 
 Rules for this layer:
@@ -253,6 +253,19 @@ locked" guarantee while backing off from the last manual interaction, and it
 degrades safely if the lock does not report manual operations — the sweep still
 re-locks on its next pass. Prefer this over a one-shot `time` trigger whenever a
 state must be *held* rather than set once.
+
+**Naming convention**: an automation's `alias` is `"Area: lowercase
+description"` (colon separator, e.g. `"Outside Lights: arrival/departure
+(when dark)"`) — not an em dash and not a bare sentence with no area prefix.
+Its `id` is `area_slug_description`, prefixed to match the file's concern
+(`sonos_*`, `climate_*`, `door_locks_*`, `outside_lights_*`,
+`kids_wake_lights_*`, `presence_lighting_*`, `appletv_geoffs_office_*`), so ids stay
+grep-able back to their file even after they're merged into one list. The
+same `"Area: description"` shape also applies to the `name` of any
+input_boolean/input_number/input_text/timer helper backing an automation
+(e.g. `"Climate: summer mode"`, `"Main/basement: winter day"`) — helpers and
+their automations show up side by side in the HA UI, so they should read as
+one naming system, not two. Follow this for any new automation or helper.
 
 **Verify entity IDs before writing them.** They are assigned by Home Assistant
 at pairing or commissioning time and are not predictable from the device name —
@@ -394,9 +407,9 @@ is packaged separately in `pkgs/pywiim.nix`, built against
 so its transitive dependencies share Home Assistant's own Python environment
 rather than risking a second, conflicting copy.
 
-### Office AV: CEC handles volume, not power
+### Geoff's Office AV: CEC handles volume, not power
 
-The office Apple TV (`media_player.apple_tv_geoff_s_office`) feeds a Yamaha
+The Apple TV in Geoff's Office (`media_player.apple_tv_geoff_s_office`) feeds a Yamaha
 HTR-4063 receiver, which feeds a projector, both over HDMI. Confirmed live,
 CEC (Apple TV Settings > Remotes and Devices > Volume Control > Auto, with
 HDMI Control enabled on the receiver) correctly handles volume for this
