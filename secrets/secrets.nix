@@ -93,4 +93,14 @@ in {
   # shared with defiant like the hass/* secrets above, since reliant is the
   # only host running this integration.
   "hass/aqicn-token.age".publicKeys = [reliant offlineAdmin];
+  # ESPHome API encryption key for the ratgdo32 garage door controller.
+  # Named for the firmware ecosystem and the device, not for reliant — the
+  # key is baked into that one physical board's firmware, so it follows the
+  # hardware rather than whichever host runs Home Assistant (same reasoning
+  # as zigbee/network-key.age and zwave/secrets.age above). reliant only: it
+  # is the sole host running the Home Assistant instance that talks to the
+  # device. Further ESPHome devices get their own esphome/<device>.age file
+  # rather than sharing this one — a shared key would let any one device
+  # impersonate the others on the API.
+  "esphome/ratgdo32-api-key.age".publicKeys = [reliant offlineAdmin];
 }

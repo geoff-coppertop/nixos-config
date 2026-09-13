@@ -328,6 +328,38 @@ for name in S0_Legacy S2_Unauthenticated S2_Authenticated S2_AccessControl; do
 done
 ```
 
+### ESPHome device API keys
+
+One secret per ESPHome device, named for the device. Each decrypts to exactly
+one line — the base64-encoded 32-byte key that ESPHome's
+`api: encryption: key:` expects, with no quotes, no `key:` prefix and no
+trailing commentary:
+
+```text
+<44 base64 characters, ending in => output by openssl rand -base64 32
+```
+
+| Secret | Device | Host recipients |
+| --- | --- | --- |
+| `esphome/ratgdo32-api-key.age` | ratgdo32 garage door controller | `reliant` |
+
+Like the Zigbee and Z-Wave keys, these are named for the hardware rather than
+for `reliant`: the key is flashed into that one board's firmware, so it follows
+the device if Home Assistant ever moves hosts. Unlike them, a `*-api-key` is
+cheap to rotate — it costs a re-flash of the one device and a `secret-edit`, not
+a re-pair of a whole radio network.
+
+Give each device its own file. A key shared across devices would let any one of
+them impersonate the others on the ESPHome API, and rotating it would force a
+re-flash of every device at once.
+
+Generate the plaintext directly into the `secret-edit` buffer so it never
+touches disk:
+
+```bash
+openssl rand -base64 32
+```
+
 ## What May Be Committed
 
 Safe to commit:
