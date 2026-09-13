@@ -144,6 +144,15 @@ These must hold without reading any doc first.
   already covers** — e.g. updating a PR's title and description after pushing
   commits that change its scope. Reserve confirmation for things that are
   genuinely ambiguous, risky, or irreversible.
+- **Surface every decision you make on my behalf, in the message, when you make
+  it.** Anything that forecloses something — an accepted limitation, a
+  "deliberately not doing X", a default picked without asking — gets said out
+  loud at the time, even when you're confident and not asking permission. A
+  commit message or a code comment is not disclosure; I read those after the
+  fact, if at all. Home Assistant's `ffmpeg` camera platform cannot set a
+  `unique_id`, so that entity can never be assigned to an area or a device;
+  that was chosen knowingly, written up as "accepted deliberately" in a commit
+  body, and I discovered what it cost me in the UI a day later.
 - **Don't guess an external tool's config or API schema when writing code that
   depends on it.** Look it up — docs, source, WebFetch/WebSearch — before
   writing config or code whose shape you're not certain of; ask if it can't be
