@@ -172,7 +172,7 @@ slicing sidecar as a podman container. Host-specific notes:
 | `disko.nix` | GPT layout: ESP, swap, plain ext4 root (no btrfs/snapper — see the comment in the file for why) |
 | `default.nix` | Imports `configuration.nix` and attaches `thomasga`'s home-manager config (`./home/thomasga.nix`) |
 | `secrets.nix` | `age.secrets` declarations for this host, including the Phase 2 smart-home entries — see § Secrets below |
-| `home-assistant/` | Declarative HA automations, one file per concern — mostly a copy of `hosts/defiant/home-assistant/`, plus `ecobee-climate.nix` (new here, not migrated) |
+| `home-assistant/` | Declarative HA automations, one file per concern — mostly a copy of `hosts/defiant/home-assistant/`, plus `ecobee-climate.nix` and `bambuddy-printers.nix` (new here, not migrated) |
 | `provision-type` | `disko` |
 
 ## Hardware And Access
@@ -313,6 +313,40 @@ slicing sidecar as a podman container. Host-specific notes:
   `firewall.extraCommands` and `modules/home-assistant.nix`'s Traefik route
   registration — since nixpkgs can no longer discover it automatically. See
   [docs/smart-home.md § Firewall](../../docs/smart-home.md#firewall-openfirewall-removed-upstream).
+- **BambuBuddy's printer telemetry never showed up in Home Assistant on its
+  own.** Confirmed against BambuBuddy's own `mqtt_relay.py` source: it
+  publishes plain JSON on plain MQTT topics with no Home Assistant Discovery
+  messages, unlike Zigbee2MQTT's `zigbee2mqtt/bridge/...` topics — not a bug,
+  just needed entities defined by hand. Fixed by
+  `hosts/reliant/home-assistant/bambuddy-printers.nix` against
+  `services.home-assistant.config.mqtt`. Two related caveats not yet
+  resolved: `progress`/`remaining_time`'s numeric scale (percent vs. fraction,
+  minutes vs. seconds) is unconfirmed — the only real payload captured had
+  the printer `IDLE` with both at `0` — and the `mqtt:`-domain YAML shape used
+  there wasn't checked against a live instance or fetchable upstream docs
+  (outbound access to `home-assistant.io` was blocked in the sandbox that
+  wrote it). See
+  [docs/smart-home.md § BambuBuddy](../../docs/smart-home.md#bambuddy-manual-mqtt-entities-no-discovery).
+- **No `camera:` platform here can be assigned to an area, so the camera is a
+  template `image` instead.** `mjpeg` and `generic` are config-entry-only and
+  silently produce nothing from YAML; `ffmpeg` works and gives live video,
+  but its `PLATFORM_SCHEMA` has no `unique_id` and a legacy YAML platform has
+  no other way to set one. Without a `unique_id` an entity never enters the
+  entity registry, and area and device assignment both live there — HA says
+  so outright: "this entity does not have a unique ID, therefore its settings
+  cannot be managed from the UI". The `ffmpeg` version was deployed first and
+  hit exactly that. `home-assistant/bambuddy-printers.nix` now declares a
+  `template:` → `image:` entity, which does accept `unique_id`, at the cost
+  of being a still that refreshes on a trigger rather than live video. Add
+  the MJPEG IP Camera integration through the UI if a live feed is wanted —
+  that route is a config entry, so it gets both, but it cannot come from Nix.
+  Also confirmed live: the LAN-facing form of the URL
+  (`reliant.local:8000/...`) hangs rather than erroring — port 8000 only
+  binds loopback and isn't opened in the firewall (the firewall drops rather
+  than rejects), so the entity must dial `127.0.0.1`;
+  `bambuddy.coppertop.ca/camera/1` (through Traefik) is the browser-facing
+  page, not this API path. Full reasoning in
+  [docs/smart-home.md § Camera](../../docs/smart-home.md#camera-template-image-not-a-camera-platform).
 - **`custom.homepage`'s port (8082) collided with Zigbee2MQTT's frontend,
   also 8082.** Confirmed live: `homepage-dashboard.service` failed
   (`EADDRINUSE`) on the first deploy with both enabled on this host. Moved to

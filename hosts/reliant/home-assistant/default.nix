@@ -13,6 +13,10 @@
 # ecobee-climate.nix is new, not part of that migration — the ecobee
 # thermostats were never paired on defiant, so it targets reliant directly.
 #
+# bambuddy-printers.nix is likewise new to reliant only: BambuBuddy
+# (custom.bambuddy) is a reliant-only service, so there is no defiant state
+# to carry over for it either.
+#
 # Each imported file contributes to services.home-assistant.config today
 # under the "automation manual" key, and room to grow into that concern's
 # helpers, scripts, or template sensors later. NixOS merges the
@@ -36,5 +40,6 @@
     ./outdoor-aqi.nix
     ./kids-wake-lights.nix
     ./appletv-av.nix
+    ./bambuddy-printers.nix
   ];
 }
