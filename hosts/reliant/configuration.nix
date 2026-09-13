@@ -206,13 +206,27 @@ in {
       # letting it fail at bind time.
       virtualPrinter.openFirewall = true;
 
-      # Real printers are deliberately absent: the P2S was added by hand
-      # before this existed, so provisioning already treats it as present and
-      # leaves it alone. Adding it here (its LAN IP is still to be
-      # confirmed) makes the declaration match reality and lets the entry be
-      # recreated on a rebuild from scratch — see hosts/reliant/README.md
-      # § Bambuddy for the shape and the access-code secret it needs.
-      # printers = [ ... ];
+      # The P2S was added by hand before any of this existed. Declaring it
+      # here does not disturb that — provisioning matches on serial_number and
+      # leaves an existing row alone — but it makes the declaration match
+      # reality and lets the printer be recreated on a rebuild from scratch.
+      printers = [
+        {
+          name = "P2S";
+          # Uppercased server-side by Bambuddy, and the identity key
+          # provisioning matches on. Same serial the MQTT entities in
+          # home-assistant/bambuddy-printers.nix key their topics off.
+          serialNumber = "22E8AJ5C1000983";
+          ipAddress = "192.168.20.30";
+          model = "P2S";
+          # PENDING: create with `nix run .#secret-edit
+          # secrets/bambuddy/p2s-access-code.age`. Until it decrypts,
+          # provisioning reports this printer as pending on every tick and
+          # creates nothing — it does not fail the host. This is the
+          # printer's own LAN access code, from its screen.
+          accessCodeFile = "/run/agenix/bambuddy/p2s-access-code";
+        }
+      ];
 
       virtualPrinters = [
         {
@@ -224,19 +238,21 @@ in {
           enabled = true;
           mode = "queue";
           model = "P2S";
-          # A secondary address on enp3s0, added by PR #164 — referenced
-          # here, deliberately not configured here. The virtual printer needs
-          # an address of its own because it wants ports (3000 in
-          # particular) that this host's other services already hold on the
-          # primary address.
+          # The dedicated bind IP, added by the bambuddy-bind-ip unit at the
+          # foot of this file rather than by networking.interfaces — see
+          # there for why. The virtual printer needs an address of its own
+          # because it wants ports (3000 in particular) that this host's
+          # other services already hold on the primary address.
           bindIp = "192.168.20.40";
-          # PENDING secrets-warden: nothing decrypts to this path yet, so
-          # provisioning reports the virtual printer as pending on every tick
-          # and creates nothing until the secret exists. Exactly 8 characters
-          # — Bambuddy rejects any other length — and it is the code typed
-          # into the slicer, not any real printer's code. Same shape of
-          # pending hand-off as the bambuddy restic password below.
-          accessCodeFile = "/run/agenix/bambuddy/virtual-printer-access-code";
+          # No accessCodeFile, deliberately, and this is not an omission:
+          # upstream force-inherits the target printer's access code for any
+          # non-proxy virtual printer that has a target, overwriting whatever
+          # is supplied (virtual_printers.py — the bridge forwards the
+          # slicer's auth bytes straight through to the real printer, so a
+          # different code would break it). Pointing at the P2S therefore
+          # leaves exactly one access code in the whole feature, and the code
+          # typed into the slicer is the printer's own.
+          targetPrinterSerial = "22E8AJ5C1000983";
         }
       ];
     };
