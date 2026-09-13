@@ -117,7 +117,7 @@
       offTriggerIds = ["presence_off_linger"] ++ lib.optional (door != null) "door_closed_linger";
     in {
       id = "presence_lighting_${slug}";
-      alias = "${room} lights follow presence";
+      alias = "${room}: lights follow presence";
       description = "Turn on ${room}'s lights while presence is detected${lib.optionalString (door != null) " or the door is open"} and off ${
         if door == null
         then "${linger} after presence clears"

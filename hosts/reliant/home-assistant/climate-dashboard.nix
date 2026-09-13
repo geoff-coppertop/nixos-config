@@ -205,7 +205,7 @@
                 }
                 {
                   entity = "sensor.geoff_s_office_air_quality";
-                  name = "Geoff's office";
+                  name = "Geoff's Office";
                 }
                 {
                   type = "section";

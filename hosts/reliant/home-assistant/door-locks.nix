@@ -39,8 +39,8 @@ let
 in {
   services.home-assistant.config."automation manual" = [
     {
-      id = "lock_doors_overnight";
-      alias = "Keep the doors locked overnight";
+      id = "door_locks_overnight";
+      alias = "Door Locks: keep the doors locked overnight";
       description = "Every 10 minutes between 21:00 and 06:00, lock any door left unlocked and untouched past the hold-off. Lock-only; never unlocks.";
       mode = "single";
       trigger = [

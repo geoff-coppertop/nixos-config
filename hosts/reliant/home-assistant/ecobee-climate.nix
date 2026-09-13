@@ -137,12 +137,12 @@
   services.home-assistant.config = {
     timer = {
       climate_override_main_and_basement = {
-        name = "Climate override — main/basement";
+        name = "Climate override: main/basement";
         icon = "mdi:thermostat";
         duration = "02:00:00";
       };
       climate_override_upstairs = {
-        name = "Climate override — upstairs";
+        name = "Climate override: upstairs";
         icon = "mdi:thermostat";
         duration = "02:00:00";
       };
@@ -160,7 +160,7 @@
     # its constructor default (off) the first time this entity ever
     # exists with no history at all.
     input_boolean.climate_summer_mode = {
-      name = "Climate — summer mode";
+      name = "Climate: summer mode";
       icon = "mdi:sun-thermometer";
     };
 
@@ -185,10 +185,10 @@
     # thermostat state does.
     input_text = {
       climate_last_commanded_main_and_basement = {
-        name = "Climate — last commanded (main/basement)";
+        name = "Climate: last commanded (main/basement)";
       };
       climate_last_commanded_upstairs = {
-        name = "Climate — last commanded (upstairs)";
+        name = "Climate: last commanded (upstairs)";
       };
     };
 
@@ -211,7 +211,7 @@
     # nothing to restore is native_min_value (10°C here) — not a sensible
     # default, and unsafe to even briefly command as a real target. So
     # first-boot seeding is handled explicitly below (climate_set_points_seeded
-    # + "Climate — seed set points") instead of via `initial`.
+    # + "Climate: seed set points") instead of via `initial`.
     input_number = let
       mkSetPoint = name: icon: {
         inherit name icon;
@@ -221,22 +221,22 @@
         step = 0.5;
       };
     in {
-      climate_main_and_basement_winter_day = mkSetPoint "Main/basement — winter day" "mdi:thermometer";
-      climate_main_and_basement_winter_night = mkSetPoint "Main/basement — winter night" "mdi:thermometer-low";
-      climate_main_and_basement_winter_away = mkSetPoint "Main/basement — winter away" "mdi:thermometer-low";
-      climate_main_and_basement_summer_day = mkSetPoint "Main/basement — summer day" "mdi:thermometer";
-      climate_main_and_basement_summer_night = mkSetPoint "Main/basement — summer night" "mdi:thermometer-low";
-      climate_main_and_basement_summer_away = mkSetPoint "Main/basement — summer away" "mdi:thermometer-low";
-      climate_upstairs_winter_day = mkSetPoint "Upstairs — winter day" "mdi:thermometer";
-      climate_upstairs_winter_night = mkSetPoint "Upstairs — winter night" "mdi:thermometer-low";
-      climate_upstairs_winter_away = mkSetPoint "Upstairs — winter away" "mdi:thermometer-low";
-      climate_upstairs_summer_day = mkSetPoint "Upstairs — summer day" "mdi:thermometer";
-      climate_upstairs_summer_night = mkSetPoint "Upstairs — summer night" "mdi:thermometer-low";
-      climate_upstairs_summer_away = mkSetPoint "Upstairs — summer away" "mdi:thermometer-low";
+      climate_main_and_basement_winter_day = mkSetPoint "Main/basement: winter day" "mdi:thermometer";
+      climate_main_and_basement_winter_night = mkSetPoint "Main/basement: winter night" "mdi:thermometer-low";
+      climate_main_and_basement_winter_away = mkSetPoint "Main/basement: winter away" "mdi:thermometer-low";
+      climate_main_and_basement_summer_day = mkSetPoint "Main/basement: summer day" "mdi:thermometer";
+      climate_main_and_basement_summer_night = mkSetPoint "Main/basement: summer night" "mdi:thermometer-low";
+      climate_main_and_basement_summer_away = mkSetPoint "Main/basement: summer away" "mdi:thermometer-low";
+      climate_upstairs_winter_day = mkSetPoint "Upstairs: winter day" "mdi:thermometer";
+      climate_upstairs_winter_night = mkSetPoint "Upstairs: winter night" "mdi:thermometer-low";
+      climate_upstairs_winter_away = mkSetPoint "Upstairs: winter away" "mdi:thermometer-low";
+      climate_upstairs_summer_day = mkSetPoint "Upstairs: summer day" "mdi:thermometer";
+      climate_upstairs_summer_night = mkSetPoint "Upstairs: summer night" "mdi:thermometer-low";
+      climate_upstairs_summer_away = mkSetPoint "Upstairs: summer away" "mdi:thermometer-low";
     };
 
     # Internal marker, not shown on the dashboard: flips on the first time
-    # "Climate — seed set points" (below) has ever run, so that seeding
+    # "Climate: seed set points" (below) has ever run, so that seeding
     # happens exactly once, ever — not on every restart, which would
     # reintroduce the same reset-on-reload problem this file just moved
     # away from for the set points themselves. No `initial:` here either,
@@ -252,7 +252,7 @@
     # for the new entities specifically, regardless of the old marker's
     # state.
     input_boolean.climate_set_points_seeded_v2 = {
-      name = "Climate — set points seeded (v2)";
+      name = "Climate: set points seeded (v2)";
       icon = "mdi:cog";
     };
 
@@ -586,7 +586,7 @@
     in [
       (mkHeatOnlyZone {
         id = "climate_main_and_basement";
-        alias = "Climate — main/basement schedule";
+        alias = "Climate: main/basement schedule";
         entityId = mainAndBasement;
         timerEntityId = "timer.climate_override_main_and_basement";
         lastCommandedEntityId = "input_text.climate_last_commanded_main_and_basement";
@@ -607,7 +607,7 @@
       })
       (mkHeatOnlyZone {
         id = "climate_upstairs";
-        alias = "Climate — upstairs schedule";
+        alias = "Climate: upstairs schedule";
         entityId = upstairs;
         timerEntityId = "timer.climate_override_upstairs";
         lastCommandedEntityId = "input_text.climate_last_commanded_upstairs";
@@ -628,21 +628,21 @@
       })
       (overrideStartAutomation {
         id = "climate_override_start_main_and_basement";
-        alias = "Climate — start manual override (main/basement)";
+        alias = "Climate: start manual override (main/basement)";
         entityId = mainAndBasement;
         timerEntityId = "timer.climate_override_main_and_basement";
         lastCommandedEntityId = "input_text.climate_last_commanded_main_and_basement";
       })
       (overrideStartAutomation {
         id = "climate_override_start_upstairs";
-        alias = "Climate — start manual override (upstairs)";
+        alias = "Climate: start manual override (upstairs)";
         entityId = upstairs;
         timerEntityId = "timer.climate_override_upstairs";
         lastCommandedEntityId = "input_text.climate_last_commanded_upstairs";
       })
       {
         id = "climate_summer_mode_season_default";
-        alias = "Climate — summer mode seasonal default";
+        alias = "Climate: summer mode seasonal default";
         description = "Sets input_boolean.climate_summer_mode at each seasonal boundary (on May 1, off October 1) and leaves it alone the rest of the year — a hand-flip in between (e.g. an early heat wave) sticks until the next boundary, same as flipping it any other day.";
         mode = "single";
         trigger = [
@@ -691,7 +691,7 @@
       }
       {
         id = "climate_seed_set_points";
-        alias = "Climate — seed set points";
+        alias = "Climate: seed set points";
         description = "Runs exactly once, ever: sets the twelve set-point input_numbers to sensible defaults (each season's day/night/away seeded equal to that zone's old comfort/setback/away or shared summer floor, so behavior is unchanged the moment this deploys), then flips climate_set_points_seeded_v2 on so this never runs again. Only exists because input_number's own restore-on-restart is incompatible with also specifying an `initial:` (see the input_number block above) — without this, a fresh deployment would start every set point at its unsafe 10°C floor until someone visits the dashboard.";
         mode = "single";
         trigger = [
