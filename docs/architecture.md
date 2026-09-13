@@ -319,10 +319,10 @@ shared config. See [docs/homelab-network.md](homelab-network.md).
 | `custom.zigbee` | Zigbee2MQTT |
 | `custom.zwave` | Z-Wave JS server |
 | `custom.adsb` | dump1090 ADS-B receiver |
-| `custom.bambuddy` | Bambuddy Bambu Lab printer management (`pkgs/bambuddy.nix`) as a native systemd service; `virtualPrinter.openFirewall` opens the LAN printer-protocol ports, which collide with AdGuard Home on 3000 (asserted) |
+| `custom.bambuddy` | Bambuddy Bambu Lab printer management (`pkgs/bambuddy.nix`) as a native systemd service; `virtualPrinter.openFirewall` opens the LAN printer-protocol ports **only on the `bindIp` of each enabled `virtualPrinters` entry** (destination-scoped `nixos-fw` rules, one `-m multiport` rule per address — not host-wide `allowedTCPPorts`), and asserts when no such entry exists or when AdGuard Home's 3000 admin UI would answer on that same address |
 | `custom.bambuddy.slicerSidecar` | Server-side slicing sidecar for Bambuddy — the prebuilt amd64-only `orca-slicer-api` OCI image under podman, loopback-only, on by default with the parent; `bambuStudio` is a second, off-by-default sidecar |
 | `custom.bambuddy.printers` | Real Bambu Lab printers to create in Bambuddy, matched on `serialNumber`. Declared in `modules/bambuddy-provision.nix` — a separate file from the one above, because running the service and populating its database are different concerns |
-| `custom.bambuddy.virtualPrinters` | Virtual printers (the fake Bambu printer a slicer sends to) to create in Bambuddy, matched on `name`. Same module, same create-only contract |
+| `custom.bambuddy.virtualPrinters` | Virtual printers (the fake Bambu printer a slicer sends to) to create in Bambuddy, matched on `name`. Same module, same create-only contract. Each enabled entry's `bindIp` is also what `virtualPrinter.openFirewall` scopes its firewall rules to |
 
 ### Game server
 

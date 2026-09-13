@@ -14,7 +14,7 @@
   pkgs,
   ...
 }: let
-  inherit (lib) literalExpression mkEnableOption mkIf mkMerge mkOption types;
+  inherit (lib) concatStringsSep filter hasInfix literalExpression mkEnableOption mkIf mkMerge mkOption types unique;
   mkTraefikRoute = import ../lib/traefik-route.nix;
   cfg = config.custom.bambuddy;
   sidecar = cfg.slicerSidecar;
@@ -33,6 +33,84 @@
     from = 50000;
     to = 50000 + (10 * cfg.virtualPrinter.count) - 1;
   };
+
+  # What the virtual printer actually listens on, from upstream's
+  # docker-compose.yml: 3000/3002 bind+detect, 8883 MQTT, 990 FTPS control,
+  # 6000 file-transfer tunnel, 322 RTSPS camera, 2024-2026 the A1/P1S
+  # proprietary protocol, plus the passive-data range above. Port 8000 is
+  # deliberately absent — that one goes through Traefik.
+  vpPorts = [322 990 3000 3002 6000 8883];
+  vpPortRanges = [
+    {
+      from = 2024;
+      to = 2026;
+    }
+    passiveFtp
+  ];
+
+  # `-m multiport --dports` holds at most 15 port slots and spends two of them
+  # on a range (XT_MULTI_PORTS in include/uapi/linux/netfilter/xt_multiport.h;
+  # net/netfilter/xt_multiport.c reads a range as two consecutive entries), so
+  # this set costs 6 + 2*2 = 10 and the whole opening is one rule per address.
+  # Six more ports, or a third range plus two, would not fit and would have to
+  # be split across rules.
+  vpMultiport = concatStringsSep "," (
+    map toString vpPorts
+    ++ map (r: "${toString r.from}:${toString r.to}") vpPortRanges
+  );
+
+  # The addresses the enabled virtual printers bind. `virtualPrinters` is
+  # declared in modules/bambuddy-provision.nix — a different file, the same
+  # custom.bambuddy namespace, so it is readable from the same `config`.
+  # bindIp is never null on an enabled entry: upstream's
+  # POST /virtual-printers rejects `enabled: true` without one ("Bind IP is
+  # required when enabling"), and bambuddy-provision.nix asserts it at eval
+  # time, so filtering on it here drops nothing that would ever listen.
+  bindingVps = filter (vp: vp.enabled && vp.bindIp != null) cfg.virtualPrinters;
+  vpBindIps = unique (map (vp: vp.bindIp) bindingVps);
+
+  # One destination-scoped ACCEPT per bind address, rather than
+  # allowedTCPPorts/allowedTCPPortRanges — those match on port alone and so
+  # open these holes on *every* address the host carries, including its
+  # primary LAN address where nothing serves them. Port 3000 makes the
+  # difference concrete: AdGuard Home's admin UI is deliberately not
+  # firewall-opened on this host and binds 0.0.0.0 by default, so a
+  # port-only rule would publish it to the LAN the moment it moved back to
+  # its own default port.
+  #
+  # Same shape as the Home Assistant 8123 rule in
+  # hosts/reliant/configuration.nix, scoped by destination (-d) instead of
+  # source (-s). The backend is iptables (nothing in this repo sets
+  # networking.nftables.enable or networking.firewall.backend, and the
+  # backend option defaults to iptables unless one of those is set), which is
+  # what makes `nixos-fw` the chain to insert into. ip6tables for a v6 bind
+  # address: iptables would reject it at runtime and fail firewall.service,
+  # which leaves the host with no INPUT jump to nixos-fw at all.
+  #
+  # No matching extraStopCommands, deliberately, and not just by analogy with
+  # the 8123 rule: firewall-start deletes and recreates nixos-fw before it
+  # does anything else (nixos/modules/services/networking/firewall-iptables.nix),
+  # and both start and reload run that script, so a rule living in nixos-fw
+  # is torn down for free. extraStopCommands is for rules put somewhere the
+  # start script does not rebuild — INPUT itself, FORWARD, the nat table.
+  iptablesFor = ip:
+    if hasInfix ":" ip
+    then "ip6tables"
+    else "iptables";
+
+  vpRule = ip: "${iptablesFor ip} -I nixos-fw -p tcp -d ${ip} -m multiport --dports ${vpMultiport} -j ACCEPT";
+
+  vpFirewallRules = concatStringsSep "\n" (map vpRule vpBindIps);
+
+  # AdGuard Home's admin listener overlaps a virtual printer's bind address
+  # when it is on 3000 and bound either to a wildcard or to that exact
+  # address; see the assertion below for what that costs. host defaults to
+  # "0.0.0.0" and port to 3000 in the nixpkgs module.
+  adguard = config.services.adguardhome;
+  adguardOverlapsVp =
+    adguard.enable
+    && adguard.port == 3000
+    && builtins.elem adguard.host (["0.0.0.0" "::" ""] ++ vpBindIps);
 in {
   options.custom.bambuddy = {
     enable = mkEnableOption "Bambuddy, self-hosted Bambu Lab printer management";
@@ -62,7 +140,7 @@ in {
       # this only controls the host firewall, since the ports have to be
       # reachable from the slicer and the real printers on the LAN rather than
       # through Traefik.
-      openFirewall = mkEnableOption "the virtual printer's LAN ports in the host firewall (bind/detect, MQTT, FTPS, RTSP, and the FTP passive-data range)";
+      openFirewall = mkEnableOption "the virtual printer's LAN ports in the host firewall (bind/detect, MQTT, FTPS, RTSP, and the FTP passive-data range), on the bindIp of each enabled custom.bambuddy.virtualPrinters entry and on no other address the host carries. Asserts if no enabled virtual printer is declared, since there would be no address to scope to";
 
       count = mkOption {
         type = types.ints.positive;
@@ -138,16 +216,40 @@ in {
     {
       assertions = [
         {
+          # openFirewall's rules are scoped to the bind addresses above, so
+          # with none there is nothing to write. Asserting rather than
+          # falling back to host-wide allowedTCPPorts: the fallback is the
+          # exact behaviour this scoping replaced, and it would come back
+          # silently, on the host with the fewest reasons to want it. Nor is
+          # emitting nothing right — that is a virtual printer that looks
+          # healthy and refuses every connection, which
+          # modules/bambuddy-provision.nix already warns about from the other
+          # direction.
+          assertion = !cfg.virtualPrinter.openFirewall || vpBindIps != [];
+          message = "custom.bambuddy.virtualPrinter.openFirewall is set, but no entry in custom.bambuddy.virtualPrinters has both enabled = true and a bindIp, so there is no address to open the ports on. Declare the virtual printer (its bindIp is the address a slicer points at), or turn openFirewall off.";
+        }
+
+        {
           # Ports 3000 and 3002 are hardcoded constants in
           # backend/app/services/virtual_printer/bind_server.py — a slicer
           # looks for a printer on exactly those ports, so they are not
           # configurable on either side. AdGuard Home's admin UI defaults to
-          # 3000 and modules/dns.nix keeps that default, which makes the two
-          # features mutually exclusive on one host until AdGuard is moved.
-          assertion =
-            !cfg.virtualPrinter.openFirewall
-            || !(config.services.adguardhome.enable && config.services.adguardhome.port == 3000);
-          message = "custom.bambuddy.virtualPrinter.openFirewall conflicts with AdGuard Home on port 3000: Bambuddy's virtual printer binds 3000/3002 unconditionally and those ports are not configurable. Move AdGuard's admin UI (services.adguardhome.port) first.";
+          # 3000 and modules/dns.nix keeps that default.
+          #
+          # Scoping the firewall rules to bindIp narrows this collision but
+          # does not remove it, so the assertion stays — retargeted from
+          # "openFirewall is on" to what actually overlaps. AdGuard binds
+          # services.adguardhome.host, 0.0.0.0 by default, and a wildcard
+          # bind covers every bindIp: AdGuard starting first leaves Bambuddy
+          # logging "Bind server port 3000 already in use, skipping" (see
+          # hosts/reliant/README.md § Known Gotchas — it keeps serving 3002
+          # rather than crashing), so a slicer never finds the printer, and
+          # with openFirewall on the rule written above then points at
+          # AdGuard's admin UI instead. AdGuard bound to one specific address
+          # that is not a bindIp genuinely does not collide, and no longer
+          # trips this.
+          assertion = vpBindIps == [] || !adguardOverlapsVp;
+          message = "custom.bambuddy.virtualPrinters declares an enabled virtual printer while AdGuard Home serves its admin UI on port 3000 at an address that covers the virtual printer's bindIp (services.adguardhome.host = \"${adguard.host}\"). Bambuddy binds 3000/3002 unconditionally and those ports are not configurable, so its bind server skips 3000 and no slicer finds the printer — and with virtualPrinter.openFirewall set, AdGuard's admin UI becomes what answers on the bind address instead. Move AdGuard's admin UI (services.adguardhome.port) first.";
         }
 
         {
@@ -243,22 +345,15 @@ in {
         };
       };
 
-      networking.firewall = mkIf cfg.virtualPrinter.openFirewall {
-        # From upstream's docker-compose.yml, which enumerates what the
-        # virtual printer actually listens on: 3000/3002 bind+detect, 8883
-        # MQTT, 990 FTPS control, 6000 file-transfer tunnel, 322 RTSPS camera,
-        # 2024-2026 the A1/P1S proprietary protocol, plus the passive-data
-        # range above. Port 8000 is deliberately absent — that one goes
-        # through Traefik.
-        allowedTCPPorts = [322 990 3000 3002 6000 8883];
-        allowedTCPPortRanges = [
-          {
-            from = 2024;
-            to = 2026;
-          }
-          passiveFtp
-        ];
-      };
+      # Destination-scoped, not allowedTCPPorts — see vpFirewallRules above
+      # for why, for the multiport budget, and for why there is no
+      # extraStopCommands. The source address is deliberately left open: a
+      # slicer or a real printer can sit anywhere the bind address is
+      # routable, and a host wanting a narrower source can add its own rule
+      # the way hosts/reliant/configuration.nix does for 8123.
+      networking.firewall.extraCommands = mkIf cfg.virtualPrinter.openFirewall ''
+        ${vpFirewallRules}
+      '';
     }
 
     (mkIf sidecar.enable {

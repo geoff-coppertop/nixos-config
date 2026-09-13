@@ -280,7 +280,9 @@ in {
 
         A virtual printer's listeners are separate from the host firewall:
         custom.bambuddy.virtualPrinter.openFirewall in modules/bambuddy.nix is
-        what makes them reachable from the LAN.
+        what makes them reachable from the LAN, and it opens them only on the
+        bindIp of each enabled entry here — not on every address the host
+        carries.
       '';
       example = literalExpression ''
         [
@@ -303,8 +305,9 @@ in {
     # on bindIp as soon as an enabled row exists, while what a slicer on the
     # LAN can actually reach is the host firewall's business. Declaring one
     # without the other produces a virtual printer that looks healthy in the
-    # UI and refuses every connection, with the refusal happening in nftables
-    # where Bambuddy's own logs never see it.
+    # UI and refuses every connection, with the refusal happening in the host
+    # firewall (iptables here, see modules/bambuddy.nix) where Bambuddy's own
+    # logs never see it.
     warnings =
       optional (enabledVps != [] && !cfg.virtualPrinter.openFirewall)
       "custom.bambuddy.virtualPrinters declares an enabled virtual printer (${vpNames enabledVps}) while custom.bambuddy.virtualPrinter.openFirewall is off. Bambuddy will start its listeners, but the host firewall will drop every slicer connection to them.";

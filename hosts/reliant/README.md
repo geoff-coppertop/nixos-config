@@ -56,12 +56,12 @@ Rule](../../docs/architecture.md#placement-rule)).
 | 22 | tcp | SSH, `services.openssh` with `openFirewall = true` | LAN (firewall open); key-only auth, no password/root login |
 | 53 | tcp+udp | AdGuard Home resolver, `custom.dns` | Bound `0.0.0.0`; UDP 53 opened to the LAN by `modules/dns.nix` (TCP 53 deliberately not opened) |
 | 80, 443 | tcp | Traefik entry points (`web`/`websecure`), `custom.traefik` | LAN/WAN (firewall open) — every proxied service is reached through 443 here, never its own port |
-| 322, 990, 2024–2026, 3000, 3002, 6000, 8883, 50000–50029 | tcp | Bambuddy virtual printer — bind/detect, RTSPS camera, FTPS, A1/P1S protocol, file tunnel, MQTT, FTP passive range (sized by `virtualPrinter.count`, 3 here). Ports are hardcoded upstream (`bind_server.py`), and the listeners start once an **enabled** virtual-printer row exists — `custom.bambuddy.virtualPrinters` declares one here | Bound on `192.168.20.40` (the row's `bindIp`), not `0.0.0.0` — `virtual_printer/manager.py` passes `bind_ip` through to every listener. Opened to the LAN by `virtualPrinter.openFirewall`, which is what lets a slicer reach them. Its 3000 no longer collides with AdGuard, which moves to 3004 in this same change; see § Bambuddy |
+| 322, 990, 2024–2026, 3000, 3002, 6000, 8883, 50000–50029 | tcp | Bambuddy virtual printer — bind/detect, RTSPS camera, FTPS, A1/P1S protocol, file tunnel, MQTT, FTP passive range (sized by `virtualPrinter.count`, 3 here). Ports are hardcoded upstream (`bind_server.py`), and the listeners start once an **enabled** virtual-printer row exists — `custom.bambuddy.virtualPrinters` declares one here | Bound on `192.168.20.40` (the row's `bindIp`), not `0.0.0.0` — `virtual_printer/manager.py` passes `bind_ip` through to every listener. `virtualPrinter.openFirewall` opens them **on `192.168.20.40` only**, as one `iptables -I nixos-fw -d 192.168.20.40 -m multiport` rule; they stay closed on this host's primary `192.168.20.15`. Its 3000 no longer collides with AdGuard, which moves to 3004 in this same change; see § Bambuddy |
 | 1883 | tcp | Mosquitto MQTT broker, `custom.mqtt` | 127.0.0.1 only |
 | 3001 | tcp | zwave-js websocket, `custom.zwave.port` — overridden here because the module default (3000) is AdGuard's admin UI | Firewall closed; Home Assistant connects over localhost |
 | 3001 | tcp | BambuStudio sidecar, `custom.bambuddy.slicerSidecar.bambuStudio.port` (`bambuStudio.enable` off) | **Not bound today** — and its default is the 3001 zwave-js already holds above; `modules/bambuddy.nix` asserts on that pair, so enabling it needs an explicit `port` here first |
 | 3003 | tcp | OrcaSlicer slicing sidecar (podman publish), `custom.bambuddy.slicerSidecar.port` | 127.0.0.1 only; called only by Bambuddy on this host |
-| 3004 | tcp | AdGuard Home admin UI, `custom.dns` — moved off the module's default (3000) because the virtual printer above hardcodes 3000/3002 and can't be reconfigured on either side; `modules/bambuddy.nix` asserts on the pair | Bound `0.0.0.0`, `openFirewall = false`; reached through Traefik at `dns1.coppertop.ca`, whose route reads this option's live value |
+| 3004 | tcp | AdGuard Home admin UI, `custom.dns` — moved off the module's default (3000) because the virtual printer above hardcodes 3000/3002 and can't be reconfigured on either side; `modules/bambuddy.nix` asserts on the pair | Bound `0.0.0.0`, `openFirewall = false`; reached through Traefik at `dns1.coppertop.ca`, whose route reads this option's live value. The wildcard bind is why moving it back to 3000 is an eval-time error and not a silent LAN exposure: it would answer on `192.168.20.40` too, where the virtual printer's rules open 3000 |
 | 5335 | tcp+udp | unbound recursive resolver, `custom.dns` | LAN (firewall open) — the deliberate AdGuard-bypass |
 | 5353 | udp | avahi/mDNS, `profiles/common/networking.nix` (`openFirewall = true`) | LAN (firewall open) — what makes `reliant.local` resolve for deploys |
 | 5580 | tcp | python-matter-server websocket, `custom.matter` (upstream default) | Firewall closed; Home Assistant connects over localhost |
@@ -164,8 +164,12 @@ slicing sidecar as a podman container. Host-specific notes:
   `preferred_lft 0`; both of those are load-bearing, see § Known Gotchas and
   [docs/homelab-network.md § Dedicated Bind IPs For LAN-Emulation
   Services](../../docs/homelab-network.md#dedicated-bind-ips-for-lan-emulation-services).
-  Nothing here shipped ahead of its consumer this time — every piece of it
-  that did, previously, caused an outage.
+  That same address is the only one `virtualPrinter.openFirewall` opens the
+  printer ports on — `modules/bambuddy.nix` writes one destination-scoped
+  `iptables -I nixos-fw -d <bindIp> -m multiport` rule per enabled virtual
+  printer, so none of these ports is reachable on this host's primary
+  `192.168.20.15`. Nothing here shipped ahead of its consumer this time —
+  every piece of it that did, previously, caused an outage.
 - Data (SQLite database, 3MF/print archive) lives in `/var/lib/bambuddy`,
   owned by a fixed `bambuddy` system user. Logs are in `/var/log/bambuddy`.
 
@@ -444,14 +448,17 @@ in `hosts/reliant/secrets.nix`.
 - **An enabled virtual printer binds ports whether or not the firewall lets
   anyone reach them.** The two are separate switches with nothing connecting
   them: Bambuddy starts the listeners as soon as an enabled row exists, and
-  `virtualPrinter.openFirewall` is what makes them reachable. On this host
-  the second is off (AdGuard holds 3000), so the virtual printer looks
-  healthy in the UI while nftables silently drops every slicer connection —
-  a refusal Bambuddy's own logs never see.
-  `modules/bambuddy-provision.nix` emits an eval-time warning for that exact
-  pairing. If the bind of port 3000 itself is refused because AdGuard already
-  holds it, upstream logs `Bind server port 3000 already in use, skipping`
-  and keeps serving 3002; it does not crash, and it does not disturb AdGuard.
+  `virtualPrinter.openFirewall` is what makes them reachable. With the second
+  off, the virtual printer looks healthy in the UI while the firewall
+  silently drops every slicer connection — a refusal Bambuddy's own logs
+  never see. `modules/bambuddy-provision.nix` emits an eval-time warning for
+  that exact pairing. Both switches are on in this host's declaration, and the
+  firewall rules land on `192.168.20.40` alone — `modules/bambuddy.nix`
+  asserts rather than emitting anything if `openFirewall` is on with no
+  enabled virtual printer to take the `bindIp` from. If the bind of port 3000
+  itself is refused because AdGuard already holds it, upstream logs
+  `Bind server port 3000 already in use, skipping` and keeps serving 3002; it
+  does not crash, and it does not disturb AdGuard.
 - **`custom.homepage`'s port (8082) collided with Zigbee2MQTT's frontend,
   also 8082.** Confirmed live: `homepage-dashboard.service` failed
   (`EADDRINUSE`) on the first deploy with both enabled on this host. Moved to
