@@ -41,6 +41,54 @@ full design; host-specific facts:
   existing secret (it's just an API credential, not tied to either host's
   identity), not a new one. Confirmed live: cert issuance succeeded.
 
+### lldap + Authelia (web SSO)
+
+**Newly added, not yet deployed or confirmed on this hardware** — see
+[docs/homelab-network.md § Authelia Forward-Auth](../../docs/homelab-network.md#authelia-forward-auth-lldap--authelia-sso)
+for the full design.
+
+- `ad.coppertop.ca` → lldap's own admin UI (`custom.lldap`). Never gated by
+  Authelia — see that doc's § Self-Lockout Rule.
+- `auth.coppertop.ca` → Authelia's own login portal (`custom.authelia`). Also
+  never gated by Authelia, same reason.
+- `dns1.coppertop.ca`/`dns2.coppertop.ca` (AdGuard admin UIs),
+  `zigbee.coppertop.ca` (Zigbee2MQTT), `dcs.coppertop.ca` (excelsior's DCS
+  webtop desktop), `dcs-control.coppertop.ca` (excelsior's DCS start/stop
+  control page — **not** its `/hooks` webhook, which stays ungated since
+  it's called machine-to-machine, not from a browser), and
+  `bambuddy.coppertop.ca` are gated by the `authelia@file` forward-auth
+  middleware (`custom.authelia.protectedSubdomains`). None of these have a
+  login of their own. Several of these routers are self-registered inside
+  modules this host's own file doesn't own (`modules/zigbee.nix`, owned by
+  `smart-home`; `modules/bambuddy.nix`) — `hosts/reliant/configuration.nix`
+  layers the middleware onto them as a data overlay rather than editing
+  those modules; see `docs/homelab-network.md` § Traefik Route
+  Registration.
+- **`home.coppertop.ca` (Home Assistant) is deliberately not on that
+  list.** Forward-auth is the wrong mechanism for a service that already has
+  its own real login — gating it that way would just add a redundant second
+  login in front of HA's existing one, not real SSO. Real SSO for HA is new
+  functionality, not a variant of the forward-auth gate: Authelia running as
+  an OpenID Connect provider (a separate Authelia capability from the
+  LDAP-backed forward-auth above), with HA as an OIDC client via the
+  third-party [`hass-oidc-auth`](https://github.com/christiaangoossens/hass-oidc-auth)
+  HACS component — see Authelia's own
+  [Home Assistant OIDC integration guide](https://www.authelia.com/integration/openid-connect/clients/home-assistant/).
+  Not built yet.
+- **TODO: real household lldap accounts.** `custom.lldap.bootstrap.users`
+  today only has Authelia's own LDAP bind service account
+  (`authelia`, in the built-in `lldap_strict_readonly` group). Adding a real
+  person's account: append an entry to
+  `hosts/reliant/configuration.nix`'s `custom.lldap.bootstrap.users`, with
+  `passwordFile` left `null` for an account whose password should be set by
+  hand afterward through lldap's own UI (`ad.coppertop.ca`) rather than
+  declaratively.
+- **TODO: password-reset email.** No SMTP notifier is configured — Authelia's
+  password-reset/notification emails currently just write to a local file
+  (`/var/lib/authelia-main/notification.txt`) instead of being sent anywhere.
+  Needs a real SMTP relay's credentials before the password-reset flow is
+  actually usable end-to-end.
+
 ### Ports
 
 Every port this host binds, in ascending order — the complete list for
@@ -60,6 +108,7 @@ Rule](../../docs/architecture.md#placement-rule)).
 | 1883 | tcp | Mosquitto MQTT broker, `custom.mqtt` | 127.0.0.1 only |
 | 3000 | tcp | AdGuard Home admin UI, `custom.dns` (upstream default) | Bound `0.0.0.0`, `openFirewall = false`; reached through Traefik at `dns1.coppertop.ca` |
 | 3001 | tcp | zwave-js websocket, `custom.zwave.port` — overridden here because the module default (3000) is AdGuard's admin UI | Firewall closed; Home Assistant connects over localhost |
+| 3890 | tcp | lldap's own LDAP protocol port, `custom.lldap.ldapPort` (upstream default) | 127.0.0.1 only — Authelia is the only consumer, same host |
 | 3001 | tcp | BambuStudio sidecar, `custom.bambuddy.slicerSidecar.bambuStudio.port` (`bambuStudio.enable` off) | **Not bound today** — and its default is the 3001 zwave-js already holds above; `modules/bambuddy.nix` asserts on that pair, so enabling it needs an explicit `port` here first |
 | 3003 | tcp | OrcaSlicer slicing sidecar (podman publish), `custom.bambuddy.slicerSidecar.port` | 127.0.0.1 only; called only by Bambuddy on this host |
 | 5335 | tcp+udp | unbound recursive resolver, `custom.dns` | LAN (firewall open) — the deliberate AdGuard-bypass |
@@ -70,6 +119,8 @@ Rule](../../docs/architecture.md#placement-rule)).
 | 8082 | tcp | Zigbee2MQTT frontend, `custom.zigbee` (hardcoded in `modules/zigbee.nix`) | Firewall closed; Traefik at `zigbee.coppertop.ca` |
 | 8083 | tcp | Homepage dashboard, `custom.homepage` — moved off its upstream default (8082, Zigbee2MQTT's) after a live collision, see Known Gotchas | 127.0.0.1 only; Traefik at the apex, `coppertop.ca` |
 | 8123 | tcp | Home Assistant frontend, `custom.home-assistant` (HA's own default; the module's Traefik route hardcodes it) | Opened to `192.168.20.0/24` only by `firewall.extraCommands`, for Sonos UPnP callbacks; everything else goes through Traefik at `home.coppertop.ca` |
+| 9091 | tcp | Authelia, `custom.authelia.port` (upstream default) | 127.0.0.1 only; Traefik at `auth.coppertop.ca`, and the `authelia@file` forward-auth middleware's own callback target |
+| 17170 | tcp | lldap web UI/GraphQL API, `custom.lldap.httpPort` (upstream default) | 127.0.0.1 only; Traefik at `ad.coppertop.ca` |
 | 30001–30005, 30104 | tcp | dump1090's raw/Beast/SBS feed listeners, `custom.adsb` (it runs dump1090 with `--net`, so these are dump1090's own defaults) | Bound `0.0.0.0`, firewall closed |
 
 `custom.backups` and `custom.ddns` bind nothing — both are outbound-only (SMB
@@ -346,6 +397,15 @@ existing job-keyed secret to reuse** — it needs a new
 runs and skips itself ("Missing restic password file"), so it is a pending
 hand-off rather than a broken unit.
 
+The `lldap` (`/var/lib/lldap`) and `authelia` (`/var/lib/authelia-main`)
+entries are the same situation — brand-new services, no existing job-keyed
+secret to reuse, each needing its own new
+`secrets/{lldap,authelia}/restic-password.age` plus the matching
+`age.secrets` entries from `secrets-warden`. Both skip themselves the same
+way until then. Authelia's database in particular holds TOTP/WebAuthn
+registrations that aren't reconstructible from anywhere else, so this one
+matters more than most "skips itself" gaps do.
+
 ## Secrets
 
 `hosts/reliant/secrets.nix` declares, beyond the Phase 1 SSH/NAS entries, six
@@ -373,6 +433,26 @@ tied to, not for `defiant` (see
 `reliant` is now a rekeyed recipient of all five — confirmed live: the config
 evaluates, all four appliance services (DNS/Traefik, Home Assistant,
 Zigbee2MQTT, Z-Wave JS) and ADS-B are up and using them successfully.
+
+**lldap + Authelia adds six more, none reused — all brand new, from
+`secrets-warden`:**
+
+| Secret | Owner (agenix) | Consumer |
+| --- | --- | --- |
+| `lldap/admin-password` | `lldap` | `custom.lldap.adminPasswordFile` — lldap's own superuser password |
+| `lldap/jwt-secret` | `lldap` | `custom.lldap.jwtSecretFile` — lldap's session JWT signing key |
+| `authelia/jwt-secret` | `authelia-main` | `custom.authelia.jwtSecretFile` — Authelia's password-reset JWT signing key |
+| `authelia/storage-encryption-key` | `authelia-main` | `custom.authelia.storageEncryptionKeyFile` — encrypts TOTP/WebAuthn secrets in Authelia's own database |
+| `authelia/ldap-bind-password` | `authelia-main` | Both `custom.authelia.ldap.bindPasswordFile` **and** `custom.lldap.bootstrap.users`' `authelia` entry's `passwordFile` — the same credential, read by two different services, so lldap and Authelia agree on it. `authelia-main` (not root) because Authelia reads this one via a raw environment variable, not `LoadCredential` — see docs/homelab-network.md § Known Gotchas. |
+| `lldap/restic-password`, `authelia/restic-password` | n/a (restic runs as root) | The two new `custom.backups.users` entries above |
+
+Note the `authelia/ldap-bind-password` secret is consumed by **two** hosts'
+worth of config on this one host — both `custom.lldap` (as one bootstrapped
+user's password) and `custom.authelia` (as its own bind credential) — so it
+needs to be readable by whichever system user actually reads each path:
+`lldap-bootstrap.service` runs as root (so any owner works for the copy
+`custom.lldap.bootstrap.users` references), but `custom.authelia.ldap.bindPasswordFile`
+specifically needs `authelia-main` read access.
 
 ## Provisioning
 

@@ -114,6 +114,165 @@ another module on `reliant` — `custom.bambuddy`'s virtual-printer feature
 hardcodes ports 3000/3002 upstream and can't be enabled on this host until
 AdGuard moves off 3000, see `hosts/reliant/README.md` § Bambuddy.
 
+## Authelia Forward-Auth (lldap + Authelia SSO)
+
+`custom.lldap` (`modules/lldap.nix`) and `custom.authelia` (`modules/authelia.nix`)
+add web-app single sign-on in front of Traefik, for whichever internal admin
+UIs opt in. Windows machine-login unification is explicitly out of scope (a
+Samba AD domain controller was considered and rejected as too operationally
+heavy; pGina rejected as poorly maintained) — this is web SSO only. Linux
+machine-login unification via lldap+sssd is viable (lldap ships an official
+PAM/sssd example using the posixAccount/posixGroup schema) but is a distinct,
+separate future item, not built here — nothing above precludes adding it
+later.
+
+- **lldap** (`custom.lldap`) is the directory backend, chosen over Samba AD or
+  OpenLDAP for its simpler admin UX and its upstream `bootstrap.sh` script
+  (`lldap/lldap`'s own `scripts/bootstrap.sh`, documented in
+  `example_configs/bootstrap/bootstrap.md`), which declaratively reconciles
+  users/groups from JSON config against lldap's GraphQL API on every run.
+  `modules/lldap.nix` renders `custom.lldap.bootstrap.users`/`.groups` to JSON
+  files at build time (`pkgs.linkFarm`) and runs the script as a systemd
+  oneshot (`lldap-bootstrap.service`) that reruns whenever that generated
+  config — or the pinned script itself — changes. `custom.lldap.bootstrap.cleanup`
+  (`DO_CLEANUP`) makes those lists the actual source of truth rather than a
+  one-time seed: anything not declared gets pruned. Passwords ARE settable
+  declaratively via a user's `passwordFile` (bootstrap.sh's real
+  `password_file` JSON field) — used here for Authelia's own LDAP bind
+  account, so no manual step is needed for that one. Real household accounts
+  are a **documented TODO**, not fabricated — see
+  `hosts/reliant/README.md` § lldap.
+  - `bootstrap.sh` is pinned to the exact lldap release `pkgs.lldap.version`
+    already builds (`pkgs.fetchurl` against that tag, not `main`, which would
+    drift the script out from under whatever lldap version is actually
+    running). If nixpkgs bumps lldap, this hash needs bumping too — `fetchurl`
+    fails loudly rather than silently running a mismatched script.
+  - Known non-blocking upstream caveat: lldap/lldap#745 reports possible
+    duplicate group memberships across repeated bootstrap runs with
+    `DO_CLEANUP` on. Not confirmed present in this repo's pinned lldap
+    version — watch `journalctl -u lldap-bootstrap` across a few real reruns
+    rather than designing around it preemptively.
+- **Authelia** (`custom.authelia`) is the Traefik forward-auth portal, backed
+  by lldap via LDAP (`authentication_backend.ldap.implementation = "lldap"`).
+  2FA scope is **TOTP and WebAuthn only** — Duo is explicitly deferred, no
+  `duo_api` config exists. Authelia's bind account
+  (`custom.authelia.ldap.bindDn`, default
+  `uid=authelia,ou=people,${custom.lldap.baseDn}`) belongs to lldap's built-in
+  `lldap_strict_readonly` group, never `lldap_admin` — Authelia only ever
+  needs to read user/group attributes, not administer lldap itself.
+  - The LDAP bind password is the one Authelia secret that isn't one of
+    nixpkgs' `services.authelia.instances.<name>.secrets.*` fields (those
+    cover JWT/OIDC/session/storage only) — it goes through Authelia's own
+    `AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD_FILE` environment-variable
+    secret convention instead (confirmed against Authelia's own secrets
+    documentation). Because this is a raw environment variable, not one of
+    the `secrets.*` fields that go through systemd's `LoadCredential`, the
+    file itself has to be directly readable by the `authelia-main` system
+    user (nixpkgs' instance-name-derived user for
+    `services.authelia.instances.main`) — the agenix secret's `owner` needs
+    to be set to that, not root.
+  - No SMTP notifier is configured — password-reset/notification emails write
+    to a local file (`notifier.filesystem`) instead of actually sending
+    anything. This is a real gap in the password-reset flow, not a design
+    choice to revisit casually: SMTP credentials weren't fabricated for a
+    server that doesn't exist yet.
+  - Session storage is the in-memory provider (no Redis) — sessions don't
+    survive an Authelia restart. Acceptable for this deployment's scale; a
+    Redis-backed session store is a future option if that becomes annoying.
+
+### The forward-auth middleware and opting a route in
+
+`modules/authelia.nix` defines exactly one Traefik middleware,
+`authelia@file` (Traefik's own `<name>@<provider>` reference syntax for
+anything declared through `dynamicConfigOptions`, not a literal filename):
+
+```nix
+services.traefik.dynamicConfigOptions.http.middlewares.authelia.forwardAuth = {
+  address = "http://127.0.0.1:9091/api/authz/forward-auth";
+  trustForwardHeader = true;
+  authResponseHeaders = ["Remote-User" "Remote-Groups" "Remote-Email" "Remote-Name"];
+};
+```
+
+"Gated" here means a Traefik-layer forward-auth check only — it does not by
+itself give the backend app any awareness of who logged in. `forwardAuth`
+does forward `Remote-User`/`Remote-Groups`/`Remote-Email`/`Remote-Name`
+response headers to the proxied app, so an app that's been taught to trust
+and read them (from a proxy it's configured to trust) can skip its own login
+entirely — but none of the apps this middleware currently sits in front of
+have a login of their own to begin with, so that distinction doesn't come up
+for them yet. It's exactly why Home Assistant isn't on this list at all: see
+below for why forward-auth is the wrong tool for a service with a real
+login, and OIDC is the actual answer there.
+
+A route opts in by adding `middlewares = ["authelia@file"]` to its own
+router. `lib/traefik-route.nix` grew an optional `middlewares` parameter for
+exactly this (empty by default — most routes still carry no auth middleware
+at all):
+
+```nix
+services.traefik.dynamicConfigOptions.http = mkTraefikRoute {
+  name = "adguard";
+  # ...
+  middlewares = optional (config.custom.authelia.enable && builtins.elem cfg.adminSubdomain config.custom.authelia.protectedSubdomains) "authelia@file";
+};
+```
+
+A manually-defined router (the `dns2`/`jellyfin`/DCS-control shape, § Second
+DNS Instance below) just adds the key directly, the same way `dns2` does on
+`reliant` today.
+
+`custom.authelia.protectedSubdomains` is the single list that drives both
+sides: it becomes Authelia's own `access_control` rules (`two_factor` policy,
+`default_policy = "deny"`) **and** documents which routes are expected to
+carry the middleware — but adding a subdomain to that list does not, by
+itself, protect anything; the router still has to add
+`middlewares = ["authelia@file"]` itself. On `reliant` today that's `dns1`
+(this host's own AdGuard admin UI, gated from `modules/dns.nix`), `dns2`
+(excelsior's AdGuard admin UI, gated from the manual router in
+`hosts/reliant/configuration.nix`), `zigbee.coppertop.ca` (Zigbee2MQTT),
+`dcs.coppertop.ca`/`dcs-control.coppertop.ca` (excelsior's DCS webtop
+desktop and start/stop control page — **not** the `dcs-control` `/hooks`
+webhook router, which is called machine-to-machine and would break if
+Authelia redirected it to a login page), and `bambuddy.coppertop.ca`. None
+of these have a login of their own. The Zigbee and Bambuddy routers are
+self-registered inside `modules/zigbee.nix` (owned by `smart-home`) and
+`modules/bambuddy.nix` — rather than edit those files, `reliant`'s own
+`configuration.nix` layers `middlewares = ["authelia@file"]` onto their
+existing router entries as a data overlay, the same freeform-deep-merge
+mechanism `dns2`'s manual router already relies on. This is the pattern for
+gating a cross-domain route without editing the owning module: add the
+router's name and `middlewares` key under
+`services.traefik.dynamicConfigOptions.http.routers` in the host's own
+`configuration.nix`; the module system merges it with that router's
+`rule`/`service`/`tls` defined elsewhere.
+
+`home.coppertop.ca` (Home Assistant) is deliberately **not** on this list.
+Forward-auth is the wrong mechanism for a service that already has its own
+real login — gating it this way adds a redundant second login, not SSO.
+Real SSO for Home Assistant is a distinct piece of new functionality:
+Authelia running as an OpenID Connect provider (a separate capability from
+the LDAP-backed forward-auth above) with Home Assistant as an OIDC client
+via the third-party `hass-oidc-auth` HACS component — see Authelia's own
+integration guide
+([authelia.com/integration/openid-connect/clients/home-assistant](https://www.authelia.com/integration/openid-connect/clients/home-assistant/)).
+Not built yet; tracked here as the intended path rather than the
+forward-auth middleware, not as a variant of `protectedSubdomains`.
+
+### Self-Lockout Rule
+
+Neither lldap's own admin UI route (`ad.coppertop.ca`) nor Authelia's own
+portal route (`auth.coppertop.ca`) may ever carry the `authelia` middleware.
+Authelia authenticates against lldap — gating either of those two routes
+behind Authelia risks a total lockout the moment lldap is down, mid-bootstrap,
+or misconfigured, with no way back in short of console/SSH access to disable
+the middleware by hand. Both instead rely on their own native login (lldap's
+built-in auth; Authelia's own login form) plus network-level scoping (both
+are Traefik-proxied at `127.0.0.1` like every other service here, with no
+extra exposure). `modules/authelia.nix` asserts on this directly:
+`custom.authelia.protectedSubdomains` may not contain `custom.lldap.subdomain`
+or `custom.authelia.subdomain` itself.
+
 ## Second DNS Instance (excelsior)
 
 AdGuard Home has no native clustering — every real-world HA setup for it is a
@@ -453,3 +612,39 @@ and the automation-file conventions in that doc.
   address). This zone tracks IPv4 only; leaving `usev6` at its default
   produces a spurious `no 'AAAA' record at Cloudflare` failure every interval
   for a record this setup was never asked to manage.
+- `lib/traefik-route.nix`'s new `middlewares` parameter and
+  `modules/authelia.nix`'s forward-auth middleware definition both write to
+  the same `services.traefik.dynamicConfigOptions.http` option — writing both
+  from a single attrset literal inside one module is a plain Nix "attribute
+  already defined" error, not a module-system merge conflict. Splitting the
+  middleware definition and the route registration into two separate
+  `mkMerge` list elements (each its own `mkIf config.custom.traefik.enable
+  {...}`) fixes it: the module system already merges independent
+  contributions to the same freeform option across separate config
+  fragments, which is exactly how `dns.nix`/`home-assistant.nix`/`zigbee.nix`
+  already coexist on that option — the fix is keeping every logically
+  distinct contribution to it in its own `mkMerge` element, even within a
+  single module, not just across modules.
+- `authentication_backend.ldap.password` (Authelia's LDAP bind password) is
+  not one of nixpkgs' `services.authelia.instances.<name>.secrets.*` fields —
+  those only cover JWT/OIDC/session/storage. It has to go through Authelia's
+  own environment-variable secrets convention instead
+  (`environmentVariables.AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD_FILE`),
+  confirmed against Authelia's own secrets documentation
+  (`docs/content/configuration/methods/secrets.md` in `authelia/authelia`),
+  not guessed from the field name. Because that path bypasses systemd's
+  `LoadCredential` (unlike the `secrets.*` fields, which nixpkgs' own
+  `services.authelia` module wires through `LoadCredential` automatically),
+  the secret file itself must be directly readable by the `authelia-main`
+  system user — the agenix `owner` for that one secret needs to be
+  `authelia-main`, not root or another service's user.
+- This entire lldap/Authelia design was written and reviewed without a
+  working `nix build` in the authoring environment (aarch64 `reliant`
+  cross-compiled from an environment with no `nix` binary at all) — every
+  config field, secret env var, and script interface above was checked
+  against the real pinned nixpkgs modules
+  (`nixos/modules/services/databases/lldap.nix`,
+  `nixos/modules/services/security/authelia.nix` at this repo's pinned
+  `nixpkgs` revision) and upstream `lldap`/Authelia source and docs, not
+  guessed, but the actual `nixos-rebuild switch`/`nix build` on `reliant`
+  itself is still the first real test of whether it all fits together.
