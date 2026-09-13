@@ -270,7 +270,12 @@ against AdGuard Home's admin UI on 3000 (fixed by moving zwave-js to 3001), and
 review time. A third — `custom.bambuddy`'s virtual printer against that same
 AdGuard 3000, which is unfixable since the printer's ports are hardcoded
 upstream — is caught before deploy only because someone hand-wrote the
-assertion in `modules/bambuddy.nix` for it.
+assertion in `modules/bambuddy.nix` for it. That assertion covers the firewall
+option, not the bind itself: `custom.bambuddy.virtualPrinters` now declares an
+enabled virtual printer on `reliant`, and it is upstream's own best-effort bind
+loop (`bind_server.py` logs and skips a port it cannot take) rather than
+anything in this repo that keeps the 3000 overlap from being fatal — see
+[`hosts/reliant/README.md` § Known Gotchas](../hosts/reliant/README.md#known-gotchas).
 
 There is no command for this — the check is reading the port table in
 `hosts/<machine>/README.md` for every host that will run the module before

@@ -56,7 +56,7 @@ Rule](../../docs/architecture.md#placement-rule)).
 | 22 | tcp | SSH, `services.openssh` with `openFirewall = true` | LAN (firewall open); key-only auth, no password/root login |
 | 53 | tcp+udp | AdGuard Home resolver, `custom.dns` | Bound `0.0.0.0`; UDP 53 opened to the LAN by `modules/dns.nix` (TCP 53 deliberately not opened) |
 | 80, 443 | tcp | Traefik entry points (`web`/`websecure`), `custom.traefik` | LAN/WAN (firewall open) — every proxied service is reached through 443 here, never its own port |
-| 322, 990, 2024–2026, 3000, 3002, 6000, 8883, 50000–50029 | tcp | Bambuddy virtual printer — bind/detect, RTSPS camera, FTPS, A1/P1S protocol, file tunnel, MQTT, FTP passive range (sized by `virtualPrinter.count`, 3 here). Hardcoded upstream in `bind_server.py`, started by the app whenever `custom.bambuddy` runs | Firewall closed (`virtualPrinter.openFirewall` off). Its 3000 is the same 3000 AdGuard holds below and neither side is configurable — `modules/bambuddy.nix` asserts on the pair; see § Bambuddy |
+| 322, 990, 2024–2026, 3000, 3002, 6000, 8883, 50000–50029 | tcp | Bambuddy virtual printer — bind/detect, RTSPS camera, FTPS, A1/P1S protocol, file tunnel, MQTT, FTP passive range (sized by `virtualPrinter.count`, 3 here). Ports are hardcoded upstream (`bind_server.py`), and the listeners start once an **enabled** virtual-printer row exists — `custom.bambuddy.virtualPrinters` declares one here | Bound on `192.168.20.40` (the row's `bindIp`), not `0.0.0.0` — `virtual_printer/manager.py` passes `bind_ip` through to every listener. Opened to the LAN by `virtualPrinter.openFirewall`, which is what lets a slicer reach them. Its 3000 no longer collides with AdGuard, which moves to 3004 in this same change; see § Bambuddy |
 | 1883 | tcp | Mosquitto MQTT broker, `custom.mqtt` | 127.0.0.1 only |
 | 3000 | tcp | AdGuard Home admin UI, `custom.dns` (upstream default) | Bound `0.0.0.0`, `openFirewall = false`; reached through Traefik at `dns1.coppertop.ca` |
 | 3001 | tcp | zwave-js websocket, `custom.zwave.port` — overridden here because the module default (3000) is AdGuard's admin UI | Firewall closed; Home Assistant connects over localhost |
@@ -161,6 +161,71 @@ slicing sidecar as a podman container. Host-specific notes:
   fail at bind time; moving `services.adguardhome.port` is the prerequisite.
 - Data (SQLite database, 3MF/print archive) lives in `/var/lib/bambuddy`,
   owned by a fixed `bambuddy` system user. Logs are in `/var/log/bambuddy`.
+
+### Declarative printers
+
+Bambuddy keeps its printer list and virtual-printer config in that SQLite
+database, and it has no seeding mechanism — no seed file, no import path, no
+printer-related environment variables (checked in
+`backend/app/core/config.py` at v1.2.5.3). So `custom.bambuddy.printers` and
+`custom.bambuddy.virtualPrinters` are reconciled into it over Bambuddy's own
+REST API by `bambuddy-provision.service`
+(`modules/bambuddy-provision.nix`).
+
+- **It only ever creates.** It lists what is already there, adds what is
+  missing, and touches nothing else — no updates, no deletions. Changing a
+  printer in the web UI is a legitimate thing to do and never gets reverted;
+  removing an entry from Nix never destroys a printer row or the print
+  history keyed to it. This is a deliberate limit, not an unfinished
+  feature — the reasoning is in the script's module docstring.
+- **It runs at boot, after every rebuild that changes the declared set, and
+  every 15 minutes** (`bambuddy-provision.timer`). The timer is not
+  decoration: Bambuddy verifies the MQTT connection to a real printer before
+  it will save it, so a printer that is powered off simply cannot be added
+  yet — see Known Gotchas.
+- Check on it with `systemctl status bambuddy-provision.service`. Exit 75
+  means "declared but not reconcilable yet" (printer offline, or an
+  access-code secret that does not exist yet); exit 1 means something that
+  retrying will not fix. The journal names the printer either way.
+- Access codes are never in the repo. Each entry points at a file
+  (`accessCodeFile`) that agenix decrypts to `/run/agenix/...`, read at
+  provisioning time by a root unit — declare the secret with no `owner`, as
+  with this host's other root-read secrets.
+
+The virtual printer declared here is `Bambuddy`, in **queue** mode: a slicer
+sends a job to it, the job lands in Bambuddy's print queue, and
+`auto_dispatch` sends it on to a real printer. It binds `192.168.20.40`, a
+secondary address on `enp3s0` added separately (PR #164) so the virtual
+printer's hardcoded ports do not have to share the primary address with
+AdGuard and friends.
+
+**It is not reachable from the LAN yet**, and the module says so at eval time
+with a warning. `virtualPrinter.openFirewall` is off (it cannot be turned on
+while AdGuard holds 3000), so the firewall drops every slicer connection to
+those ports. Enabling it needs AdGuard's admin UI moved off 3000 first. It
+also needs `/run/agenix/bambuddy/virtual-printer-access-code` to exist —
+until then provisioning reports it pending on every tick and creates nothing.
+
+The real P2S is **not** declared here yet: it was added by hand before this
+existed, so provisioning finds it by serial and leaves it alone, and its LAN
+IP has not been confirmed for the repo. Declaring it makes the config match
+reality and survives a rebuild from scratch:
+
+```nix
+custom.bambuddy.printers = [
+  {
+    name = "P2S";
+    serialNumber = "<the printer's serial>";
+    ipAddress = "<its LAN IP>";
+    accessCodeFile = "/run/agenix/bambuddy/p2s-access-code";
+    model = "P2S";
+  }
+];
+```
+
+That needs a `secrets/bambuddy/p2s-access-code.age` from `secrets-warden`
+holding the printer's LAN Access Code, and the matching `age.secrets` entry
+in `hosts/reliant/secrets.nix`.
 
 ## Machine Files
 
@@ -347,11 +412,60 @@ slicing sidecar as a podman container. Host-specific notes:
   `bambuddy.coppertop.ca/camera/1` (through Traefik) is the browser-facing
   page, not this API path. Full reasoning in
   [docs/smart-home.md § Camera](../../docs/smart-home.md#camera-template-image-not-a-camera-platform).
+  [docs/smart-home.md § Camera feed](../../docs/smart-home.md#camera-feed-platform-ffmpeg-never-mjpeg-or-generic).
+- **Bambuddy refuses to add a printer it cannot currently reach**, so
+  declarative printers cannot be a one-shot job. `POST /api/v1/printers/`
+  runs `printer_manager.test_connection()` and raises 400
+  `printer_connection_failed` unless the MQTT probe succeeds within 8s —
+  upstream added that check on purpose, because rows created from a mistyped
+  access code turned into support tickets. A printer that is powered off,
+  off the LAN, or out of LAN Only + Developer Mode therefore cannot be
+  provisioned at that moment, however correct the Nix is. That is why
+  `bambuddy-provision` runs on a timer and reports exit 75 rather than
+  failing for good — see § Declarative printers.
+- **An enabled virtual printer binds ports whether or not the firewall lets
+  anyone reach them.** The two are separate switches with nothing connecting
+  them: Bambuddy starts the listeners as soon as an enabled row exists, and
+  `virtualPrinter.openFirewall` is what makes them reachable. On this host
+  the second is off (AdGuard holds 3000), so the virtual printer looks
+  healthy in the UI while nftables silently drops every slicer connection —
+  a refusal Bambuddy's own logs never see.
+  `modules/bambuddy-provision.nix` emits an eval-time warning for that exact
+  pairing. If the bind of port 3000 itself is refused because AdGuard already
+  holds it, upstream logs `Bind server port 3000 already in use, skipping`
+  and keeps serving 3002; it does not crash, and it does not disturb AdGuard.
 - **`custom.homepage`'s port (8082) collided with Zigbee2MQTT's frontend,
   also 8082.** Confirmed live: `homepage-dashboard.service` failed
   (`EADDRINUSE`) on the first deploy with both enabled on this host. Moved to
   8083 in `modules/homepage.nix` — same class of conflict as
   `zwave-js`/AdGuard (3000, above) and `bambuddy`/AdGuard (3000, § Bambuddy).
+- **Adding a static IP to `enp3s0` silently disabled DHCP and took this host
+  off the network.** `networking.interfaces.<name>.useDHCP` defaults to
+  `null`, which nixpkgs resolves as "DHCP only if `ipv4.addresses` is empty"
+  — so adding the virtual printer's secondary bind IP without also setting
+  `useDHCP = true` dropped the DHCP-assigned primary (`192.168.20.15`) the
+  moment it activated, and with it the default route and nameservers, since
+  DHCP is their only source (no `networking.defaultGateway` is set anywhere
+  in this repo). Symptom: the host answers only from within `192.168.20.0/24`
+  — the switch still shows the port up, and a power cycle does not help,
+  because the broken generation is the one that boots. Recovery was to reach
+  it from a client on its own subnet, at the static `.40`, and deploy with
+  `useDHCP = true` restored. See
+  [docs/homelab-network.md § Dedicated Bind IPs](../../docs/homelab-network.md#dedicated-bind-ips-for-lan-emulation-services).
+- **With DHCP restored, that same static IP then broke every Matter device.**
+  Two addresses in one `/24` means the first one added becomes the subnet's
+  primary and supplies the default source address for on-subnet traffic —
+  and `network-addresses-enp3s0.service` runs before dhcpcd gets its lease,
+  so the static `.40` won. `ip route get 192.168.20.84` returned `src
+  192.168.20.40`, and `matter-server` logged `Unable to establish CASE
+  session with Node 1` for every commissioned node: Matter's session
+  handshake is address-sensitive and the controller was talking to them from
+  an address they had no session with. The default route was unaffected
+  (dhcpcd pins `src` on it), so everything *routed* looked fine — which is
+  why this hid. Every appliance holding controller state by address (Sonos
+  UPnP callbacks, HomeKit, Apple TV) is exposed the same way. Fixed by
+  removing the secondary address entirely; it returns only with the virtual
+  printer, marked `preferred_lft 0` so it can never be chosen as a source.
 
 ## Backups
 
@@ -403,6 +517,17 @@ tied to, not for `defiant` (see
   Inventory), and the restic repo path already includes the hostname, so
   sharing the password doesn't collide the two hosts' backup data — same
   pattern as `thomasga`'s job above.
+
+Two Bambuddy secrets are **pending** and do not exist yet, both from
+`secrets-warden`, both declared with no `owner` (read by root units):
+
+- `bambuddy/restic-password` — for the backup job, see § Backups.
+- `bambuddy/virtual-printer-access-code` — the access code a slicer presents
+  to the `Bambuddy` virtual printer, referenced by
+  `custom.bambuddy.virtualPrinters`. **Exactly 8 characters**; Bambuddy
+  rejects any other length. It is the virtual printer's own code, unrelated
+  to any real printer's. Until it exists, `bambuddy-provision.service`
+  reports the virtual printer as pending on each tick and creates nothing.
 
 `reliant` is now a rekeyed recipient of all five — confirmed live: the config
 evaluates, all four appliance services (DNS/Traefik, Home Assistant,

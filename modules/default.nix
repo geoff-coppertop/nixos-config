@@ -4,6 +4,7 @@
     ./auto-rip.nix
     ./backups.nix
     ./bambuddy.nix
+    ./bambuddy-provision.nix
     ./bin-compat.nix
     ./btrfs.nix
     ./dcs-server.nix

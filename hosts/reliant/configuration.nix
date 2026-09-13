@@ -184,7 +184,44 @@ in {
       # unconditionally and neither port is configurable, while this host's
       # AdGuard Home admin UI already owns 3000 (see custom.dns below, and the
       # assertion in modules/bambuddy.nix). Turning the feature on here means
-      # moving AdGuard's UI port first.
+      # moving AdGuard's UI port first. Until that happens the virtual printer
+      # declared below runs but is unreachable from the LAN — the module warns
+      # about exactly this pairing at eval time. See hosts/reliant/README.md
+      # § Bambuddy.
+
+      # Real printers are deliberately absent: the P2S was added by hand
+      # before this existed, so provisioning already treats it as present and
+      # leaves it alone. Adding it here (its LAN IP is still to be
+      # confirmed) makes the declaration match reality and lets the entry be
+      # recreated on a rebuild from scratch — see hosts/reliant/README.md
+      # § Bambuddy for the shape and the access-code secret it needs.
+      # printers = [ ... ];
+
+      virtualPrinters = [
+        {
+          # A slicer sends here, and Bambuddy takes it from there. Queue mode
+          # rather than archive: jobs land in Bambuddy's print queue and
+          # auto_dispatch (on by default) sends them to a real printer,
+          # instead of only being filed away.
+          name = "Bambuddy";
+          enabled = true;
+          mode = "queue";
+          model = "P2S";
+          # A secondary address on enp3s0, added by PR #164 — referenced
+          # here, deliberately not configured here. The virtual printer needs
+          # an address of its own because it wants ports (3000 in
+          # particular) that this host's other services already hold on the
+          # primary address.
+          bindIp = "192.168.20.40";
+          # PENDING secrets-warden: nothing decrypts to this path yet, so
+          # provisioning reports the virtual printer as pending on every tick
+          # and creates nothing until the secret exists. Exactly 8 characters
+          # — Bambuddy rejects any other length — and it is the code typed
+          # into the slicer, not any real printer's code. Same shape of
+          # pending hand-off as the bambuddy restic password below.
+          accessCodeFile = "/run/agenix/bambuddy/virtual-printer-access-code";
+        }
+      ];
     };
 
     adsb = {
