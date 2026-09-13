@@ -67,14 +67,17 @@ for the full design.
 - **`home.coppertop.ca` (Home Assistant) is deliberately not on that
   list.** Forward-auth is the wrong mechanism for a service that already has
   its own real login — gating it that way would just add a redundant second
-  login in front of HA's existing one, not real SSO. Real SSO for HA is new
-  functionality, not a variant of the forward-auth gate: Authelia running as
-  an OpenID Connect provider (a separate Authelia capability from the
-  LDAP-backed forward-auth above), with HA as an OIDC client via the
+  login in front of HA's existing one, not real SSO. Real SSO for HA is
+  built as a distinct capability instead: Authelia running as an OpenID
+  Connect 1.0 provider (`custom.authelia.oidc`, coexisting with the
+  LDAP-backed forward-auth above on the same instance), with HA registered
+  as an OIDC client (`custom.authelia.oidc.homeAssistant`) via the
   third-party [`hass-oidc-auth`](https://github.com/christiaangoossens/hass-oidc-auth)
-  HACS component — see Authelia's own
-  [Home Assistant OIDC integration guide](https://www.authelia.com/integration/openid-connect/clients/home-assistant/).
-  Not built yet.
+  HACS component — see
+  [docs/homelab-network.md § OIDC Provider](../../docs/homelab-network.md#oidc-provider)
+  for the full design and the exact values HA's own config needs. Installing
+  `hass-oidc-auth` and HA's own `auth_oidc` config block is `smart-home`'s
+  side of this, not covered here.
 - **TODO: real household lldap accounts.** `custom.lldap.bootstrap.users`
   today only has Authelia's own LDAP bind service account
   (`authelia`, in the built-in `lldap_strict_readonly` group). Adding a real
@@ -453,6 +456,15 @@ needs to be readable by whichever system user actually reads each path:
 `lldap-bootstrap.service` runs as root (so any owner works for the copy
 `custom.lldap.bootstrap.users` references), but `custom.authelia.ldap.bindPasswordFile`
 specifically needs `authelia-main` read access.
+
+**Authelia's OIDC provider (Home Assistant SSO) adds three more, all brand
+new, from `secrets-warden`:**
+
+| Secret | Owner (agenix) | Consumer |
+| --- | --- | --- |
+| `authelia/oidc-issuer-private-key` | `authelia-main` | `custom.authelia.oidc.issuerPrivateKeyFile` — Authelia's OIDC issuer signing key (RSA, PKCS#8/PKCS#1, ≥2048 bits). Generate with `openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048`. Read via nixpkgs' own `secrets.oidcIssuerPrivateKeyFile` — unlike the LDAP bind password, this one **does** go through systemd `LoadCredential`, so `authelia-main` ownership is still required but for the credential-copy step, not a raw env var. |
+| `authelia/oidc-hmac-secret` | `authelia-main` | `custom.authelia.oidc.hmacSecretFile` — signs OIDC JWTs. Generate with `openssl rand -base64 64 \| tr -d '\n=+/' \| head -c 64`. Also via `LoadCredential` (`secrets.oidcHmacSecretFile`). |
+| `authelia/oidc-client-secret-home-assistant-hash` | `authelia-main` | `custom.authelia.oidc.homeAssistant.clientSecretHashFile` — **not** a raw secret: Authelia only ever stores a pbkdf2-sha512 hash of Home Assistant's OIDC client secret. Generate both the raw secret and its hash together with `nix run nixpkgs#authelia -- crypto hash generate pbkdf2 --variant sha512 --random`; only the digest goes in this file. The raw secret goes into Home Assistant's own `auth_oidc.client_secret` — that's `smart-home`'s side, not managed by this file or this secret. Read directly at runtime via Authelia's own Go-template `secret` function, the same env-var-style direct read as `authelia/ldap-bind-password` (not `LoadCredential`) — see docs/homelab-network.md § OIDC Provider. |
 
 ## Provisioning
 

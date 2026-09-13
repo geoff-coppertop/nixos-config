@@ -250,14 +250,91 @@ router's name and `middlewares` key under
 `home.coppertop.ca` (Home Assistant) is deliberately **not** on this list.
 Forward-auth is the wrong mechanism for a service that already has its own
 real login — gating it this way adds a redundant second login, not SSO.
-Real SSO for Home Assistant is a distinct piece of new functionality:
-Authelia running as an OpenID Connect provider (a separate capability from
-the LDAP-backed forward-auth above) with Home Assistant as an OIDC client
-via the third-party `hass-oidc-auth` HACS component — see Authelia's own
-integration guide
-([authelia.com/integration/openid-connect/clients/home-assistant](https://www.authelia.com/integration/openid-connect/clients/home-assistant/)).
-Not built yet; tracked here as the intended path rather than the
-forward-auth middleware, not as a variant of `protectedSubdomains`.
+Real SSO for Home Assistant is built as a distinct piece of functionality,
+Authelia running as an OpenID Connect 1.0 provider — see § OIDC Provider
+below — not as a variant of `protectedSubdomains`.
+
+### OIDC Provider
+
+Authelia can run as an OpenID Connect 1.0 provider from the same instance
+that serves the forward-auth portal above — both capabilities coexist on
+`services.authelia.instances.main`, gated independently
+(`custom.authelia.protectedSubdomains` vs `custom.authelia.oidc.enable`).
+This is the mechanism for giving a service **with its own real login** actual
+SSO, instead of the redundant-second-login problem forward-auth would create
+for it. Today the only registered client is Home Assistant, via the
+third-party [`hass-oidc-auth`](https://github.com/christiaangoossens/hass-oidc-auth)
+HACS component, following Authelia's own
+[Home Assistant OIDC integration guide](https://www.authelia.com/integration/openid-connect/clients/home-assistant/)
+(fetched at this repo's pinned Authelia version, `v4.39.20` — matching
+`pkgs.authelia`'s pin in the pinned `nixpkgs` revision — not guessed).
+
+`custom.authelia.oidc` (`modules/authelia.nix`):
+
+- `enable` turns on `identity_providers.oidc` at all, and requires two new
+  secrets:
+  - `issuerPrivateKeyFile` — an RSA private key (PKCS#8 or PKCS#1, ≥2048
+    bits), Authelia's OIDC issuer signing key. Maps to nixpkgs'
+    `services.authelia.instances.<name>.secrets.oidcIssuerPrivateKeyFile`,
+    which the nixpkgs module auto-templates into
+    `identity_providers.oidc.jwks` at startup (its own Go-template config
+    filter, `X_AUTHELIA_CONFIG_FILTERS=template`, enabled automatically the
+    moment this secret is set) — `jwks` is never written directly in this
+    module's `settings`.
+  - `hmacSecretFile` — a random ≥64-character string, Authelia's OIDC HMAC
+    secret (`identity_providers.oidc.hmac_secret`), used to sign OIDC JWTs.
+    Maps to `secrets.oidcHmacSecretFile`.
+- `homeAssistant.enable` registers Home Assistant as an OIDC client
+  (asserted to require `oidc.enable`). `clientId` (default
+  `home-assistant`) and `redirectUri` (default
+  `https://home.${domain}/auth/oidc/callback`, matching
+  `modules/home-assistant.nix`'s hardcoded `"home"` subdomain and
+  `hass-oidc-auth`'s fixed callback path) both have real, usable defaults —
+  only `clientSecretHashFile` needs a value.
+- `homeAssistant.clientSecretHashFile` — the one part of this that isn't a
+  plain "point at an agenix path" secret. Authelia's
+  `identity_providers.oidc.clients[].client_secret` field stores a
+  **pbkdf2-sha512 hash** of the shared secret, not the raw secret — there is
+  no `oidcClientSecretFile` in nixpkgs' `services.authelia` `secrets.*`
+  fields, so this is wired up the same way
+  `custom.authelia.ldap.bindPasswordFile` already is: read directly at
+  runtime rather than through systemd `LoadCredential`. Concretely, the
+  entire Home Assistant OIDC client entry (client ID, redirect URI, scopes,
+  `client_secret` included) is rendered as one generated `settingsFile`,
+  with `client_secret` substituted in via Authelia's own Go-template `secret`
+  function reading the agenix path directly
+  (`{{ secret "/run/agenix/..." | mindent 12 "|" | msquote }}`, no manual
+  surrounding quotes — `msquote` already produces a correctly-quoted YAML
+  scalar). It has to be the *whole* client entry in one file, not split
+  across `settings` and a secret fragment, because Authelia's config-file
+  merging replaces whole list values (`identity_providers.oidc.clients` is a
+  list) rather than merging list items.
+
+Generate the two provider-level secrets and the client secret hash:
+
+```bash
+# oidc-issuer-private-key
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048
+# oidc-hmac-secret
+openssl rand -base64 64 | tr -d '\n=+/' | head -c 64
+# oidc-client-secret-home-assistant-hash -- prints both the raw secret
+# (goes into Home Assistant's own auth_oidc.client_secret, not this repo)
+# and its digest (goes into this file, and only this file)
+nix run nixpkgs#authelia -- crypto hash generate pbkdf2 --variant sha512 --random
+```
+
+What this module does **not** cover: Home Assistant's own side (installing
+the `hass-oidc-auth` HACS component, HA's `auth_oidc` configuration block).
+That's `smart-home`'s (`modules/home-assistant.nix`,
+`hosts/reliant/home-assistant/`). The values it needs from this side:
+
+| What HA needs | Value |
+| --- | --- |
+| OIDC issuer / discovery URL | `https://auth.coppertop.ca/.well-known/openid-configuration` (Authelia's own portal subdomain, `custom.authelia.subdomain`) |
+| `client_id` | `home-assistant` (`custom.authelia.oidc.homeAssistant.clientId`) |
+| `client_secret` | The **raw** (pre-hash) secret from generating `oidc-client-secret-home-assistant-hash` above — not the agenix path, and not the hash stored there. HA's own config needs the plaintext value; Authelia stores only the digest. |
+| Redirect URI | `https://home.coppertop.ca/auth/oidc/callback` (`custom.authelia.oidc.homeAssistant.redirectUri`) — `hass-oidc-auth`'s fixed callback path |
+| Authorization/token/userinfo endpoints | Not hardcoded anywhere — `hass-oidc-auth` discovers them from the discovery URL above, per Authelia's OpenID Connect 1.0 Discoverable Endpoints (`/api/oidc/authorization`, `/api/oidc/token`, `/api/oidc/userinfo` under `auth.coppertop.ca`) |
 
 ### Self-Lockout Rule
 

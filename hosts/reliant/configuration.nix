@@ -401,10 +401,10 @@ in {
       # home (Home Assistant) is deliberately NOT here: forward-auth is the
       # wrong mechanism for a service with its own real login -- gating it
       # this way would just add a redundant second login in front of HA's
-      # existing one, not real SSO. HA getting SSO is real OIDC (Authelia as
-      # an OIDC provider, HA as an OIDC client via the hass-oidc-auth HACS
-      # component) -- new functionality tracked separately in
-      # docs/homelab-network.md § Authelia Forward-Auth, not a variant of
+      # existing one, not real SSO. HA gets real SSO via the oidc block
+      # below instead (Authelia as an OIDC provider, HA as an OIDC client via
+      # the hass-oidc-auth HACS component) -- see
+      # docs/homelab-network.md § OIDC Provider, not a variant of
       # this list. Several of the routers below are self-registered inside
       # modules this file doesn't own (modules/zigbee.nix -- smart-home;
       # modules/bambuddy.nix -- unowned by any specific domain) -- rather
@@ -418,6 +418,28 @@ in {
       # UI ("ad") or Authelia's own portal ("auth") -- see
       # docs/homelab-network.md § Self-Lockout Rule.
       protectedSubdomains = ["dns1" "dns2" "zigbee" "dcs" "dcs-control" "bambuddy"];
+
+      # Authelia as an OpenID Connect 1.0 provider, for Home Assistant's real
+      # SSO -- a separate capability from the forward-auth gate above, not a
+      # variant of protectedSubdomains (home.coppertop.ca is deliberately not
+      # on that list; see the comment there and
+      # docs/homelab-network.md § OIDC Provider). The HA side of this (the
+      # hass-oidc-auth HACS component, HA's own auth_oidc config block) is
+      # not this file's concern -- smart-home owns modules/home-assistant.nix
+      # and hosts/reliant/home-assistant/*.
+      oidc = {
+        enable = true;
+        issuerPrivateKeyFile = "/run/agenix/authelia/oidc-issuer-private-key";
+        hmacSecretFile = "/run/agenix/authelia/oidc-hmac-secret";
+        homeAssistant = {
+          enable = true;
+          # clientId/redirectUri left at their defaults ("home-assistant" /
+          # https://home.coppertop.ca/auth/oidc/callback) -- both already
+          # match this host's real values (home.coppertop.ca is
+          # modules/home-assistant.nix's hardcoded subdomain).
+          clientSecretHashFile = "/run/agenix/authelia/oidc-client-secret-home-assistant-hash";
+        };
+      };
     };
 
     # Keeps coppertop.ca's apex A record pointed at this residential
