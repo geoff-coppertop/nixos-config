@@ -485,6 +485,116 @@ replaced, this whole derivation has to be redone from scratch for the new
 unit's own address/command bytes — nothing here is portable to different
 hardware, even another Yamaha model, without reverse-engineering it again.
 
+### BambuBuddy: manual MQTT entities, no discovery
+
+`custom.bambuddy` (owned by the module of the same name, not this doc — see
+`modules/bambuddy.nix`) publishes each printer's live telemetry to this
+host's own Mosquitto broker (`custom.mqtt`) as plain JSON on plain topics:
+`bambuddy/printers/<serial>/status` (per-printer state, retained),
+`bambuddy/printers/<serial>/plate_clear` (a retained boolean gate BambuBuddy
+exposes specifically so an automation can tell "finished" from "finished and
+still waiting for someone to clear the bed", which `status` alone can't
+reliably distinguish once BambuBuddy's Auto Off stops telemetry), and
+`bambuddy/status` (BambuBuddy's own online/offline, retained, independent of
+any one printer).
+
+Confirmed directly against BambuBuddy's `mqtt_relay.py` source: it does not
+speak Home Assistant's MQTT Discovery protocol, unlike Zigbee2MQTT's
+`zigbee2mqtt/bridge/...` topics (§ Zigbee below). Nothing appears in HA on
+its own as a result — this is not a bug or a missing component, it just
+needs entities defined by hand, the same way `outdoor-aqi.nix` hand-declares
+a `rest` sensor rather than relying on a config-flow integration.
+
+`hosts/reliant/home-assistant/bambuddy-printers.nix` does this against
+`services.home-assistant.config.mqtt` (the domain-level key for manually
+configured MQTT entities in current Home Assistant — the replacement for the
+deprecated per-platform `platform: mqtt` list under `sensor:`/
+`binary_sensor:`), not a new broker connection: HA's own MQTT integration is
+already a config entry against this same broker (visible in the UI as the
+"localhost" MQTT service, alongside the Zigbee2MQTT Bridge entities), added
+once through the UI same as `hue`/`broadlink`/Apple TV elsewhere in this
+directory.
+
+Every entity generated there uses `bambuddy/status` as its `availability`
+(not just the per-printer `status` topic's own `connected` field, which
+becomes its own `binary_sensor` instead) — so a printer's entities read
+"unavailable" specifically when BambuBuddy itself is down, distinct from the
+printer being reachably idle/off. One entry per physical printer in that
+file's `printers` list, all entities generated from it by a
+`mkPrinterEntities`/`concatMap` function — the same mk\*/map-over-a-list shape
+`sonos-wiim.nix` uses for room pairs — so a second printer (anticipated, not
+yet paired) is one more list element, not a new abstraction.
+
+**Unverified**: `progress` is treated as already 0-100 (`unit_of_measurement
+= "%"`), and `remaining_time` as minutes. The one real payload this was
+written against was captured with the printer `IDLE`, where both read `0`
+either way, so the scale couldn't be confirmed from it — check both against
+Developer Tools > States mid-print and fix the `value_template`/
+`unit_of_measurement` in `bambuddy-printers.nix` if wrong.
+
+**Also unverified**: outbound access to `home-assistant.io` was blocked from
+the sandbox this file was written in, so the `mqtt:`-domain YAML shape used
+here (`sensor`/`binary_sensor` lists, per-entity `availability` lists,
+`device` grouping) reflects prior knowledge of that schema, not a
+docs/source citation captured in this repo. If HA logs an "Invalid config"
+notice for the `mqtt` key after deploy, that schema is the first thing to
+recheck — same failure mode as any other `extraComponents`/YAML mismatch, see
+§ Choosing `extraComponents` above.
+
+### Camera: template image, not a camera platform
+
+BambuBuddy exposes a real camera API (confirmed against upstream's
+`backend/app/api/routes/camera.py`, `v1.2.5.3`) — `GET
+/api/v1/printers/{printer_id}/camera/stream?fps=<1-30>` (MJPEG) and `GET
+.../camera/snapshot` (JPEG), neither requiring a `?token=` locally because
+BambuBuddy's own auth gate reduces to a no-op when its `auth_enabled` setting
+row doesn't exist (the default, confirmed against
+`backend/app/core/auth.py`). `printer_id` is BambuBuddy's internal DB row id
+(`1` for the one printer today) — not derivable from the MQTT `serial`, and
+not exposed as a lookup, so a second printer's id has to come from its own
+working camera URL. It is carried per-printer as `cameraId` in
+`bambuddy-printers.nix`'s own `printers` list for exactly that reason.
+
+The obvious approach is a `camera:` platform, and all three candidates were
+tried. Two of them cannot work at all, and the third works but costs
+something that turned out to matter more than live video:
+
+| Platform | Result |
+| --- | --- |
+| `mjpeg`, `generic` | Config-flow-only. Verified in each component's own `camera.py`: `async_setup_entry` and nothing else — no `PLATFORM_SCHEMA`, no `async_setup_platform`, no YAML import flow. The NixOS module writes `configuration.yaml` and can never write a config entry, so a `camera:` entry naming either passes schema validation and then silently produces no entity and no error. |
+| `ffmpeg` | Works, and gives a genuine live MJPEG feed. But its `PLATFORM_SCHEMA` accepts only `input`, `extra_arguments` and `name` — there is no `unique_id`, and a legacy YAML platform has no other way to set one. |
+| `template:` → `image:` | What this repo uses. Accepts `unique_id`, so the entity is registry-backed. Costs live video: it is a still that refreshes at the trigger interval, and it does not appear in camera-specific pickers. |
+
+**`unique_id` is the whole reason for that choice.** Without one an entity
+never enters Home Assistant's entity registry, and *area and device
+assignment both live in that registry*. The `ffmpeg` version was deployed
+first, and HA says so plainly in the UI: "this entity does not have a unique
+ID, therefore its settings cannot be managed from the UI" — no area, no
+device, no renaming. An unassignable entity is worth less here than a
+ten-second refresh, so the still won.
+
+The refresh is not automatic. A template image re-fetches only when its `url`
+template evaluates to a *new value* — `template/image.py`'s `_update_url`
+clears the cached image on change. A static URL would be fetched once and
+then show a frozen frame forever, which looks like a working entity. The
+`?t={{ now().timestamp() | int }}` suffix plus a `time_pattern` trigger is
+what actually makes it refresh, and the trigger interval is the real knob:
+every fetch is a live capture through BambuBuddy off the printer's own
+camera, so it should not be set aggressively.
+
+If a live feed is wanted alongside this, add the **MJPEG IP Camera**
+integration once through the UI. That route is a config entry, so it gets a
+`unique_id`, an area *and* live video — it simply cannot originate from Nix,
+which is the ceiling this section is about.
+
+The URL uses `127.0.0.1`, never `reliant.local` or any LAN address: Home
+Assistant runs on the same host, and `custom.bambuddy.port` binds loopback
+only and is deliberately not opened in the firewall (Traefik-only), so a
+LAN-facing URL hangs rather than erroring, because the firewall drops rather
+than rejects — confirmed live. The port is read from the option; the address
+is hardcoded, because loopback is what HA has to dial regardless of what the
+service binds.
+
 ## Radio Networks
 
 ### Zigbee
