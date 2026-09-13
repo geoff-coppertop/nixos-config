@@ -464,8 +464,8 @@ Zigbee2MQTT, Z-Wave JS) and ADS-B are up and using them successfully.
 | --- | --- | --- |
 | `lldap/admin-password` | `lldap` | `custom.lldap.adminPasswordFile` — lldap's own superuser password |
 | `lldap/jwt-secret` | `lldap` | `custom.lldap.jwtSecretFile` — lldap's session JWT signing key |
-| `authelia/jwt-secret` | `authelia-main` | `custom.authelia.jwtSecretFile` — Authelia's password-reset JWT signing key |
-| `authelia/storage-encryption-key` | `authelia-main` | `custom.authelia.storageEncryptionKeyFile` — encrypts TOTP/WebAuthn secrets in Authelia's own database |
+| `authelia/jwt-secret` | none (default root) — `secrets.jwtSecretFile` is `LoadCredential`-backed, and systemd performs that copy as root before `authelia-main` is assumed | `custom.authelia.jwtSecretFile` — Authelia's password-reset JWT signing key |
+| `authelia/storage-encryption-key` | none (default root) — same `LoadCredential` reasoning as `authelia/jwt-secret` above | `custom.authelia.storageEncryptionKeyFile` — encrypts TOTP/WebAuthn secrets in Authelia's own database |
 | `authelia/ldap-bind-password` | `authelia-main` | Both `custom.authelia.ldap.bindPasswordFile` **and** `custom.lldap.bootstrap.users`' `authelia` entry's `passwordFile` — the same credential, read by two different services, so lldap and Authelia agree on it. `authelia-main` (not root) because Authelia reads this one via a raw environment variable, not `LoadCredential` — see docs/homelab-network.md § Known Gotchas. |
 | `lldap/restic-password`, `authelia/restic-password` | n/a (restic runs as root) | The two new `custom.backups.users` entries above |
 
@@ -482,8 +482,8 @@ new, from `secrets-warden`:**
 
 | Secret | Owner (agenix) | Consumer |
 | --- | --- | --- |
-| `authelia/oidc-issuer-private-key` | `authelia-main` | `custom.authelia.oidc.issuerPrivateKeyFile` — Authelia's OIDC issuer signing key (RSA, PKCS#8/PKCS#1, ≥2048 bits). Generate with `openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048`. Read via nixpkgs' own `secrets.oidcIssuerPrivateKeyFile` — unlike the LDAP bind password, this one **does** go through systemd `LoadCredential`, so `authelia-main` ownership is still required but for the credential-copy step, not a raw env var. |
-| `authelia/oidc-hmac-secret` | `authelia-main` | `custom.authelia.oidc.hmacSecretFile` — signs OIDC JWTs. Generate with `openssl rand -base64 64 \| tr -d '\n=+/' \| head -c 64`. Also via `LoadCredential` (`secrets.oidcHmacSecretFile`). |
+| `authelia/oidc-issuer-private-key` | none (default root) | `custom.authelia.oidc.issuerPrivateKeyFile` — Authelia's OIDC issuer signing key (RSA, PKCS#8/PKCS#1, ≥2048 bits). Generate with `openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048`. Read via nixpkgs' own `secrets.oidcIssuerPrivateKeyFile` — unlike the LDAP bind password, this one **does** go through systemd `LoadCredential`, and systemd performs that copy as root during unit setup, so root-only `0400` is sufficient and is the narrower choice. |
+| `authelia/oidc-hmac-secret` | none (default root) | `custom.authelia.oidc.hmacSecretFile` — signs OIDC JWTs. Generate with `openssl rand -base64 64 \| tr -d '\n=+/' \| head -c 64`. Also `LoadCredential`-backed (`secrets.oidcHmacSecretFile`), same root-only reasoning. |
 | `authelia/oidc-client-secret-home-assistant-hash` | `authelia-main` | `custom.authelia.oidc.homeAssistant.clientSecretHashFile` — **not** a raw secret: Authelia only ever stores a pbkdf2-sha512 hash of Home Assistant's OIDC client secret. Generate both the raw secret and its hash together with `nix run nixpkgs#authelia -- crypto hash generate pbkdf2 --variant sha512 --random`; only the digest goes in this file. The raw secret goes into Home Assistant's own `auth_oidc.client_secret` — that's `smart-home`'s side, not managed by this file or this secret. Read directly at runtime via Authelia's own Go-template `secret` function, the same env-var-style direct read as `authelia/ldap-bind-password` (not `LoadCredential`) — see docs/homelab-network.md § OIDC Provider. |
 
 **Home Assistant's own OIDC config (`smart-home`'s side of the same SSO

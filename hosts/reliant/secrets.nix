@@ -82,5 +82,83 @@ _: {
       file = ../../secrets/hass/aqicn-token.age;
       owner = "hass";
     };
+
+    # ── lldap + Authelia SSO stack ───────────────────────────────────────
+    # All brand new, none reused from defiant. Owner is set only where the
+    # consuming process actually reads the file as a non-root user: every
+    # entry without an owner is read either by root itself (restic, systemd's
+    # own EnvironmentFile/LoadCredential handling) or copied in by systemd
+    # before the service drops privileges.
+
+    # lldap runs as its own static "lldap" system user (nixpkgs'
+    # services.lldap, not DynamicUser), and the server reads both of these
+    # itself at startup — ldap_user_pass_file and jwt_secret_file are plain
+    # paths in its own config, not systemd credentials.
+    "lldap/admin-password" = {
+      file = ../../secrets/lldap/admin-password.age;
+      owner = "lldap";
+    };
+    "lldap/jwt-secret" = {
+      file = ../../secrets/lldap/jwt-secret.age;
+      owner = "lldap";
+    };
+
+    # No owner: these two go through nixpkgs'
+    # services.authelia.instances.main.secrets.*, which wires them up as
+    # systemd LoadCredential entries. systemd performs that copy as root
+    # during unit setup, before authelia-main is assumed, so root-only
+    # (agenix' default 0400 root:root) is both sufficient and the narrower
+    # choice — see modules/authelia.nix's environmentVariables comment for
+    # the contrast with ldap-bind-password below.
+    "authelia/jwt-secret".file = ../../secrets/authelia/jwt-secret.age;
+    "authelia/storage-encryption-key".file =
+      ../../secrets/authelia/storage-encryption-key.age;
+
+    # Owner authelia-main: this one is NOT a LoadCredential secret. It is
+    # handed to Authelia as a raw path in
+    # AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD_FILE, so the file itself
+    # must be readable by the instance's own system user. Its second
+    # consumer — custom.lldap.bootstrap.users' "authelia" entry's
+    # passwordFile — is read by lldap-bootstrap.service, which runs as root
+    # and so is unaffected by the owner. One file on purpose: lldap and
+    # Authelia must never disagree about this credential.
+    "authelia/ldap-bind-password" = {
+      file = ../../secrets/authelia/ldap-bind-password.age;
+      owner = "authelia-main";
+    };
+
+    # Same job-keyed restic pattern as the entries above; attribute names
+    # match custom.backups.users.lldap / .authelia exactly, so the module's
+    # default passwordFile path resolves with no override. No owner —
+    # backups run as root.
+    "lldap/restic-password".file = ../../secrets/lldap/restic-password.age;
+    "authelia/restic-password".file =
+      ../../secrets/authelia/restic-password.age;
+
+    # Authelia's OIDC provider. Both of these are LoadCredential-backed
+    # (secrets.oidcIssuerPrivateKeyFile / secrets.oidcHmacSecretFile), same
+    # reasoning as jwt-secret above — no owner needed.
+    "authelia/oidc-issuer-private-key".file =
+      ../../secrets/authelia/oidc-issuer-private-key.age;
+    "authelia/oidc-hmac-secret".file =
+      ../../secrets/authelia/oidc-hmac-secret.age;
+
+    # Owner authelia-main: read directly by Authelia's own Go-template
+    # "secret" function from the generated OIDC client settingsFile, not via
+    # LoadCredential — same direct-read situation as ldap-bind-password.
+    # Holds only the pbkdf2-sha512 digest, never the raw client secret.
+    "authelia/oidc-client-secret-home-assistant-hash" = {
+      file = ../../secrets/authelia/oidc-client-secret-home-assistant-hash.age;
+      owner = "authelia-main";
+    };
+
+    # The raw half of that same client secret, for Home Assistant's side of
+    # the OIDC handshake. No owner: consumed as a systemd EnvironmentFile,
+    # which systemd reads as root before home-assistant.service's own
+    # user/sandboxing applies — identical pattern to location/coordinates
+    # above, and its contents are the same KEY=VALUE shape
+    # (HASS_OIDC_CLIENT_SECRET=...).
+    "home-assistant/oidc-client-secret".file =
+      ../../secrets/home-assistant/oidc-client-secret.age;
   };
 }

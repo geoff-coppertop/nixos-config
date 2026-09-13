@@ -160,6 +160,8 @@ restic repository. `passwordFile` defaults to
 | `secrets/adguardhome/restic-password.age` | `adguardhome` | `reliant`, `excelsior` |
 | `secrets/dcs-server/restic-password.age` | `dcs-server` | `excelsior` |
 | `secrets/factorio/restic-password.age` | `factorio` | `excelsior` |
+| `secrets/lldap/restic-password.age` | `lldap` | `reliant` |
+| `secrets/authelia/restic-password.age` | `authelia` | `reliant` |
 
 Because a job-keyed secret is shared, more than one host can be a recipient of
 the same file — the restic repository path embeds the hostname
@@ -327,6 +329,83 @@ for name in S0_Legacy S2_Unauthenticated S2_Authenticated S2_AccessControl; do
   echo "$name=$(openssl rand -hex 16)"
 done
 ```
+
+### lldap and Authelia SSO credentials
+
+Specific to `reliant`'s one lldap + Authelia deployment — each is tied to that
+instance's own database, bind account or issuer identity, so a second host
+running SSO would mint its own rather than become a recipient of these. All are
+declared in `hosts/reliant/secrets.nix`; the design they back is
+[docs/homelab-network.md § Authelia Forward-Auth](homelab-network.md#authelia-forward-auth-lldap--authelia-sso)
+and its § OIDC Provider subsection.
+
+| Secret | Contents | agenix owner | Host recipients |
+| --- | --- | --- | --- |
+| `lldap/admin-password.age` | One line, the bare password — no prefix, no quotes | `lldap` | `reliant` |
+| `lldap/jwt-secret.age` | One line, a random high-entropy string | `lldap` | `reliant` |
+| `authelia/jwt-secret.age` | One line, a random high-entropy string | default (root) | `reliant` |
+| `authelia/storage-encryption-key.age` | One line, a random high-entropy string | default (root) | `reliant` |
+| `authelia/ldap-bind-password.age` | One line, the bare password | `authelia-main` | `reliant` |
+| `authelia/oidc-issuer-private-key.age` | An RSA private key in PEM form, PKCS#8 or PKCS#1, ≥2048 bits | default (root) | `reliant` |
+| `authelia/oidc-hmac-secret.age` | One line, ≥64 random alphanumeric characters | default (root) | `reliant` |
+| `authelia/oidc-client-secret-home-assistant-hash.age` | One line, the `$pbkdf2-sha512$...` **digest** of the Home Assistant client secret — never the raw secret | `authelia-main` | `reliant` |
+| `home-assistant/oidc-client-secret.age` | One line, `HASS_OIDC_CLIENT_SECRET=<raw client secret>` — a systemd `EnvironmentFile` line, not a bare value | default (root) | `reliant` |
+
+Owners follow how each file is actually read, not which service it belongs to:
+
+- `lldap` reads `ldap_user_pass_file` and `jwt_secret_file` itself, as its own
+  static (non-`DynamicUser`) system user.
+- The four Authelia entries with **no** owner reach Authelia through nixpkgs'
+  `services.authelia.instances.main.secrets.*`, which wires them up as systemd
+  `LoadCredential` entries. systemd performs that copy as root during unit
+  setup, so root-only `0400` is both sufficient and narrower than granting the
+  service user direct read access.
+- `authelia/ldap-bind-password` and
+  `authelia/oidc-client-secret-home-assistant-hash` are **not**
+  `LoadCredential`-backed — the first is passed as a raw path in
+  `AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD_FILE`, the second is read by
+  Authelia's own Go-template `secret` function — so both must be readable by
+  `authelia-main` itself.
+- `home-assistant/oidc-client-secret` is a systemd `EnvironmentFile`, read by
+  systemd as root before `home-assistant.service` drops to its own user —
+  the same pattern, and the same `KEY=VALUE` shape, as
+  `location/coordinates.age`.
+
+`authelia/ldap-bind-password.age` has two consumers on the same host:
+`custom.authelia.ldap.bindPasswordFile` and the `authelia` entry's
+`passwordFile` in `custom.lldap.bootstrap.users`. One file on purpose — if
+these were two secrets they could drift apart and Authelia's bind would start
+failing silently. `lldap-bootstrap.service` runs as root, so the
+`authelia-main` owner does not affect its read.
+
+Generate the plain random values with:
+
+```bash
+openssl rand -base64 64 | tr -d '\n=+/' | head -c 64
+```
+
+`authelia/oidc-issuer-private-key.age` needs a real RSA key:
+
+```bash
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048
+```
+
+#### The paired Home Assistant OIDC client secret
+
+`authelia/oidc-client-secret-home-assistant-hash.age` and
+`home-assistant/oidc-client-secret.age` are two halves of **one** shared
+secret and must be generated together, by running this exactly once:
+
+```bash
+nix run nixpkgs#authelia -- crypto hash generate pbkdf2 --variant sha512 --random
+```
+
+It prints a random plaintext secret and its pbkdf2-sha512 digest. The digest
+goes into `authelia/oidc-client-secret-home-assistant-hash.age` verbatim; the
+plaintext goes into `home-assistant/oidc-client-secret.age` as
+`HASS_OIDC_CLIENT_SECRET=<plaintext>`. Generating them independently produces
+two unrelated values and the OIDC handshake fails at the token endpoint.
+Rotating one means rotating both, from a single new run of that command.
 
 ## What May Be Committed
 
