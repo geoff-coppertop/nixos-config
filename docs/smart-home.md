@@ -451,6 +451,15 @@ client secret has to be generated outside this repo's Authelia config).
   same key instead of requiring separate definitions to be equal, which
   only applies when every definition given is itself a list.
 
+- `defaultRedirect` (default `false`, `true` on `reliant`) — hass-oidc-auth's
+  `auth_oidc.features.default_redirect`. Without it, visiting
+  `home.coppertop.ca` shows HA's normal login page with an extra OIDC
+  button next to the local form — not real SSO, just an option. With it,
+  visiting the page skips straight to Authelia's login. Local login stays
+  reachable as a fallback via `?skip_oidc_redirect=true` on the login URL —
+  worth remembering before enabling this, since it's the only way back in
+  if Authelia is ever down.
+
 Config schema (`client_id`, `client_secret`, `discovery_url`, and the rest)
 confirmed directly against hass-oidc-auth's own
 [YAML Configuration Guide](https://github.com/christiaangoossens/hass-oidc-auth/blob/main/docs/configuration.md)

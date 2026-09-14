@@ -84,6 +84,23 @@ in {
         '';
       };
 
+      defaultRedirect = mkOption {
+        type = types.bool;
+        default = false;
+        description = ''
+          hass-oidc-auth's auth_oidc.features.default_redirect. When true,
+          visiting Home Assistant skips its own login page entirely and
+          redirects straight to Authelia -- real SSO, not just an extra
+          login button next to HA's normal form. Confirmed against
+          hass-oidc-auth's own configuration docs
+          (github.com/christiaangoossens/hass-oidc-auth/blob/main/docs/configuration.md),
+          not guessed. HA's own local login form stays reachable as a
+          fallback by appending ?skip_oidc_redirect=true to the login URL
+          -- worth remembering before enabling this, so a broken Authelia
+          never locks out local access entirely.
+        '';
+      };
+
       clientSecretFile = mkOption {
         type = types.str;
         description = ''
@@ -229,11 +246,15 @@ in {
             # mechanism, and it works because `!word rest` unquoting is a
             # property of the shared annotatedyaml loader, not scoped to
             # any particular integration's config block.
-            auth_oidc = {
-              client_id = cfg.oidc.clientId;
-              discovery_url = cfg.oidc.discoveryUrl;
-              client_secret = "!env_var HASS_OIDC_CLIENT_SECRET";
-            };
+            auth_oidc =
+              {
+                client_id = cfg.oidc.clientId;
+                discovery_url = cfg.oidc.discoveryUrl;
+                client_secret = "!env_var HASS_OIDC_CLIENT_SECRET";
+              }
+              // optionalAttrs cfg.oidc.defaultRedirect {
+                features.default_redirect = true;
+              };
           };
       };
     }

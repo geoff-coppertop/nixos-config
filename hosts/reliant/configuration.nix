@@ -155,15 +155,13 @@ in {
         # custom.authelia.subdomain/custom.traefik.acme.domain, both set
         # below).
         #
-        # clientSecretFile: NOT YET REAL. secrets-warden still needs to
-        # create this secret -- see hosts/reliant/README.md § Secrets for
-        # exactly what value it needs and how to generate it. Deploying
-        # with this path missing crash-loops home-assistant.service
-        # (systemd fails the unit outright when an EnvironmentFile= target
-        # doesn't exist), so do NOT enable this block in a real
-        # nixos-rebuild switch until that secret exists and reliant is a
-        # rekeyed recipient of it.
         clientSecretFile = "/run/agenix/home-assistant/oidc-client-secret";
+        # Confirmed live: skips HA's own login page entirely and redirects
+        # straight to Authelia -- real SSO, not an extra button next to the
+        # local form. Local login stays reachable via
+        # https://home.coppertop.ca/?skip_oidc_redirect=true if Authelia is
+        # ever down.
+        defaultRedirect = true;
       };
     };
 
