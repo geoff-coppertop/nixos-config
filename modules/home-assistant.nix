@@ -54,13 +54,32 @@ in {
         # docs/smart-home.md § HTTP config). Defining it at all, true or
         # false, is now an eval-time assertion failure
         # (mkRemovedOptionModule). The desired posture — frontend port 8123
-        # closed except to the Sonos UPnP-callback VLAN — is unchanged and
-        # keeps working exactly as before, because it was already achieved
-        # by NOT opening the port here: hosts/reliant/configuration.nix's
-        # networking.firewall.extraCommands carries the one narrow iptables
-        # rule, and everything else reaches HA only via Traefik.
+        # closed except to one narrow LAN carve-out — is unchanged and keeps
+        # working exactly as before, because it was already achieved by NOT
+        # opening the port here: hosts/reliant/configuration.nix's
+        # networking.firewall.extraCommands carries the narrow iptables
+        # rule(s) — see that file and docs/smart-home.md § Sonos UPnP
+        # callbacks for why 8123 was never actually the port Sonos needed —
+        # and everything else reaches HA only via Traefik.
         configWritable = true;
         inherit (cfg) extraComponents;
+        # aiohttp_fast_zlib (a hard dependency of pkgs/servers/home-assistant's
+        # own package, not something extraComponents can pull in) wants
+        # isal/zlib-ng's compiled bindings and otherwise falls back to plain
+        # zlib every boot with a "performance will be degraded" warning.
+        # Confirmed against nixpkgs' own python-modules tree at this flake's
+        # pinned revision: python3Packages.isal (pname "isal", the
+        # python-isal project) and python3Packages.zlib-ng (pname "zlib-ng",
+        # python-zlib-ng) both exist and build against the isa-l/zlib-ng C
+        # libraries respectively. `extraPackages` (distinct from
+        # extraComponents — it adds to propagatedBuildInputs directly rather
+        # than selecting an HA integration) is the nixpkgs home-assistant
+        # module's documented mechanism for exactly this
+        # (services.home-assistant.extraPackages, its own docs' example is
+        # psycopg2 for the same reason). The callback receives HA's own
+        # python package set (cfg.package.python.pkgs), not the top-level
+        # pkgs.python3Packages, so no extra `pkgs` argument is needed here.
+        extraPackages = python3Packages: with python3Packages; [isal zlib-ng];
         config =
           {
             # sun: confirmed live — sun.sun doesn't exist at all without this.

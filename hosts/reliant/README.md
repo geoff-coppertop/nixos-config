@@ -57,6 +57,7 @@ Rule](../../docs/architecture.md#placement-rule)).
 | 53 | tcp+udp | AdGuard Home resolver, `custom.dns` | Bound `0.0.0.0`; UDP 53 opened to the LAN by `modules/dns.nix` (TCP 53 deliberately not opened) |
 | 80, 443 | tcp | Traefik entry points (`web`/`websecure`), `custom.traefik` | LAN/WAN (firewall open) — every proxied service is reached through 443 here, never its own port |
 | 322, 990, 2024–2026, 3000, 3002, 6000, 8883, 50000–50029 | tcp | Bambuddy virtual printer — bind/detect, RTSPS camera, FTPS, A1/P1S protocol, file tunnel, MQTT, FTP passive range (sized by `virtualPrinter.count`, 3 here). Hardcoded upstream in `bind_server.py`, started by the app whenever `custom.bambuddy` runs | Firewall closed (`virtualPrinter.openFirewall` off). Its 3000 is the same 3000 AdGuard holds below and neither side is configurable — `modules/bambuddy.nix` asserts on the pair; see § Bambuddy |
+| 1400 | tcp | `soco` library's embedded UPnP event listener (started by Home Assistant's Sonos integration, upstream default port) — receives NOTIFY callbacks from the Sonos speakers, not HA's own frontend | Opened to `192.168.20.0/24` only by `firewall.extraCommands`; see Known Gotchas — the previous single rule (8123 only) never actually opened this |
 | 1883 | tcp | Mosquitto MQTT broker, `custom.mqtt` | 127.0.0.1 only |
 | 3000 | tcp | AdGuard Home admin UI, `custom.dns` (upstream default) | Bound `0.0.0.0`, `openFirewall = false`; reached through Traefik at `dns1.coppertop.ca` |
 | 3001 | tcp | zwave-js websocket, `custom.zwave.port` — overridden here because the module default (3000) is AdGuard's admin UI | Firewall closed; Home Assistant connects over localhost |
@@ -69,7 +70,7 @@ Rule](../../docs/architecture.md#placement-rule)).
 | 8080 | tcp | nginx serving dump1090's skyaware UI and `aircraft.json`, `custom.adsb` (hardcoded) | 127.0.0.1 only; Traefik at `adsb.coppertop.ca` |
 | 8082 | tcp | Zigbee2MQTT frontend, `custom.zigbee` (hardcoded in `modules/zigbee.nix`) | Firewall closed; Traefik at `zigbee.coppertop.ca` |
 | 8083 | tcp | Homepage dashboard, `custom.homepage` — moved off its upstream default (8082, Zigbee2MQTT's) after a live collision, see Known Gotchas | 127.0.0.1 only; Traefik at the apex, `coppertop.ca` |
-| 8123 | tcp | Home Assistant frontend, `custom.home-assistant` (HA's own default; the module's Traefik route hardcodes it) | Opened to `192.168.20.0/24` only by `firewall.extraCommands`, for Sonos UPnP callbacks; everything else goes through Traefik at `home.coppertop.ca` |
+| 8123 | tcp | Home Assistant frontend, `custom.home-assistant` (HA's own default; the module's Traefik route hardcodes it) | Opened to `192.168.20.0/24` only by `firewall.extraCommands` — **not** for Sonos (see Known Gotchas; that was a documented misunderstanding, corrected there), kept open pending confirmation nothing else on this VLAN depends on direct access; everything else goes through Traefik at `home.coppertop.ca` |
 | 30001–30005, 30104 | tcp | dump1090's raw/Beast/SBS feed listeners, `custom.adsb` (it runs dump1090 with `--net`, so these are dump1090's own defaults) | Bound `0.0.0.0`, firewall closed |
 
 `custom.backups` and `custom.ddns` bind nothing — both are outbound-only (SMB
@@ -318,6 +319,57 @@ slicing sidecar as a podman container. Host-specific notes:
   (`EADDRINUSE`) on the first deploy with both enabled on this host. Moved to
   8083 in `modules/homepage.nix` — same class of conflict as
   `zwave-js`/AdGuard (3000, above) and `bambuddy`/AdGuard (3000, § Bambuddy).
+- **`habluetooth.manager` errors "Missing NET_ADMIN/NET_RAW capabilities for
+  Bluetooth management" every boot in `journalctl -u home-assistant`.**
+  Investigated against
+  [#170](https://github.com/geoff-coppertop/nixos-config/issues/170): this
+  host has no dedicated Bluetooth radio, but `custom.home-assistant.extraComponents`
+  legitimately includes `homekit_controller` (backing the two HomeKit-paired
+  ecobee thermostats, § Device Pairing Notes above), and nixpkgs' own
+  `home-assistant` NixOS module already auto-computes and grants exactly
+  `CAP_NET_ADMIN`/`CAP_NET_RAW` (`serviceConfig.AmbientCapabilities` and
+  `CapabilityBoundingSet`) whenever any component in its own
+  `componentsUsingBluetooth` list — which includes `homekit_controller` — is
+  in use, confirmed by reading
+  `nixos/modules/services/home-automation/home-assistant.nix` at this flake's
+  exact pinned nixpkgs revision (`ffb3c9b700e759be2ef13237c9d8f953b32a1e46`).
+  No change was made to `modules/home-assistant.nix` for this: the
+  capability grant is already structurally correct in the currently
+  committed config, and duplicating it there would risk a
+  conflicting-definition eval error against nixpkgs' own module setting the
+  same `serviceConfig` keys. **Not independently confirmed against the live
+  host** (no SSH access from this investigation) — the most likely
+  explanation for the error still appearing live is that the running
+  generation predates this being wired up (or predates a `nix flake update`
+  landing that fix), i.e. an overdue redeploy rather than a config gap.
+  After the next `nixos-rebuild switch`, verify with `ssh thomasga@reliant.local
+  systemctl show home-assistant -p AmbientCapabilities -p CapabilityBoundingSet`
+  (expect `cap_net_admin`/`cap_net_raw` present) and recheck
+  `journalctl -u home-assistant` for the error clearing. If it recurs after a
+  confirmed-current deploy, that would mean something in this analysis is
+  wrong and needs live debugging (e.g. a sandboxing interaction specific to
+  this host's systemd version) — re-open the investigation rather than
+  re-suppressing the symptom.
+- **Sonos `"Subscription to <ip> failed, attempting to poll directly"`
+  warning every boot, degrading to polling.** Also from
+  [#170](https://github.com/geoff-coppertop/nixos-config/issues/170). The
+  firewall rule here previously opened only port 8123 "for Sonos UPnP
+  callbacks" — that comment was wrong. Home Assistant's `sonos` integration
+  doesn't receive its UPnP `NOTIFY` callbacks on its own frontend port at
+  all; the `soco` library it uses starts a second, separate embedded HTTP
+  listener via `soco.events_asyncio`, defaulting to port 1400
+  (`soco/config.py`'s `EVENT_LISTENER_PORT`, confirmed against `soco`'s and
+  `home-assistant/core`'s actual source — this repo sets no `sonos:` YAML
+  block, so nothing here overrides that default). Port 1400 was never open,
+  so the speakers' confirming callback never reached HA, and every boot fell
+  back to polling after `sonos`'s own subscription timeout. Fixed by adding
+  a second `firewall.extraCommands` rule opening tcp/1400 to the same
+  `192.168.20.0/24` VLAN as the existing 8123 rule — see the comment in
+  `hosts/reliant/configuration.nix` for the full trace through both
+  codebases. The old 8123 rule was left in place rather than removed (no
+  live host to confirm nothing else on that VLAN depends on direct
+  `<ip>:8123` access), but its comment no longer claims a Sonos
+  justification it never had.
 
 ## Backups
 

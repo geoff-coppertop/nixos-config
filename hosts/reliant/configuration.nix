@@ -490,24 +490,58 @@ in {
     # hosts/defiant/configuration.nix and hosts/enterprise-d/configuration.nix.
     hosts.${nas.ip} = [nas.host];
 
-    # Home Assistant's Sonos integration subscribes each speaker directly to
-    # HA's own HTTP server (port 8123) for UPnP event callbacks -- LAN-local
-    # traffic that never goes through Traefik, so modules/home-assistant.nix
-    # deliberately doesn't open 8123 itself (everything else reaches HA only
-    # via Traefik -> 127.0.0.1 — see modules/home-assistant.nix for why
-    # there's no `openFirewall` there any more), which leaves the Sonos
-    # callback path unreachable without this rule. Confirmed live on defiant
+    # This rule's own comment used to claim port 8123 was opened for Sonos
+    # UPnP event callbacks. That is wrong — corrected below after
+    # investigating geoff-coppertop/nixos-config#170's Sonos "Subscription to
+    # <ip> failed, attempting to poll directly" warning, which recurs every boot.
+    # Confirmed by reading the actual code path (no live-host access to
+    # verify against reliant itself, so this is static analysis of the exact
+    # library versions this flake pins, not a guess):
+    #
+    # - homeassistant/components/sonos/__init__.py subscribes to each
+    #   speaker's zoneGroupTopology service, then arms a
+    #   ZGS_SUBSCRIPTION_TIMEOUT callback that logs exactly this warning and
+    #   falls back to polling if the speaker's own confirming NOTIFY callback
+    #   never arrives back at HA within that window.
+    # - That NOTIFY callback is delivered by the Sonos speaker to a listener
+    #   HA starts through the `soco` library's events_asyncio module — a
+    #   second, separate embedded HTTP server, entirely distinct from HA's
+    #   own frontend (port 8123). soco/config.py's EVENT_LISTENER_PORT
+    #   defaults to 1400 (soco/events_asyncio.py's EventListener tries that
+    #   port first, then increments if it's taken); HA's sonos component
+    #   never overrides this default (confirmed — no `sonos:` YAML block
+    #   exists in this repo's config, and async_setup_entry only touches
+    #   soco_config.EVENT_ADVERTISE_IP, which is unset here).
+    # - Port 8123 was therefore never the right port for this traffic at
+    #   all: the previous rule accidentally left HA's frontend reachable
+    #   directly from this VLAN (bypassing Traefik) without ever actually
+    #   opening the port Sonos speakers call back to, which is why the
+    #   subscription has apparently never succeeded and always degrades to
+    #   polling.
+    #
+    # Kept 8123 open rather than removing it outright — nothing else in this
+    # repo documents depending on direct <ip>:8123 LAN access (the iOS
+    # companion app gotcha below explicitly says to use the FQDN instead),
+    # but there is no live host to confirm zero dependents before tightening
+    # it further. Added 1400 for the actual Sonos callback path. If soco
+    # falls back past 1400 in practice (only possible if something else on
+    # reliant is already bound to it, which nothing currently is per the
+    # host's own port table), the real bound port shows up in Settings >
+    # Repairs' "Sonos subscription failed" issue detail once one has fired,
+    # or in `journalctl -u home-assistant` around setup — adjust this rule to
+    # match and update the port table if so.
     #
     # unbound (modules/dns.nix) has its own access-control option to scope
-    # its LAN-bypass port to a subnet; HA's http integration has no
-    # equivalent allowlist for its main listener, so the restriction has to
-    # happen at the firewall instead of blanket-opening 8123 via
-    # allowedTCPPorts. 192.168.20.0/24 is the same homelab VLAN defiant used
-    # (this host and defiant share it) -- narrower than custom.dns.lanSubnet's
-    # widened 192.168.0.0/16 above, since Sonos doesn't need cross-VLAN reach
-    # the way the DNS bypass does.
+    # its LAN-bypass port to a subnet; HA's http integration and soco's
+    # listener have no equivalent allowlist of their own, so the restriction
+    # has to happen at the firewall instead of blanket-opening either port
+    # via allowedTCPPorts. 192.168.20.0/24 is the same homelab VLAN defiant
+    # used (this host and defiant share it) -- narrower than
+    # custom.dns.lanSubnet's widened 192.168.0.0/16 above, since neither of
+    # these needs cross-VLAN reach the way the DNS bypass does.
     firewall.extraCommands = ''
       iptables -I nixos-fw -p tcp -s 192.168.20.0/24 --dport 8123 -j ACCEPT
+      iptables -I nixos-fw -p tcp -s 192.168.20.0/24 --dport 1400 -j ACCEPT
     '';
   };
 
