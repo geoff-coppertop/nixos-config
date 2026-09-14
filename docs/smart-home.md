@@ -378,7 +378,17 @@ are always added together.
 ### Wiim: community integration, not core `linkplay`
 
 Core HA's `linkplay` integration fails to complete setup against Wiim Pro
-units — confirmed live on `reliant`: its SSDP-discovery validation call,
+units, and `"linkplay"` is deliberately absent from `extraComponents` (see
+`hosts/reliant/configuration.nix`'s `# NOT "linkplay"` comment) as a result —
+which means the recurring journal line is `homeassistant.components.linkplay:
+No module named 'linkplay'`, a plain missing-dependency `ModuleNotFoundError`
+from zeroconf/SSDP discovery finding the Wiim speaker on the LAN and trying to
+offer core `linkplay`'s config flow for it, before ever reaching the
+`getMetaInfo` failure below. Adding `python-linkplay` to `extraComponents`
+would only trade this error for the `getMetaInfo` one — it would not make
+core `linkplay` work against this hardware — so it's left out on purpose;
+this log line is expected, benign noise, not a packaging gap to close.
+Confirmed live on `reliant`: its SSDP-discovery validation call,
 `getMetaInfo`, gets back the literal string `"Failed"` instead of JSON, which
 `json.loads()` can't parse (`Expecting value: line 1 column 1 (char 0)`). That
 exception aborts the config flow before it ever creates an integration entry
@@ -406,6 +416,67 @@ is packaged separately in `pkgs/pywiim.nix`, built against
 `home-assistant.python.pkgs` specifically (not the general `python3Packages`)
 so its transitive dependencies share Home Assistant's own Python environment
 rather than risking a second, conflicting copy.
+
+### Discovery-flow `ModuleNotFoundError`s: `cast`, `ecobee`, `ipp`, `linkplay`, `zha`
+
+`reliant`'s journal recurringly logged a `ModuleNotFoundError` for each of
+these five components, e.g. `homeassistant.components.zha: No module named
+'zha'`. All five are HA core components whose Python dependency wasn't in
+`extraComponents`, and zeroconf/SSDP discovery — part of HA's always-on core
+bootstrap, not something this repo configures — kept finding a real device on
+the LAN (a Wiim speaker, a Chromecast-capable device, the ecobee thermostats,
+a network printer, the Zigbee coordinator) and offering that device's core
+integration's config flow, which then failed to import. Each was evaluated on
+its own merits, not written off as one class of noise:
+
+- **`cast`** (dep: `pychromecast`, confirmed against the pinned nixpkgs
+  `component-packages.nix`) is a real fix: a genuine Chromecast-capable
+  device exists on the LAN and nothing blocks HA from actually driving it, so
+  `"cast"` is now in `extraComponents` (`hosts/reliant/configuration.nix`).
+  This is a real new capability (HA-driven casting), not just log suppression
+  — intended, not scope creep.
+- **`ipp`** (dep: `pyipp`, same verification) is the same story: a real
+  network printer triggers this discovery, nothing blocks integrating it, so
+  `"ipp"` is now in `extraComponents` too.
+- **`linkplay`** gets no code fix: core HA's `linkplay` integration fails to
+  complete setup against these Wiim Pro units regardless of the dependency
+  (see § Wiim below) — the community `wiim` integration already handles this
+  hardware correctly. Adding `linkplay`'s dependency would only trade this
+  `ModuleNotFoundError` for the `getMetaInfo` failure documented in § Wiim,
+  not fix anything.
+- **`ecobee`** gets no code fix: it's the *native cloud* ecobee integration,
+  a different code path from `hosts/reliant/home-assistant/
+  ecobee-climate.nix`, which already gets full local, no-cloud-account
+  control of both thermostats through `homekit_controller` (already in
+  `extraComponents`). The household doesn't want the cloud integration
+  running alongside the HomeKit-controlled entities the automations key off,
+  and ecobee suspended new developer-key signups regardless — moot even if
+  it were wanted. (dep, if this ever changes: `python-ecobee-api` — note this
+  differs from the PyPI/import name that surfaces in the journal error,
+  `pyecobee`.)
+- **`zha`** gets no code fix: it's a second, competing HA-facing Zigbee stack
+  for the same coordinator this household already committed to running as
+  Zigbee2MQTT (`custom.zigbee`, see § Zigbee below) — a real technical
+  conflict, not a preference. Only one stack can hold the coordinator's
+  serial port at a time.
+
+For the three with no code fix (`linkplay`, `ecobee`, `zha`), the actual
+resolution is a one-time action in the HA UI, not a Nix change and not
+"nothing to do here": **Settings → Devices & Services → find the
+discovered/failed card for that device → click it → Ignore.** This writes a
+real, permanent config entry into HA's own storage
+(`.storage/core.config_entries`, with `source: "ignore"`) that HA's discovery
+flow checks before ever offering that domain's config flow again for that
+specific discovered device — it survives reboots and isn't a log-suppression
+trick, it's the same category of one-time manual step as pairing a HomeKit
+accessory. Run it once per device (the Wiim speaker for `linkplay`, each
+ecobee thermostat for `ecobee`, the Zigbee coordinator for `zha`) and the
+`ModuleNotFoundError` for that device stops recurring for good. If a real
+intent to integrate any of these three ever exists (a coordinator switch away
+from Zigbee2MQTT, or a working native ecobee API key), add its dependency to
+`extraComponents` the same way as `cast`/`ipp` above, verifying the exact
+nixpkgs package name against `component-packages.nix` rather than guessing
+from the journal's import name.
 
 ### Geoff's Office AV: CEC handles volume, not power
 
