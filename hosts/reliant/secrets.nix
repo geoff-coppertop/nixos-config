@@ -82,5 +82,16 @@ _: {
       file = ../../secrets/hass/aqicn-token.age;
       owner = "hass";
     };
+
+    # ESPHome API encryption key for the ratgdo32 garage door controller.
+    # Owned by hass so the ESPHome integration's own config can read it
+    # directly, same as hass/aqicn-token above. Namespaced under esphome/
+    # rather than hass/ because the key is flashed into the physical board
+    # (docs/secrets.md § ESPHome device API keys), not tied to this HA
+    # instance.
+    "esphome/ratgdo32-api-key" = {
+      file = ../../secrets/esphome/ratgdo32-api-key.age;
+      owner = "hass";
+    };
   };
 }
