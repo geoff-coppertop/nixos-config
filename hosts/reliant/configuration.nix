@@ -107,6 +107,15 @@ in {
         # above) already fixed this exact getMetaInfo handling — see
         # hosts/reliant/README.md § Known Gotchas.
         "ssdp"
+        # cast: real Chromecast-capable device on the LAN triggers this via
+        # discovery — dependency confirmed as pychromecast against nixpkgs'
+        # component-packages.nix. See docs/smart-home.md § Discovery-flow
+        # ModuleNotFoundErrors.
+        "cast"
+        # ipp: real network printer on the LAN triggers this via discovery —
+        # dependency confirmed as pyipp against nixpkgs' component-packages.nix.
+        # See docs/smart-home.md § Discovery-flow ModuleNotFoundErrors.
+        "ipp"
         # mobile_app: required for the iOS/Android companion app to connect —
         # without it the app's error dialog reads "The mobile_app component is
         # not loaded" (Shared.HomeAssistantAPI.APIError, code 6).
