@@ -187,6 +187,19 @@ in {
 
   config = mkIf cfg.enable (mkMerge [
     {
+      # Not DynamicUser (services.lldap's own default): agenix chowns
+      # secrets to a named user during activation, before any systemd unit
+      # (and therefore before a DynamicUser's transient UID) exists --
+      # confirmed by a real switch failing with "chown: invalid user:
+      # lldap:0" against hosts/reliant/secrets.nix's `owner = "lldap"`
+      # entries. A static user makes that ownership deterministic, matching
+      # this repo's other agenix `owner = "<service>"` secrets.
+      users.groups.lldap = {};
+      users.users.lldap = {
+        isSystemUser = true;
+        group = "lldap";
+      };
+
       services.lldap = {
         enable = true;
         settings = {
@@ -203,6 +216,12 @@ in {
           force_ldap_user_pass_reset = "always";
           jwt_secret_file = cfg.jwtSecretFile;
         };
+      };
+
+      systemd.services.lldap.serviceConfig = {
+        DynamicUser = lib.mkForce false;
+        User = "lldap";
+        Group = "lldap";
       };
 
       systemd.services.lldap-bootstrap = {
