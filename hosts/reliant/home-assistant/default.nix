@@ -36,5 +36,6 @@
     ./outdoor-aqi.nix
     ./kids-wake-lights.nix
     ./appletv-av.nix
+    ./garage-door-open-alert.nix
   ];
 }

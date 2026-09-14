@@ -485,6 +485,61 @@ replaced, this whole derivation has to be redone from scratch for the new
 unit's own address/command bytes — nothing here is portable to different
 hardware, even another Yamaha model, without reverse-engineering it again.
 
+### Garage door open alert: notification only, two open gaps
+
+`hosts/reliant/home-assistant/garage-door-open-alert.nix` warns when the
+garage door has been left open too long. Notification only — it never closes
+or operates the door, and it is deliberately independent of the ratgdo32
+ESPHome garage door *controller* (a separate, in-progress feature on another
+branch): this uses its own physical contact sensor on the door, so the alert
+still works even if the ratgdo32 firmware/integration is unavailable.
+
+One periodic sweep automation covers both required thresholds rather than two
+separate automations bolted together: a `time_pattern` sweep (every 5
+minutes, same shape as `door-locks.nix`'s overnight lock sweep) checks how
+long the door has been continuously open
+(`now() - states(door).last_changed`, the same technique `door-locks.nix`
+uses for its lock hold-off) against whichever threshold currently applies —
+checked in this order so overnight takes priority on the overlap:
+
+1. **Overnight** (21:00-06:00, the same window `door-locks.nix` uses),
+   regardless of presence — 10 minutes. A garage door open at 2am is worth
+   flagging even with people home and asleep, since nobody's watching it.
+2. **Away** (`zone.home` `numeric_state` `below: 1`, the same presence
+   pattern `ecobee-climate.nix` uses), any time of day — 20 minutes, long
+   enough that loading the car right after everyone leaves doesn't
+   immediately alert.
+
+An `input_boolean` (`input_boolean.garage_door_open_alert_notified`) makes
+each opening alert exactly once rather than once per sweep, and is cleared
+(dismissing the notification too) when the door closes — the action
+dispatches on *which trigger fired* (sweep/startup vs. door-closed), the same
+`condition: trigger, id: [...]` pattern `presence-lighting.nix` uses, so the
+close-reset and the threshold checks can't race each other on the same
+event.
+
+**Two open gaps, deliberately not guessed shut:**
+
+- **The door sensor is not yet paired.** It's a real, owned physical
+  Zigbee/Z-Wave contact sensor, but has no entity_id yet — the file uses a
+  clearly-fake placeholder, `binary_sensor.PLACEHOLDER_garage_door_contact`,
+  for `garageDoorContact`. See `hosts/reliant/README.md` § Device Pairing
+  Notes for the pairing steps and the entity is assumed to follow the same
+  contract as the existing Utility Room Parasoll sensor
+  (`binary_sensor.utility_room_parasoll_contact` in `presence-lighting.nix`):
+  Zigbee2MQTT-bridged, `device_class: door`, `"on"` = open / `"off"` =
+  closed — confirm this against whatever device is actually paired, since it
+  might turn out to be Z-Wave instead. Verify the real entity_id with
+  `python3 tools/check_ha_entities.py reliant` after pairing before trusting
+  this automation.
+- **No real notify target.** This repo has no `notify.mobile_app_*` service
+  configured anywhere yet, so `notifyAction` in the file only calls
+  `persistent_notification.create` (built into HA core, no companion-app
+  dependency, fixed `notification_id` so repeat alerts replace rather than
+  pile up). Add a `notify.mobile_app_<device>` call alongside or instead of
+  it once the real service name is known (Settings > Devices & Services >
+  Mobile App, or Developer Tools > Actions searching "notify").
+
 ## Radio Networks
 
 ### Zigbee

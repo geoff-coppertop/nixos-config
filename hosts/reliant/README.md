@@ -131,6 +131,36 @@ onward (same as `enterprise-d`/`excelsior`).
   volume for that same AV chain in Geoff's Office goes through CEC instead (Apple TV
   Settings → Remotes and Devices → Volume Control → Auto), not through this
   integration.
+- **Garage door contact sensor (Zigbee or Z-Wave, not yet paired)** — a real,
+  owned physical door/window contact sensor for the garage door, referenced
+  by `home-assistant/garage-door-open-alert.nix` but **not yet paired** into
+  Home Assistant. This is a separate physical device from the ratgdo32
+  garage door *controller* (a different, in-progress feature on another
+  branch) — this sensor only reports open/closed, it doesn't operate the
+  door. Pairing steps depend on which radio the sensor actually uses:
+  - **Zigbee** (the likely case — matches the existing Parasoll contact
+    sensor pattern on the Utility Room door): put the Zigbee2MQTT coordinator
+    into pairing mode (Zigbee2MQTT web UI → "Permit join (All)", or the
+    `zigbee2mqtt/bridge/request/permit_join` MQTT topic), then trigger the
+    sensor's own pairing action per its manual (usually a reset-button press
+    sequence). It should appear in the Zigbee2MQTT UI and, from there, as a
+    `binary_sensor.*` entity in Home Assistant with `device_class: door`
+    (`"on"` = open, `"off"` = closed).
+  - **Z-Wave**: put the Z-Wave JS controller into inclusion mode (Z-Wave JS
+    UI → "Add Node" / inclusion), then trigger the sensor's own inclusion
+    action per its manual.
+  - Either way, after pairing: record the assigned entity_id, replace the
+    `garageDoorContact` placeholder
+    (`binary_sensor.PLACEHOLDER_garage_door_contact`) in
+    `home-assistant/garage-door-open-alert.nix` with it, and verify with
+    `python3 tools/check_ha_entities.py reliant` before trusting the
+    automation to fire.
+  - The automation's notification action also currently only uses
+    `persistent_notification.create` (built into HA core) — there is no
+    `notify.mobile_app_*` service name configured anywhere in this repo yet.
+    If a push notification is wanted, find the real service name (Settings →
+    Devices & Services → Mobile App, or Developer Tools → Actions searching
+    "notify") and add it to `notifyAction` in that file.
 
 ## Bambuddy (3D Printing)
 
