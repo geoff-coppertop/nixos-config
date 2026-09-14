@@ -28,17 +28,20 @@ buildHomeAssistantComponent rec {
     hash = "sha256-vwQDrMM4phbrXT85Syyz6hWEIhLB3TKNNTM04OdvNWk=";
   };
 
-  # manifest.json's own "requirements": aiofiles, jinja2, joserfc. jinja2 is
-  # already a hard dependency of Home Assistant core itself (its templating
-  # engine), so it isn't listed again here -- same convention
-  # home-assistant-wiim.nix follows for its own component's manifest deps.
-  # Both aiofiles and joserfc exist as ordinary top-level nixpkgs
-  # python-modules (pkgs/development/python-modules/{aiofiles,joserfc}),
-  # confirmed against nixpkgs' own tree, so they resolve directly off
-  # home-assistant.python3Packages without a hand-written package file (no
-  # pywiim-style gap here).
+  # manifest.json's own "requirements": aiofiles, jinja2, joserfc. Real build
+  # error corrected the assumption this comment originally made: jinja2
+  # being a hard dependency of Home Assistant core itself doesn't satisfy
+  # buildHomeAssistantComponent's own manifestCheckPhase, which verifies
+  # every manifest.json requirement against *this derivation's own*
+  # `dependencies`, not HA's eventual merged environment -- omitting it
+  # failed a real `nix build` with "jinja2 not installed". All three
+  # (aiofiles, jinja2, joserfc) exist as ordinary top-level nixpkgs
+  # python-modules, confirmed against nixpkgs' own tree, so they resolve
+  # directly off home-assistant.python3Packages without a hand-written
+  # package file (no pywiim-style gap here).
   dependencies = with home-assistant.python3Packages; [
     aiofiles
+    jinja2
     joserfc
   ];
 
