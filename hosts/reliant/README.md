@@ -271,6 +271,25 @@ slicing sidecar as a podman container. Host-specific notes:
   [docs/smart-home.md § Wiim](../../docs/smart-home.md#wiim-community-integration-not-core-linkplay).
   Tracked upstream at
   [home-assistant/core#145132](https://github.com/home-assistant/core/issues/145132).
+- **`journalctl` recurringly logs `homeassistant.components.{linkplay,cast,
+  ecobee,ipp,zha}: No module named '...'` every few minutes.** Confirmed
+  live: zeroconf/SSDP discovery (part of HA's always-on core bootstrap) keeps
+  finding real devices on the LAN — the Wiim speaker, a Chromecast-capable
+  device, the ecobee thermostats, a network printer — and offering each
+  one's core integration's config flow, which fails to import since none of
+  these five components' dependencies are in `extraComponents`. `linkplay`
+  is the case above (core `linkplay` doesn't work against this hardware
+  regardless of the dependency). The other four (`cast`, `ecobee`, `ipp`,
+  `zha`) were each evaluated and left unfixed on purpose, not missed: `zha`
+  would compete with the already-adopted Zigbee2MQTT setup for the same
+  coordinator; native `ecobee` is redundant with (and would compete with)
+  `ecobee-climate.nix`'s existing HomeKit-based control and isn't even
+  obtainable for a new setup since ecobee suspended developer-key signups;
+  neither `ipp` (printer) nor `cast` (casting) has any automation or other
+  reference anywhere in this repo asking for that integration. See
+  [docs/smart-home.md § Benign discovery-flow noise](../../docs/smart-home.md#benign-discovery-flow-noise-cast-ecobee-ipp-zha)
+  for the per-component reasoning. No fix applied; the log lines are expected
+  and safe to ignore.
 - **iOS companion app failed to connect with "The mobile_app component is not
   loaded."** `"mobile_app"` was already in `extraComponents`, which installs
   the package but doesn't cause HA to load it, and `mobile_app` has no "Add

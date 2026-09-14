@@ -378,7 +378,17 @@ are always added together.
 ### Wiim: community integration, not core `linkplay`
 
 Core HA's `linkplay` integration fails to complete setup against Wiim Pro
-units — confirmed live on `reliant`: its SSDP-discovery validation call,
+units, and `"linkplay"` is deliberately absent from `extraComponents` (see
+`hosts/reliant/configuration.nix`'s `# NOT "linkplay"` comment) as a result —
+which means the recurring journal line is `homeassistant.components.linkplay:
+No module named 'linkplay'`, a plain missing-dependency `ModuleNotFoundError`
+from zeroconf/SSDP discovery finding the Wiim speaker on the LAN and trying to
+offer core `linkplay`'s config flow for it, before ever reaching the
+`getMetaInfo` failure below. Adding `python-linkplay` to `extraComponents`
+would only trade this error for the `getMetaInfo` one — it would not make
+core `linkplay` work against this hardware — so it's left out on purpose;
+this log line is expected, benign noise, not a packaging gap to close.
+Confirmed live on `reliant`: its SSDP-discovery validation call,
 `getMetaInfo`, gets back the literal string `"Failed"` instead of JSON, which
 `json.loads()` can't parse (`Expecting value: line 1 column 1 (char 0)`). That
 exception aborts the config flow before it ever creates an integration entry
@@ -406,6 +416,66 @@ is packaged separately in `pkgs/pywiim.nix`, built against
 `home-assistant.python.pkgs` specifically (not the general `python3Packages`)
 so its transitive dependencies share Home Assistant's own Python environment
 rather than risking a second, conflicting copy.
+
+### Benign discovery-flow noise: `cast`, `ecobee`, `ipp`, `zha`
+
+`reliant`'s journal recurringly logs a `ModuleNotFoundError` for each of
+these four components (alongside `linkplay`, above), e.g.
+`homeassistant.components.zha: No module named 'zha'`. All four are HA core
+components whose Python dependency was never added to `extraComponents`, and
+zeroconf/SSDP discovery — part of HA's always-on core bootstrap, not
+something this repo configures — keeps finding a real device on the LAN and
+offering that device's core integration's config flow, which then fails to
+import. Each was evaluated and deliberately left unfixed, not missed:
+
+- **`zha`** (deps: `zha`, `zha-quirks`, plus several shared Bluetooth/Matter
+  packages already listed in `component-packages.nix`) would compete with the
+  Zigbee coordinator this household already committed to running as
+  Zigbee2MQTT (`custom.zigbee`, see § Zigbee below) — both are HA-facing
+  Zigbee stacks, and only one can hold the coordinator's serial port at a
+  time. Adding `zha`'s dependency just to silence a discovery-flow log line,
+  alongside an already-adopted Zigbee2MQTT setup, is exactly the kind of
+  unwanted heavy dependency `extraComponents` exists to opt integrations
+  *into* deliberately, not default in reactively.
+- **`ecobee`** (dep: `python-ecobee-api`) is the *native cloud* ecobee
+  integration — a different code path from `hosts/reliant/home-assistant/
+  ecobee-climate.nix`, which already gets full local control of both ecobee
+  thermostats through `homekit_controller` (already in `extraComponents`),
+  with no cloud account or API key. That file's own header notes ecobee
+  suspended new developer-key signups, so the native `ecobee` integration
+  isn't even obtainable for a new setup today — adding its dependency would
+  install a component that can't complete its own config flow (no API key to
+  give it), and if it ever did connect would compete with the
+  HomeKit-controlled climate entities the automations already key off. Left
+  unfixed.
+- **`ipp`** (dep: `pyipp`) and **`cast`** (dep: `pychromecast`, part of a much
+  larger dependency set shared with Matter/Bluetooth/Plex components in
+  `component-packages.nix`) are discovery hits for a real network printer and
+  a real Chromecast-capable device on the LAN, respectively. Neither has any
+  automation file, dashboard entity, or other reference anywhere in this
+  repo — nothing here has ever asked Home Assistant to manage a printer or a
+  cast target — so there's no underlying integration this household actually
+  wants to complete here. Left unfixed.
+
+None of these four is something `custom.home-assistant.extraComponents`
+should opt into reactively just because the log is noisy — that option is for
+integrations this household actually wants (see § Choosing `extraComponents`
+below); a recurring `ModuleNotFoundError` for a device nobody intends to
+integrate is expected and safe to ignore. Home Assistant's per-device
+"Ignore" action (Settings > Devices & Services > the discovered card's
+overflow menu) silences the specific discovered-device card in the UI without
+installing anything, but that's a runtime UI action tied to the device's own
+discovery-flow entry, not something `extraComponents` or any other Nix option
+can express — so it isn't done here either; the log line persisting is the
+accepted trade-off. If a real intent to integrate any of these four ever
+exists (a printer HA should monitor, a cast target HA should control, a
+coordinator switch away from Zigbee2MQTT, or a working native ecobee API
+key), add its dependency to `extraComponents` the same way as any other
+integration in § Choosing `extraComponents`, using the exact nixpkgs package
+name(s) from `component-packages.nix` for that component rather than a
+guessed PyPI name — `ecobee`'s own PyPI/import name (`pyecobee`, the name
+that surfaces in the journal error) differs from the nixpkgs package that
+actually provides it, `python-ecobee-api`.
 
 ### Geoff's Office AV: CEC handles volume, not power
 
