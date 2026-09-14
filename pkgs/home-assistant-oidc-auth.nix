@@ -23,14 +23,9 @@ buildHomeAssistantComponent rec {
     inherit owner;
     repo = "hass-oidc-auth";
     tag = "v${version}";
-    # PLACEHOLDER -- no local Nix toolchain was available in the sandbox this
-    # was written in to compute the real NAR hash (same situation
-    # pkgs/home-assistant-wiim.nix's own comment describes). Replace with the
-    # real sha256 reported by Nix's own hash-mismatch error from an actual
-    # `nixos-rebuild switch`/build attempt against this file before deploying
-    # -- this placeholder will fail the build otherwise, loudly, not
-    # silently.
-    hash = lib.fakeHash;
+    # Real NAR hash, from the hash-mismatch error a real `nix build` reported
+    # against the lib.fakeHash placeholder this was originally written with.
+    hash = "sha256-vwQDrMM4phbrXT85Syyz6hWEIhLB3TKNNTM04OdvNWk=";
   };
 
   # manifest.json's own "requirements": aiofiles, jinja2, joserfc. jinja2 is
