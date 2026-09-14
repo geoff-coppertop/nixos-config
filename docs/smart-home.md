@@ -407,6 +407,39 @@ is packaged separately in `pkgs/pywiim.nix`, built against
 so its transitive dependencies share Home Assistant's own Python environment
 rather than risking a second, conflicting copy.
 
+### ESPHome: config-flow only, key entered by hand
+
+`hosts/reliant/configuration.nix`'s `custom.home-assistant.extraComponents`
+lists `"esphome"` for the ratgdo32 garage door controller, the first ESPHome
+device in this repo. Confirmed against `home-assistant/core`'s
+`homeassistant/components/esphome/__init__.py` (`CONFIG_SCHEMA =
+cv.config_entry_only_config_schema(DOMAIN)`) and `config_flow.py`: like `hue`
+and `broadlink` above, `esphome` is not part of `default_config` and has no
+YAML schema at all for defining a device — the only way to add one is
+Settings > Devices & Services > Add Integration > ESPHome (zeroconf-discovered
+via `_esphomelib._tcp.local.`, same as the Broadlink RM4), which prompts for
+the device's API encryption key (`CONF_NOISE_PSK`) directly in the UI.
+
+This is a real difference from `outdoor-aqi.nix`'s `hass/aqicn-token`
+handling, not just a smaller version of the same pattern: `waqi` is also
+config-flow-only, but AQICN's underlying service is a plain HTTP API, so a
+generic `rest:` sensor with `!secret` sidesteps the gap entirely. ESPHome's
+native API is an encrypted, stateful protocol (`aioesphomeapi`/noise
+protocol) that only the `esphome` component itself speaks — there is no
+generic substitute to fall back to, so the key genuinely has no declarative
+path into Home Assistant. `secrets/esphome/ratgdo32-api-key.age`
+(`docs/secrets.md` § ESPHome device API keys) exists so the key is versioned
+and rotatable like any other secret, but its actual use is a human running
+`ssh reliant sudo cat /run/agenix/esphome/ratgdo32-api-key` and pasting the
+result into the config flow at pairing time — see
+`hosts/reliant/README.md` § Device Pairing Notes for the exact steps.
+
+As with every config-flow integration here, the entities this creates get
+HA-assigned IDs only once pairing actually happens; no automation should
+reference them until they're confirmed against the running instance (see
+§ Declarative automations § Verify entity IDs before writing them, and
+`tools/check_ha_entities.py`).
+
 ### Geoff's Office AV: CEC handles volume, not power
 
 The Apple TV in Geoff's Office (`media_player.apple_tv_geoff_s_office`) feeds a Yamaha

@@ -129,6 +129,15 @@ in {
         # for why both are needed, not just this list.
         "recorder"
         "history"
+        # esphome: backs the ratgdo32 garage door controller, the first
+        # ESPHome device in this repo. Config-flow only (confirmed against
+        # esphome/__init__.py: CONFIG_SCHEMA = cv.config_entry_only_config_schema),
+        # same "not in default_config, config-flow-only" gap as hue/broadlink
+        # above — see docs/smart-home.md § ESPHome. Zeroconf-discoverable
+        # (esphome/manifest.json's "zeroconf": ["_esphomelib._tcp.local."]),
+        # same as broadlink, so pairing is Settings > Devices & Services >
+        # Add Integration, not anything declared here.
+        "esphome"
       ];
       # Same secret/value as custom.adsb.locationEnvFile below — one home
       # address, reused rather than duplicated. Keeps zone.home (and the

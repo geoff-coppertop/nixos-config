@@ -131,6 +131,17 @@ onward (same as `enterprise-d`/`excelsior`).
   volume for that same AV chain in Geoff's Office goes through CEC instead (Apple TV
   Settings → Remotes and Devices → Volume Control → Auto), not through this
   integration.
+- **ratgdo32 (garage door controller, ESPHome)** — already flashed with
+  ESPHome firmware; this is HA-side pairing only. In HA → Settings → Devices
+  & Services → Add Integration → ESPHome, it should be discovered
+  automatically (zeroconf, `_esphomelib._tcp.local.`) — if not, enter its
+  hostname/IP by hand. When prompted for the encryption key, paste in the
+  value from `ssh thomasga@reliant.local sudo cat
+  /run/agenix/esphome/ratgdo32-api-key` — it is not spliced in by Nix (see
+  [docs/smart-home.md § ESPHome](../../docs/smart-home.md#esphome-config-flow-only-key-entered-by-hand)
+  for why). After pairing, record the assigned entity IDs here and verify
+  them with `tools/check_ha_entities.py reliant` before writing any
+  automation against them.
 
 ## Bambuddy (3D Printing)
 
