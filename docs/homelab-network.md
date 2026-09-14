@@ -142,8 +142,8 @@ systemd.services.bambuddy-bind-ip = {
   serviceConfig = {
     Type = "oneshot";
     RemainAfterExit = true;
-    ExecStart = "${pkgs.iproute2}/bin/ip addr replace 192.168.20.40/24 dev enp3s0 preferred_lft 0";
-    ExecStop = "-${pkgs.iproute2}/bin/ip addr del 192.168.20.40/24 dev enp3s0";
+    ExecStart = "${pkgs.iproute2}/bin/ip addr replace 192.168.20.31/24 dev enp3s0 preferred_lft 0";
+    ExecStop = "-${pkgs.iproute2}/bin/ip addr del 192.168.20.31/24 dev enp3s0";
   };
 };
 ```
@@ -153,7 +153,7 @@ The shape that does **not** work, and what it costs:
 ```nix
 networking.interfaces.enp3s0.ipv4.addresses = [
   {
-    address = "192.168.20.40";
+    address = "192.168.20.31";
     prefixLength = 24;
   }
 ];
@@ -228,7 +228,7 @@ break under `preferred_lft 0`, and needs a different answer.
 
 Pick the secondary address from **outside** the DHCP pool, or the server will
 eventually lease it to something else and you get an address conflict. On
-`reliant`'s iot network the pool is `.51`–`.254`, so `.40` is safe. The
+`reliant`'s iot network the pool is `.51`–`.254`, so `.31` is safe. The
 secondary IP is a plain host-specific fact (which subnet, which free
 address), not a reusable `custom.*` option — it belongs directly in the
 host's `configuration.nix`, not in a module.

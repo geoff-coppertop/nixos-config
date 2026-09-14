@@ -243,7 +243,7 @@ in {
           # there for why. The virtual printer needs an address of its own
           # because it wants ports (3000 in particular) that this host's
           # other services already hold on the primary address.
-          bindIp = "192.168.20.40";
+          bindIp = "192.168.20.31";
           # No accessCodeFile, deliberately, and this is not an omission:
           # upstream force-inherits the target printer's access code for any
           # non-proxy virtual printer that has a target, overwriting whatever
@@ -631,10 +631,10 @@ in {
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
-      ExecStart = "${pkgs.iproute2}/bin/ip addr replace 192.168.20.40/24 dev enp3s0 preferred_lft 0";
+      ExecStart = "${pkgs.iproute2}/bin/ip addr replace 192.168.20.31/24 dev enp3s0 preferred_lft 0";
       # Tolerates the address already being gone, so a stop during shutdown
       # or a re-switch never leaves the unit failed.
-      ExecStop = "-${pkgs.iproute2}/bin/ip addr del 192.168.20.40/24 dev enp3s0";
+      ExecStop = "-${pkgs.iproute2}/bin/ip addr del 192.168.20.31/24 dev enp3s0";
     };
   };
 

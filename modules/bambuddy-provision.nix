@@ -291,7 +291,7 @@ in {
             enabled = true;
             mode = "queue";
             model = "P2S";
-            bindIp = "192.168.20.40";
+            bindIp = "192.168.20.31";
             accessCodeFile = "/run/agenix/bambuddy/virtual-printer-access-code";
           }
         ]
