@@ -34,6 +34,70 @@ with "The mobile_app component is not loaded" if this entry is missing. A
 host still needs `"mobile_app"` in its own `extraComponents` too (that
 installs the package); the YAML entry here is what makes HA actually load it.
 
+### `extraPackages`: compiled acceleration libraries, not integrations
+
+`services.home-assistant.extraPackages` (set in this module, distinct from
+`extraComponents` above — it adds straight to the package's
+`propagatedBuildInputs` rather than selecting an HA integration) carries
+`python3Packages.isal` and `python3Packages.zlib-ng`. Both exist in nixpkgs
+(confirmed against `pkgs/development/python-modules/{isal,zlib-ng}/default.nix`
+at this flake's pinned revision) and are exactly what
+`aiohttp_fast_zlib` — a hard dependency of the `home-assistant` package
+itself, not something `extraComponents` controls — looks for at import time;
+without them it falls back to plain `zlib` and logs a "performance will be
+degraded" warning every boot. Purely a performance improvement, no behavior
+change.
+
+### Bluetooth: capabilities are already handled by nixpkgs, not this module
+
+`habluetooth.manager`'s "Missing NET_ADMIN/NET_RAW capabilities for
+Bluetooth management" error (investigated against
+[geoff-coppertop/nixos-config#170](https://github.com/geoff-coppertop/nixos-config/issues/170))
+is **not** fixed by adding capabilities here. nixpkgs' own
+`nixos/modules/services/home-automation/home-assistant.nix` already computes
+`serviceConfig.AmbientCapabilities`/`CapabilityBoundingSet` itself: it grants
+`CAP_NET_ADMIN`/`CAP_NET_RAW` whenever any component in its own
+`componentsUsingBluetooth` list is in use, and that list includes
+`homekit_controller` — which `reliant` already carries in
+`custom.home-assistant.extraComponents` for its two HomeKit-paired ecobee
+thermostats (see § Device Pairing Notes in `hosts/reliant/README.md`).
+Confirmed by reading that module's source directly at this flake's pinned
+nixpkgs revision, not guessed. Adding an explicit
+`AmbientCapabilities`/`CapabilityBoundingSet` override in this module would
+be redundant at best and, at worst, a second definition of the same
+`serviceConfig` keys nixpkgs' own module already sets — risking a
+conflicting-definition eval error rather than fixing anything.
+
+Reliant has no dedicated Bluetooth radio, and nothing here wants
+`habluetooth` to actually manage one — the capability grant exists solely
+because `homekit_controller`'s manifest pulls in HA's general Bluetooth
+subsystem regardless of whether the specific paired accessories use BLE or
+HAP-over-IP. See `hosts/reliant/README.md` § Known Gotchas for why the error
+may still appear live despite this (most likely an overdue redeploy, not a
+config gap) and the verification steps.
+
+### Sonos UPnP callbacks: a different port than HA's frontend
+
+The Sonos `"Subscription to <ip> failed, attempting to poll directly"`
+warning (also from
+[geoff-coppertop/nixos-config#170](https://github.com/geoff-coppertop/nixos-config/issues/170))
+traces to a real firewall misconfiguration, not an upstream bug. HA's
+`sonos` integration does not receive its UPnP `NOTIFY` event callbacks on
+its own frontend port — it delegates event handling entirely to the `soco`
+library's `events_asyncio` module, which starts its own separate embedded
+HTTP listener, defaulting to port 1400 (`soco/config.py`'s
+`EVENT_LISTENER_PORT`; confirmed against both `soco`'s and
+`home-assistant/core`'s source, and against this repo's own config having no
+`sonos:` YAML block that would override that default). A host-level firewall
+rule scoped to HA's frontend port therefore never actually opens the port
+Sonos speakers call back to. See `hosts/reliant/configuration.nix`'s
+`firewall.extraCommands` and `hosts/reliant/README.md`'s Known Gotchas /
+Ports table for the fix (opening 1400 alongside the pre-existing 8123 rule)
+and the full trace through both codebases. Any future host adding
+`custom.home-assistant.extraComponents = [ "sonos" ... ]` needs the same
+1400 rule, not just 8123, if its Sonos speakers live on a VLAN this narrowly
+scoped.
+
 ### HTTP config: no longer declarative
 
 `modules/home-assistant.nix` used to also set `config.http.trusted_proxies`
@@ -68,11 +132,14 @@ eval-time assertion failure ("no longer has any effect; please remove it").
 
 Deleting the line is a pure no-op here: it was already `false`, and `false`
 never added a firewall rule in the first place. The intended posture — HA's
-frontend port (8123) closed to everything except a narrow LAN carve-out for
-Sonos UPnP callbacks, with all other access going through Traefik — is
-unchanged and is carried entirely by `hosts/reliant/configuration.nix`'s
-`networking.firewall.extraCommands` iptables rule and the Traefik route
-registration in this module, both of which already hardcode `8123`. Since
+frontend port (8123) closed to everything except a narrow LAN carve-out,
+with all other access going through Traefik — is unchanged and is carried
+entirely by `hosts/reliant/configuration.nix`'s
+`networking.firewall.extraCommands` iptables rule(s) and the Traefik route
+registration in this module, both of which already hardcode `8123`. (That
+LAN carve-out was long believed to exist for Sonos UPnP callbacks; it
+doesn't actually serve that purpose — see § Sonos UPnP callbacks below for
+the real port those need.) Since
 nixpkgs can no longer discover the port at eval time, that hardcoding is now
 load-bearing rather than incidental: if HA's frontend port is ever changed
 from 8123, it has to be updated by hand in both of those places (see
