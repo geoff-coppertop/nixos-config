@@ -237,8 +237,7 @@ in {
         enable = true;
 
         secrets = {
-          jwtSecretFile = cfg.jwtSecretFile;
-          storageEncryptionKeyFile = cfg.storageEncryptionKeyFile;
+          inherit (cfg) jwtSecretFile storageEncryptionKeyFile;
         };
 
         # LDAP bind password: not one of nixpkgs' services.authelia.secrets
@@ -357,8 +356,7 @@ in {
     (mkIf config.custom.traefik.enable {
       services.traefik.dynamicConfigOptions.http = mkTraefikRoute {
         name = "authelia";
-        subdomain = cfg.subdomain;
-        port = cfg.port;
+        inherit (cfg) subdomain port;
         inherit domain;
       };
     })

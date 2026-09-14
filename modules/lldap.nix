@@ -242,7 +242,7 @@ in {
     (mkIf config.custom.traefik.enable {
       services.traefik.dynamicConfigOptions.http = mkTraefikRoute {
         name = "lldap";
-        subdomain = cfg.subdomain;
+        inherit (cfg) subdomain;
         port = cfg.httpPort;
         inherit (config.custom.traefik.acme) domain;
       };
