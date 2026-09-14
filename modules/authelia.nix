@@ -233,6 +233,21 @@ in {
         }
       ];
 
+      # Confirmed live on a real switch: authelia-main only depended on
+      # lldap.service being up, not on lldap-bootstrap.service having
+      # actually finished reconciling the "authelia" bind account it logs in
+      # with -- on a real deploy this raced and crash-looped twice
+      # ("connection refused" while lldap was still starting, then "Invalid
+      # Credentials" while bootstrap.sh was still mid-run) before systemd's
+      # restart policy got it up on the third try. Blocking on
+      # lldap-bootstrap.service explicitly (a "Type = oneshot" unit that
+      # only reports done once bootstrap.sh actually exits) removes the
+      # race instead of relying on Restart=on-failure to paper over it.
+      systemd.services.authelia-main = {
+        after = ["lldap-bootstrap.service"];
+        wants = ["lldap-bootstrap.service"];
+      };
+
       services.authelia.instances.main = {
         enable = true;
 

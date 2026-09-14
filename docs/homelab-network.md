@@ -716,12 +716,34 @@ and the automation-file conventions in that doc.
   system user — the agenix `owner` for that one secret needs to be
   `authelia-main`, not root or another service's user.
 - This entire lldap/Authelia design was written and reviewed without a
-  working `nix build` in the authoring environment (aarch64 `reliant`
-  cross-compiled from an environment with no `nix` binary at all) — every
-  config field, secret env var, and script interface above was checked
-  against the real pinned nixpkgs modules
+  working `nix build` in the authoring environment (`reliant` is
+  `x86_64-linux`; the authoring environment had no `nix` binary at all,
+  aarch64 or otherwise) — every config field, secret env var, and script
+  interface above was checked against the real pinned nixpkgs modules
   (`nixos/modules/services/databases/lldap.nix`,
   `nixos/modules/services/security/authelia.nix` at this repo's pinned
   `nixpkgs` revision) and upstream `lldap`/Authelia source and docs, not
   guessed, but the actual `nixos-rebuild switch`/`nix build` on `reliant`
-  itself is still the first real test of whether it all fits together.
+  itself was still the first real test of whether it all fits together —
+  see the two entries below for what that first real deploy found.
+- **Confirmed on the real first deploy**: `modules/lldap.nix`'s rewrite for
+  `reliant` (after `defiant`'s decommission) had dropped the static `lldap`
+  system user the original version declared, leaving `services.lldap` on
+  its default `DynamicUser`. `hosts/reliant/secrets.nix` still set
+  `owner = "lldap"` on two agenix secrets, and a real switch failed
+  activation outright with `chown: invalid user: 'lldap:0'` — agenix chowns
+  secrets to a named user during activation, before any systemd unit (and
+  therefore before a `DynamicUser`'s transient UID) exists. Fixed by
+  restoring the static user/group and forcing `DynamicUser = false`.
+- **Also confirmed live**: `authelia-main.service` only depended on
+  `lldap.service` being up, not on `lldap-bootstrap.service` having
+  actually finished reconciling the `authelia` bind account into lldap.
+  On the real first deploy this raced and crash-looped twice —
+  `connection refused` while lldap was still starting, then
+  `LDAP Result Code 49 "Invalid Credentials"` while `bootstrap.sh` was
+  still mid-run creating that very account — before systemd's
+  `Restart=on-failure` got it up on the third attempt. `modules/authelia.nix`
+  now blocks `authelia-main.service` on `lldap-bootstrap.service`
+  explicitly (a `Type = oneshot` unit that only reports done once
+  `bootstrap.sh` actually exits) instead of relying on the restart policy
+  to paper over the race.
