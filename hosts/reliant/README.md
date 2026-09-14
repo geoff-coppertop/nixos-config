@@ -84,14 +84,14 @@ for the full design.
   (`home-assistant/oidc-client-secret`) and the real package hash for the
   `hass-oidc-auth` HACS component, both listed in § Secrets and § Known
   Gotchas below.
-- **TODO: real household lldap accounts.** `custom.lldap.bootstrap.users`
-  today only has Authelia's own LDAP bind service account
-  (`authelia`, in the built-in `lldap_strict_readonly` group). Adding a real
-  person's account: append an entry to
-  `hosts/reliant/configuration.nix`'s `custom.lldap.bootstrap.users`, with
-  `passwordFile` left `null` for an account whose password should be set by
-  hand afterward through lldap's own UI (`ad.coppertop.ca`) rather than
-  declaratively.
+- **`thomasga` (Geoffrey Thomas) has a real lldap account** —
+  `custom.lldap.bootstrap.users` in `hosts/reliant/configuration.nix`, no
+  `passwordFile` (set by hand through lldap's own UI, `ad.coppertop.ca`, on
+  first login, not declaratively). To add another household member: append
+  another entry the same way. Registering TOTP/WebAuthn 2FA with Authelia
+  is also a self-service, one-time UI step (Authelia's own portal,
+  `auth.coppertop.ca`, prompts for it on first login) — not something this
+  repo can pre-provision.
 - **TODO: password-reset email.** No SMTP notifier is configured — Authelia's
   password-reset/notification emails currently just write to a local file
   (`/var/lib/authelia-main/notification.txt`) instead of being sent anywhere.

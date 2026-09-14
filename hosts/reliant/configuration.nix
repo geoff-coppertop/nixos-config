@@ -412,6 +412,19 @@ in {
             groups = ["lldap_strict_readonly"];
             passwordFile = "/run/agenix/authelia/ldap-bind-password";
           }
+          {
+            id = "thomasga";
+            email = "geoff.coppertop@gmail.com";
+            displayName = "Geoffrey Thomas";
+            firstName = "Geoffrey";
+            lastName = "Thomas";
+            # No passwordFile -- a real household account sets its own
+            # password through lldap's own UI (ad.coppertop.ca) on first
+            # login, not declaratively. See the account-shape comment at
+            # the top of this list's option description
+            # (modules/lldap.nix's userSubmodule.passwordFile).
+            groups = [];
+          }
         ];
       };
     };
