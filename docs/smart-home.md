@@ -360,6 +360,16 @@ even though the UI lists "Hue" as an option regardless. Note that some
 integrations are distinct platforms needing their own entry — `google_translate`
 is separate from the core `tts` component, for instance.
 
+`bmw_connected_drive` (backing vehicle sensor/`device_tracker` entities —
+fuel/charge level, odometer, location, lock status, etc.) is the same
+config-flow-only shape as `hue`/`broadlink`/`sonos`/`homekit_controller`/
+`apple_tv`/`matter` above: it's in `component-packages.nix`, so it only needs
+the `extraComponents` entry, and credentials (BMW/MINI ConnectedDrive account)
+are entered via Settings > Devices & Services > Add Integration — no agenix
+secret. Scope on `reliant` is currently sensors/tracker only, no automations;
+`zone.home` (already used by `hosts/reliant/home-assistant/ecobee-climate.nix`)
+is available if a future "car is home/away" automation is added.
+
 Some components additionally need an explicit YAML block in
 `modules/home-assistant.nix`'s `services.home-assistant.config`, the same as
 `sun`/`mobile_app` there: NixOS's home-assistant module has its own fixed

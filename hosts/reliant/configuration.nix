@@ -97,6 +97,14 @@ in {
         # Not part of default_config — same "config-flow-only" gap as "hue"
         # above, see docs/smart-home.md § Choosing extraComponents.
         "broadlink"
+        # bmw_connected_drive: exposes vehicle sensor/device_tracker entities
+        # (fuel/charge level, odometer, location, lock status, etc.) via the
+        # bimmer_connected library. Config-flow-only, same handling as hue/
+        # broadlink above — credentials entered via Settings > Devices &
+        # Services > Add Integration, no agenix secret. Sensors/tracker only
+        # for now, no automations yet — see docs/smart-home.md § Choosing
+        # extraComponents.
+        "bmw_connected_drive"
         # NOT "linkplay": core HA's linkplay integration fails to set up
         # against these Wiim Pro units specifically — confirmed live,
         # getMetaInfo returns the literal string "Failed" instead of JSON
