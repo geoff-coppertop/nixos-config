@@ -183,28 +183,30 @@
                   type = "section";
                   label = "Indoor";
                 }
-                # Read from the ecobees' own SmartSensors, not the
-                # thermostats' climate entities — each physically-placed
-                # sensor reports air quality independently, so this lists
-                # rooms rather than the two HVAC zones above.
+                # IKEA STARKVIND air purifiers, paired via Zigbee2MQTT/HA UI
+                # (not declared anywhere in this repo). Each device exposes
+                # both an `air_quality` word-value entity (good/moderate/
+                # poor) and a numeric `pm25` entity; read the latter so this
+                # card shows an actual PM2.5 concentration per room rather
+                # than a qualitative word.
                 {
-                  entity = "sensor.dining_room_air_quality";
+                  entity = "sensor.dining_room_pm25";
                   name = "Dining room";
                 }
                 {
-                  entity = "sensor.master_bedroom_air_quality";
+                  entity = "sensor.master_bedroom_pm25";
                   name = "Master bedroom";
                 }
                 {
-                  entity = "sensor.upstairs_living_room_air_quality";
+                  entity = "sensor.upstairs_living_room_pm25";
                   name = "Upstairs living room";
                 }
                 {
-                  entity = "sensor.basement_living_room_air_quality";
+                  entity = "sensor.basement_living_room_pm25";
                   name = "Basement living room";
                 }
                 {
-                  entity = "sensor.geoff_s_office_air_quality";
+                  entity = "sensor.geoff_s_office_pm25";
                   name = "Geoff's Office";
                 }
                 {
