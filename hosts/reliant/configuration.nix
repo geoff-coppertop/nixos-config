@@ -54,6 +54,11 @@ in {
     # customComponents instead of extraComponents.
     home-assistant.customComponents = [
       (pkgs.callPackage ../../pkgs/home-assistant-wiim.nix {})
+      # hass-oidc-auth: the HACS component backing custom.home-assistant.oidc
+      # below (that option only renders the auth_oidc: configuration.yaml
+      # block; this is what actually installs the integration's Python
+      # package into HA's closure) -- see docs/smart-home.md § OIDC Login.
+      (pkgs.callPackage ../../pkgs/home-assistant-oidc-auth.nix {})
     ];
   };
 
@@ -170,6 +175,29 @@ in {
       # met/weather forecast derived from it) in sync with this repo's own
       # coordinates instead of whatever was typed into onboarding by hand.
       locationEnvFile = "/run/agenix/location/coordinates";
+
+      # Real SSO via Authelia's OIDC provider (custom.authelia.oidc in
+      # modules/authelia.nix, homelab-network's module) instead of the
+      # forward-auth middleware every other gated subdomain uses -- HA
+      # already has its own real login, so forward-auth would just be a
+      # redundant second one. See docs/smart-home.md § OIDC Login and
+      # docs/homelab-network.md § OIDC Provider for the full design.
+      oidc = {
+        enable = true;
+        # clientId/discoveryUrl left at their defaults -- both already
+        # resolve correctly for this host (home-assistant, and
+        # auth.coppertop.ca's discovery URL composed from
+        # custom.authelia.subdomain/custom.traefik.acme.domain, both set
+        # below).
+        #
+        clientSecretFile = "/run/agenix/home-assistant/oidc-client-secret";
+        # Confirmed live: skips HA's own login page entirely and redirects
+        # straight to Authelia -- real SSO, not an extra button next to the
+        # local form. Local login stays reachable via
+        # https://home.coppertop.ca/?skip_oidc_redirect=true if Authelia is
+        # ever down.
+        defaultRedirect = true;
+      };
     };
 
     mqtt.enable = true;
@@ -322,6 +350,30 @@ in {
           # Regenerated on demand; nothing but a font cache.
           excludePatterns = ["/var/lib/bambuddy/matplotlib"];
         };
+        # lldap's own SQLite database (users/groups/group memberships) --
+        # real state, not reconstructible from custom.lldap.bootstrap alone
+        # (household accounts with a password set only through lldap's own
+        # UI would lose that password on a restore-from-nothing). Same
+        # no-existing-secret situation as bambuddy above: needs a new
+        # secrets/lldap/restic-password.age plus the matching age.secrets
+        # entry in hosts/reliant/secrets.nix, from secrets-warden.
+        lldap = {
+          enable = true;
+          paths = ["/var/lib/lldap"];
+          excludePatterns = [];
+        };
+        # Authelia's own SQLite database -- TOTP/WebAuthn registrations and
+        # active sessions live here, and TOTP/WebAuthn secrets specifically
+        # are not reconstructible at all (every user would have to re-enroll
+        # every 2FA device on a restore-from-nothing). Same
+        # no-existing-secret situation as lldap/bambuddy above: needs a new
+        # secrets/authelia/restic-password.age plus the matching age.secrets
+        # entry, from secrets-warden.
+        authelia = {
+          enable = true;
+          paths = ["/var/lib/authelia-main"];
+          excludePatterns = [];
+        };
       };
     };
 
@@ -344,7 +396,9 @@ in {
       # (AdGuard admin UI, DCS's webtop desktop, DCS on-demand control page,
       # Jellyfin, Automatic Ripping Machine, and tinyMediaManager
       # respectively), defined by hand below.
-      subdomains = ["home" "dns1" "dns2" "dcs" "dcs-control" "jellyfin" "rip" "library" "adsb" "zigbee" "bambuddy"];
+      # "ad" (lldap's own admin UI) and "auth" (Authelia's own portal) are
+      # self-registered by custom.lldap/custom.authelia below.
+      subdomains = ["home" "dns1" "dns2" "dcs" "dcs-control" "jellyfin" "rip" "library" "adsb" "zigbee" "bambuddy" "ad" "auth"];
       # Renamed from the module default "dns", carried from defiant — dns1
       # (this host) and dns2 (excelsior) pair the two AdGuard instances.
       adminSubdomain = "dns1";
@@ -362,6 +416,105 @@ in {
         # second one. See hosts/reliant/secrets.nix.
         environmentFile = "/run/agenix/traefik/cloudflare-api-token";
         domain = "coppertop.ca";
+      };
+    };
+
+    # lldap + Authelia: web-app SSO via Traefik forward-auth. Windows
+    # machine-login unification is explicitly out of scope (Samba AD DC
+    # rejected as too operationally heavy, pGina as poorly maintained); Linux
+    # machine-login unification via lldap+sssd is viable but a distinct,
+    # separate future item, not built here. See
+    # docs/homelab-network.md § Authelia Forward-Auth.
+    lldap = {
+      enable = true;
+      baseDn = "dc=coppertop,dc=ca";
+      adminPasswordFile = "/run/agenix/lldap/admin-password";
+      jwtSecretFile = "/run/agenix/lldap/jwt-secret";
+      # Only Authelia's own LDAP bind service account is populated for real
+      # here -- real household accounts are a documented TODO, see
+      # hosts/reliant/README.md § lldap.
+      bootstrap = {
+        groups = [];
+        users = [
+          {
+            id = "authelia";
+            email = "authelia@coppertop.ca";
+            displayName = "Authelia (service account)";
+            # lldap_strict_readonly is one of lldap's own built-in groups
+            # (never lldap_admin) -- Authelia only ever needs to read
+            # user/group attributes, not administer lldap itself. See
+            # modules/authelia.nix's ldap.bindDn description.
+            groups = ["lldap_strict_readonly"];
+            passwordFile = "/run/agenix/authelia/ldap-bind-password";
+          }
+          {
+            id = "thomasga";
+            email = "geoff.coppertop@gmail.com";
+            displayName = "Geoffrey Thomas";
+            firstName = "Geoffrey";
+            lastName = "Thomas";
+            # No passwordFile -- a real household account sets its own
+            # password through lldap's own UI (ad.coppertop.ca) on first
+            # login, not declaratively. See the account-shape comment at
+            # the top of this list's option description
+            # (modules/lldap.nix's userSubmodule.passwordFile).
+            groups = [];
+          }
+        ];
+      };
+    };
+
+    authelia = {
+      enable = true;
+      jwtSecretFile = "/run/agenix/authelia/jwt-secret";
+      storageEncryptionKeyFile = "/run/agenix/authelia/storage-encryption-key";
+      ldap.bindPasswordFile = "/run/agenix/authelia/ldap-bind-password";
+      # dns1/dns2 (AdGuard admin UIs), zigbee (Zigbee2MQTT), dcs (excelsior's
+      # DCS webtop desktop), dcs-control (excelsior's DCS start/stop control
+      # page -- NOT its /hooks webhook, see dcsControlHooks below), and
+      # bambuddy (the 3D-printer control UI) are gated by Authelia's
+      # forward-auth middleware -- none of them have a login of their own.
+      # home (Home Assistant) is deliberately NOT here: forward-auth is the
+      # wrong mechanism for a service with its own real login -- gating it
+      # this way would just add a redundant second login in front of HA's
+      # existing one, not real SSO. HA gets real SSO via the oidc block
+      # below instead (Authelia as an OIDC provider, HA as an OIDC client via
+      # the hass-oidc-auth HACS component) -- see
+      # docs/homelab-network.md § OIDC Provider, not a variant of
+      # this list. Several of the routers below are self-registered inside
+      # modules this file doesn't own (modules/zigbee.nix -- smart-home;
+      # modules/bambuddy.nix -- unowned by any specific domain) -- rather
+      # than edit those files, the authelia@file middleware is layered onto
+      # their existing routers below as a data overlay (Traefik's
+      # dynamicConfigOptions.http is a freeform type that deep-merges
+      # contributions from multiple files, the same mechanism the dns2
+      # router below already relies on), matching this repo's
+      # routing-boundary convention of not editing another domain's owned
+      # module for a same-shaped cross-domain need. Never lldap's own admin
+      # UI ("ad") or Authelia's own portal ("auth") -- see
+      # docs/homelab-network.md § Self-Lockout Rule.
+      protectedSubdomains = ["dns1" "dns2" "zigbee" "dcs" "dcs-control" "bambuddy"];
+
+      # Authelia as an OpenID Connect 1.0 provider, for Home Assistant's real
+      # SSO -- a separate capability from the forward-auth gate above, not a
+      # variant of protectedSubdomains (home.coppertop.ca is deliberately not
+      # on that list; see the comment there and
+      # docs/homelab-network.md § OIDC Provider). The HA side of this (the
+      # hass-oidc-auth HACS component, HA's own auth_oidc config block) is
+      # not this file's concern -- smart-home owns modules/home-assistant.nix
+      # and hosts/reliant/home-assistant/*.
+      oidc = {
+        enable = true;
+        issuerPrivateKeyFile = "/run/agenix/authelia/oidc-issuer-private-key";
+        hmacSecretFile = "/run/agenix/authelia/oidc-hmac-secret";
+        homeAssistant = {
+          enable = true;
+          # clientId/redirectUri left at their defaults ("home-assistant" /
+          # https://home.coppertop.ca/auth/oidc/callback) -- both already
+          # match this host's real values (home.coppertop.ca is
+          # modules/home-assistant.nix's hardcoded subdomain).
+          clientSecretHashFile = "/run/agenix/authelia/oidc-client-secret-home-assistant-hash";
+        };
       };
     };
 
@@ -390,18 +543,22 @@ in {
   # dcs.coppertop.ca: excelsior's DCS webtop desktop
   # (custom.dcsServer.desktopPort). A noVNC session, not an origin-checked
   # API like DCS's own WebGUI (custom.dcsServer.webGuiPort) — proxying it
-  # cross-host works fine (see the removed webGuiProxy note below). No auth
-  # middleware, same posture as dcs-control/dns2 below: the firewall
-  # restriction on excelsior's side is the only gate. Gets the bare "dcs"
-  # name because it's the one actually used day-to-day.
+  # cross-host works fine (see the removed webGuiProxy note below). Gets the
+  # authelia@file middleware (see custom.authelia.protectedSubdomains above)
+  # on top of the firewall restriction on excelsior's side. Gets the bare
+  # "dcs" name because it's the one actually used day-to-day.
   #
   # dcs-control.coppertop.ca: excelsior's on-demand DCS start/stop control
   # page + webhook (custom.dcsServer.control), cross-host and
-  # firewall-restricted to this host the same way as dns2 above, no Traefik
-  # auth yet. Starting/stopping a live session is a bigger blast radius than
-  # the read-only AdGuard panel, so this genuinely wants real auth sooner
-  # rather than later, but that's being done holistically across all these
-  # routers rather than one at a time — deliberately not added here yet.
+  # firewall-restricted to this host the same way as dns2 above. The
+  # human-facing control page (dcsControlPage) now gets the authelia@file
+  # middleware, same as dcsDesktop below -- starting/stopping a live session
+  # is a bigger blast radius than the read-only AdGuard panel. The /hooks
+  # webhook (dcsControlHooks) deliberately does NOT get the middleware: it's
+  # called machine-to-machine, not from a browser, and Authelia's
+  # forward-auth would redirect an unauthenticated caller to an HTML login
+  # page instead of the 401/200 a webhook caller expects, breaking whatever
+  # calls it.
   #
   # This used to also carry a same-origin reverse proxy for DCS's own
   # remote-control WebGUI (custom.dcsServer.webGuiProxy) — removed.
@@ -439,13 +596,26 @@ in {
         rule = "Host(`dns2.coppertop.ca`)";
         service = "dns2";
         tls = {};
+        # See custom.authelia.protectedSubdomains above -- excelsior's
+        # AdGuard admin UI gets the same forward-auth gate as this host's own
+        # (dns1, self-registered by modules/dns.nix).
+        middlewares = ["authelia@file"];
       };
+
+      # zigbee.nix is a smart-home-owned module that self-registers this
+      # router already (rule/service/tls) -- this only adds the middlewares
+      # key, via the same freeform deep-merge as dns2 above. See
+      # custom.authelia.protectedSubdomains's comment. homeassistant has no
+      # entry here -- see that same comment for why.
+      zigbee.middlewares = ["authelia@file"];
 
       dcsControlHooks = {
         rule = "Host(`dcs-control.coppertop.ca`) && PathPrefix(`/hooks`)";
         service = "dcsControlHooks";
         priority = 100;
         tls = {};
+        # Deliberately no authelia@file middleware -- see the comment above
+        # this routers block. Machine-to-machine webhook, not a browser.
       };
 
       dcsControlPage = {
@@ -453,13 +623,20 @@ in {
         service = "dcsControlPage";
         priority = 1;
         tls = {};
+        middlewares = ["authelia@file"];
       };
 
       dcsDesktop = {
         rule = "Host(`dcs.coppertop.ca`)";
         service = "dcsDesktop";
         tls = {};
+        middlewares = ["authelia@file"];
       };
+
+      # bambuddy.nix self-registers this router (rule/service/tls) the same
+      # way home-assistant.nix/zigbee.nix do above -- data overlay, not an
+      # edit to that module.
+      bambuddy.middlewares = ["authelia@file"];
 
       jellyfin = {
         rule = "Host(`jellyfin.coppertop.ca`)";

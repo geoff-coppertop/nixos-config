@@ -88,6 +88,36 @@ in {
   # server-settings.json via services.factorio.extraSettingsFile. excelsior
   # only — same single-host reasoning as the restic password above.
   "factorio/game-password.age".publicKeys = [excelsior offlineAdmin];
+  # lldap + Authelia SSO stack (hosts/reliant/configuration.nix's
+  # custom.lldap / custom.authelia). reliant only: unlike the zigbee/zwave/
+  # location secrets above, none of these are tied to physical hardware state
+  # or otherwise shareable — each one is specific to this one lldap/Authelia
+  # deployment's own database and issuer identity, so a second host running
+  # its own SSO stack would mint its own, not become a recipient of these.
+  "lldap/admin-password.age".publicKeys = [reliant offlineAdmin];
+  "lldap/jwt-secret.age".publicKeys = [reliant offlineAdmin];
+  "authelia/jwt-secret.age".publicKeys = [reliant offlineAdmin];
+  "authelia/storage-encryption-key.age".publicKeys = [reliant offlineAdmin];
+  # One file, two consumers on this same host — Authelia's own LDAP bind
+  # credential and the matching custom.lldap.bootstrap.users entry's
+  # passwordFile. Deliberately the same secret so lldap and Authelia cannot
+  # drift apart on it.
+  "authelia/ldap-bind-password.age".publicKeys = [reliant offlineAdmin];
+  # Job-keyed like every other restic password, but these two jobs
+  # (custom.backups.users.lldap / .authelia) only exist on reliant.
+  "lldap/restic-password.age".publicKeys = [reliant offlineAdmin];
+  "authelia/restic-password.age".publicKeys = [reliant offlineAdmin];
+  # Authelia's OIDC provider (custom.authelia.oidc) — the issuer signing key
+  # and HMAC secret are this instance's own identity as an OIDC issuer.
+  "authelia/oidc-issuer-private-key.age".publicKeys = [reliant offlineAdmin];
+  "authelia/oidc-hmac-secret.age".publicKeys = [reliant offlineAdmin];
+  # The two halves of one shared client secret, split across two files
+  # because Authelia only ever stores its pbkdf2-sha512 digest while Home
+  # Assistant needs the raw value. Generated together, once, by
+  # `authelia crypto hash generate pbkdf2 --variant sha512 --random` — see
+  # docs/secrets.md § Authelia OIDC (Home Assistant SSO).
+  "authelia/oidc-client-secret-home-assistant-hash.age".publicKeys = [reliant offlineAdmin];
+  "home-assistant/oidc-client-secret.age".publicKeys = [reliant offlineAdmin];
   # AQICN API token for the outdoor-AQI REST sensor in
   # hosts/reliant/home-assistant/climate-dashboard.nix — reliant only, not
   # shared with defiant like the hass/* secrets above, since reliant is the

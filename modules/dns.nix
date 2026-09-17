@@ -152,6 +152,14 @@ in {
         # move, breaking the admin UI with no error until someone noticed.
         port = config.services.adguardhome.port;
         inherit (config.custom.traefik.acme) domain;
+        # Opts into Authelia forward-auth iff this admin UI's own subdomain is
+        # listed in custom.authelia.protectedSubdomains -- see
+        # docs/homelab-network.md § Authelia Forward-Auth. Safe to reference
+        # config.custom.authelia unconditionally: modules/authelia.nix is
+        # always imported (modules/default.nix), so the option exists (and
+        # defaults to enable = false / protectedSubdomains = []) even on a
+        # host that never turns Authelia on.
+        middlewares = optional (config.custom.authelia.enable && builtins.elem cfg.adminSubdomain config.custom.authelia.protectedSubdomains) "authelia@file";
       };
     })
   ]);

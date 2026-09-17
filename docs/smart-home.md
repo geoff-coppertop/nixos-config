@@ -417,6 +417,100 @@ is packaged separately in `pkgs/pywiim.nix`, built against
 so its transitive dependencies share Home Assistant's own Python environment
 rather than risking a second, conflicting copy.
 
+### OIDC Login (Authelia SSO)
+
+Home Assistant deliberately does **not** sit behind the `authelia@file`
+forward-auth middleware that gates several other reliant subdomains
+(`dns1`, `dns2`, `zigbee`, `dcs`, `dcs-control`, `bambuddy`) — it already has
+its own real login, so forward-auth would just add a redundant second login
+screen in front of it, not actual SSO. Instead, Authelia also runs as an
+OpenID Connect 1.0 provider (`custom.authelia.oidc`,
+[docs/homelab-network.md § OIDC Provider](homelab-network.md#oidc-provider)
+— homelab-network's module and doc, not this one), and Home Assistant is
+registered as its one OIDC client. This section is the other half: making
+Home Assistant actually use it. See that doc for the provider-side design
+(the two provider-level secrets, the client registration, and why the raw
+client secret has to be generated outside this repo's Authelia config).
+
+`custom.home-assistant.oidc` (`modules/home-assistant.nix`):
+
+- `enable` renders hass-oidc-auth's `auth_oidc:` configuration.yaml block.
+  It does **not** install the component itself — see § HACS Components
+  below for that half.
+- `clientId` (default `home-assistant`) and `discoveryUrl` (default composed
+  from `custom.authelia.subdomain` and `custom.traefik.acme.domain`) both
+  have real, usable defaults, mirroring `custom.authelia.oidc.homeAssistant`'s
+  own defaults on the provider side — the two must agree, and matching
+  literal defaults on both sides is how that's kept true without one module
+  depending on the other's internals.
+- `clientSecretFile` — the one required value, and the one genuine
+  blocker: hass-oidc-auth's `auth_oidc.client_secret` needs the **raw**
+  shared secret, while Authelia's config only ever stores a pbkdf2-sha512
+  hash of it (see the homelab-network doc's client-secret explanation).
+  There is no existing secret for this — see hosts/reliant/README.md
+  § Secrets for exactly what `secrets-warden` needs to create.
+  Wired as an `EnvironmentFile` (read by systemd itself as root, same
+  mechanism as `locationEnvFile` above) exposed via HA's own `!env_var` YAML
+  tag as `HASS_OIDC_CLIENT_SECRET`, rather than hass-oidc-auth's own
+  documented `!secret`/`secrets.yaml` route — kept consistent with this
+  repo's one existing secret-wiring convention for `configuration.yaml`
+  instead of introducing a second one. Multiple `EnvironmentFile` entries
+  (this one and `locationEnvFile`'s) coexist because each is contributed as
+  a single-element list rather than a bare string — nixpkgs' systemd
+  freeform "unit option" type concat-merges list-valued definitions of the
+  same key instead of requiring separate definitions to be equal, which
+  only applies when every definition given is itself a list.
+
+- `defaultRedirect` (default `false`, `true` on `reliant`) — hass-oidc-auth's
+  `auth_oidc.features.default_redirect`. Without it, visiting
+  `home.coppertop.ca` shows HA's normal login page with an extra OIDC
+  button next to the local form — not real SSO, just an option. With it,
+  visiting the page skips straight to Authelia's login. Local login stays
+  reachable as a fallback via `?skip_oidc_redirect=true` on the login URL —
+  worth remembering before enabling this, since it's the only way back in
+  if Authelia is ever down.
+
+Config schema (`client_id`, `client_secret`, `discovery_url`, and the rest)
+confirmed directly against hass-oidc-auth's own
+[YAML Configuration Guide](https://github.com/christiaangoossens/hass-oidc-auth/blob/main/docs/configuration.md)
+and [Authelia provider guide](https://github.com/christiaangoossens/hass-oidc-auth/blob/main/docs/provider-configurations/authelia.md)
+— not guessed, and not the same field names as an earlier design pass might
+suggest (no `issuer`, no `redirect_uri` on HA's own side — hass-oidc-auth
+derives its callback from HA's own base URL and only Authelia's client
+registration needs the literal redirect URI).
+
+### HACS Components: `customComponents`, not a HACS runtime install
+
+hass-oidc-auth is HACS-distributed, third-party, and not part of Home
+Assistant core, so nixpkgs' `component-packages.nix` has no entry for it and
+`extraComponents` can't install it — the same gap `wiim` (above) already hit
+and solved. `pkgs/home-assistant-oidc-auth.nix` packages it the same way,
+via `buildHomeAssistantComponent`, wired in through
+`services.home-assistant.customComponents` in the host's `configuration.nix`
+rather than a HACS runtime install inside the running instance: this repo
+has no mechanism (and none is added here) for installing HACS itself or
+letting it manage components at runtime — every third-party Home Assistant
+integration in this repo is packaged declaratively this way instead, so a
+fresh install carries every custom component from first boot rather than
+depending on a manual HACS setup step post-install.
+
+Its `requirements` (manifest.json's `aiofiles`, `jinja2`, `joserfc`) are
+handled the same way `pywiim` was for `wiim`: `jinja2` is already a hard
+dependency of Home Assistant core itself, so it needs no entry; `aiofiles`
+and `joserfc` both already exist as ordinary top-level nixpkgs
+`python-modules` (confirmed against nixpkgs' own tree), so — unlike
+`pywiim`, which nixpkgs didn't have at all — they resolve directly off
+`home-assistant.python3Packages` with no separate package file needed.
+
+**Known gap**: `pkgs/home-assistant-oidc-auth.nix`'s `fetchFromGitHub` hash
+is a `lib.fakeHash` placeholder, not a real one — no local Nix toolchain was
+available to compute the real NAR hash when this was written (same
+situation `home-assistant-wiim.nix` was originally in). Before deploying,
+run a build once, let it fail on the hash mismatch, and copy the real
+`sha256-...` value from the error into `hash`, the same recovery step
+`docs/smart-home.md` § Matter's re-pin instructions use for the same class
+of problem.
+
 ### Discovery-flow `ModuleNotFoundError`s: `cast`, `ecobee`, `ipp`, `linkplay`, `zha`
 
 `reliant`'s journal recurringly logged a `ModuleNotFoundError` for each of
