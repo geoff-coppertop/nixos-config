@@ -23,7 +23,7 @@ Bringing up a machine is always two phases, and they are separate PRs:
 - **Phase 1 — Machine Provisioning** (this document, Steps 1-7 below): get the machine installed, on the network, reachable over SSH, and enrolled in backups and secrets. Nothing else.
 - **Phase 2 — Application Provisioning**: everything that makes the machine useful for a person or a service — desktop or dev capability, home-manager user environments, homelab or smart-home service modules. See [Phase 2 — Application Provisioning](#phase-2--application-provisioning) below.
 
-Phase 1 and Phase 2 are always separate PRs — never bundled together. Phase 2 work can start any time, including in parallel with Phase 1, but a Phase 2 PR must not merge before its Phase 1 PR has merged and the machine is confirmed up; Phase 2 assumes the machine is already up per the Phase 1 checklist. This keeps a new machine's first PR provably minimal: reviewable purely as "does this box boot, join the network, and back itself up," with no capability or service-module changes mixed in.
+Phase 2 work can start any time, including in parallel with Phase 1, but its PR must not merge before Phase 1 has merged and the machine is confirmed up — Phase 2 assumes the machine is already up. This keeps a new machine's first PR provably minimal: "does this box boot, join the network, and back itself up," with no capability or service-module changes mixed in.
 
 ## Phase 1 — Machine Provisioning
 
@@ -156,7 +156,7 @@ The LUKS passphrase you enter unlocks the disk whenever TPM auto-unlock is unava
 
 ## Step 6 — Enroll Secure Boot
 
-This repo uses lanzaboote in its manual mode: `modules/secure-boot.nix` sets `pkiBundle = "/etc/secureboot"` but does not set `boot.lanzaboote.autoGenerateKeys.enable` or `autoEnrollKeys.enable`, so nothing enrolls keys for you (verified against the pinned `lanzaboote` rev's own docs and source — `flake.nix`, currently `v1.1.0`).
+This repo uses lanzaboote in its manual mode: `modules/secure-boot.nix` sets `pkiBundle = "/etc/secureboot"` but not `boot.lanzaboote.autoGenerateKeys.enable`/`autoEnrollKeys.enable`, so nothing enrolls keys for you (per the pinned `lanzaboote` rev's docs and source — `flake.nix`, currently `v1.1.0`).
 
 1. Ensure the installed system has `/etc/secureboot` populated with your Secure Boot keys (`tools/install.py` does this at Step 5, via `sbctl create-keys`).
 2. Rebuild the system so lanzaboote signs the current generation's boot files, then check the signature:
@@ -167,8 +167,7 @@ This repo uses lanzaboote in its manual mode: `modules/secure-boot.nix` sets `pk
 
    Every file should show as signed except ones starting with `kernel-` — that one is expected to stay unsigned.
 
-3. **`sbctl` does not know where the keys are by default — point it there explicitly.** Only `autoGenerateKeys`/`autoEnrollKeys` make lanzaboote write `/etc/sbctl/sbctl.conf` (`nix/modules/lanzaboote.nix`: `environment.etc."sbctl/sbctl.conf" = lib.mkIf (cfg.autoGenerateKeys.enable
-   || cfg.autoEnrollKeys.enable) ...`). This repo sets neither, so that file never exists here, and a bare `sbctl` invocation silently falls back to its own default, `/var/lib/sbctl` — not `/etc/secureboot`, where this repo's keys actually live. Every `sbctl` command below needs `--config` pointed at a file with the right paths:
+3. **`sbctl` does not know where the keys are by default — point it there explicitly.** Only `autoGenerateKeys`/`autoEnrollKeys` make lanzaboote write `/etc/sbctl/sbctl.conf` (`nix/modules/lanzaboote.nix`: `environment.etc."sbctl/sbctl.conf" = lib.mkIf (cfg.autoGenerateKeys.enable || cfg.autoEnrollKeys.enable) ...`). This repo sets neither, so a bare `sbctl` invocation falls back to its own default, `/var/lib/sbctl` — not `/etc/secureboot`, where this repo's keys live. Every `sbctl` command below needs `--config` pointed at a file with the right paths:
 
    ```bash
    printf 'keydir: /etc/secureboot/keys\nguid: /etc/secureboot/GUID\n' | sudo tee /tmp/sbctl.conf
@@ -190,7 +189,7 @@ This repo uses lanzaboote in its manual mode: `modules/secure-boot.nix` sets `pk
    bootctl status | grep -i "secure boot"
    ```
 
-   Expect `Secure Boot: enabled (user)`. `enabled (setup)` means the firmware never left Setup Mode; `disabled` means the UEFI toggle itself is still off. Both read the same firmware `SecureBoot` EFI variable the lanzaboote UEFI stub checks at boot (`rust/uefi/stub/src/thin.rs`), so they can't disagree — a stub warning `Secure Boot is not active!` on boot means this command won't show `enabled (user)` either.
+   Expect `Secure Boot: enabled (user)`. `enabled (setup)` means the firmware never left Setup Mode; `disabled` means the UEFI toggle is still off. Both read the same firmware `SecureBoot` EFI variable the lanzaboote UEFI stub checks at boot, so a stub warning `Secure Boot is not active!` means this command won't show `enabled (user)` either.
 
 Keep copies of Secure Boot key material in a safe recovery location. Bitwarden is a reasonable place for the recovery instructions and escrowed material if that matches your threat model.
 
@@ -218,7 +217,7 @@ Each concern below is owned by one agent:
 - **Homelab reverse proxy and DNS** — Traefik, AdGuard, unbound: `homelab-network`, see [docs/homelab-network.md](homelab-network.md)
 - **Homelab appliance layer** — Home Assistant, Zigbee, Z-Wave, Matter, MQTT, ADS-B: `smart-home`, see [docs/smart-home.md](smart-home.md)
 
-Ownership is not the same as PR count. By default, open a separate PR per concern — that's what keeps an unrelated, independently timed change reviewable on its own. But when several of these concerns target the *same* new host as one coordinated migration happening in the same sitting (for example, bringing up both the DNS/Traefik and appliance layers on a replacement host at once), splitting them into separate PRs buys nothing: both are guaranteed to touch the same new files and conflict with each other on merge, for no independent-review benefit. In that case, combine them into one PR with each owning agent contributing its own section, and say so in the PR description. Default to splitting; combine only when the concerns are genuinely one coordinated change, not several unrelated ones that happen to land around the same time.
+Ownership is not the same as PR count. Default to a separate PR per concern — that keeps an unrelated, independently timed change reviewable on its own. But when several concerns target the *same* new host as one coordinated migration in the same sitting (e.g. bringing up DNS/Traefik and the appliance layer on a replacement host at once), splitting buys nothing — both touch the same new files and would just conflict on merge. Combine into one PR with each owning agent contributing its own section, and say so in the description.
 
 If a new host needs a genuinely new kind of module or profile that doesn't exist yet, that design question is `architect`'s, per [docs/architecture.md](architecture.md).
 
@@ -265,7 +264,7 @@ If the system does not auto-unlock at boot:
 
 ## SD-Card Hosts
 
-No current host uses `sd-card` provisioning — the aarch64 homelab server this path was built for (`defiant`) has been retired in favor of `reliant` (`x86_64-linux`, generic `disko` provisioning). The mechanism below is kept documented for a future aarch64 host, since the tooling (`tools/provision.py`, `tools/install.py`) is already generic and machine-name-parametrized, not tied to any specific host.
+No current host uses `sd-card` provisioning — the aarch64 homelab server this path was built for (`defiant`) has been retired in favor of `reliant` (`x86_64-linux`, generic `disko`). Kept documented for a future aarch64 host, since the tooling (`tools/provision.py`, `tools/install.py`) is already generic and machine-name-parametrized.
 
 Machine-specific facts (service URLs, pairing quirks) for a headless aarch64 host of this kind would live in that host's own README, following the pattern of `hosts/reliant/README.md`; the service architecture is documented in [docs/homelab-network.md](homelab-network.md).
 
@@ -278,7 +277,7 @@ nix run .#install
 # Select: <machine>
 ```
 
-This cross-compiles the SD image (several minutes), decompresses it, prompts for and confirms the target device before flashing, then installs `<machine>`'s age identity (`~/.config/agenix/<machine>.age`, generated during enrollment) onto the image so it can decrypt its secrets at first boot. It unmounts and powers off the device automatically when finished — safe to remove as soon as the tool exits, no manual eject needed.
+This cross-compiles the SD image (several minutes), decompresses it, prompts for and confirms the target device before flashing, then installs `<machine>`'s age identity (`~/.config/agenix/<machine>.age`, generated during enrollment) so it can decrypt its secrets at first boot. It unmounts and powers off the device automatically — safe to remove as soon as the tool exits.
 
 ### First boot and network setup
 
@@ -312,13 +311,13 @@ An SD card is fixed-size — unlike `enterprise-d`/`excelsior`'s NVMe/SSD, there
 ssh thomasga@<machine>.local "df -h /"
 ```
 
-Cap boot generations (`boot.loader.generic-extlinux-compatible.configurationLimit`) and this host's `custom.nix.gc.keepGenerations` override (a per-host override of `profiles/common/base.nix`'s option, shared default: 10) well below the default on a small card. `defiant`'s own 30G card needed both dropped to 3 before a full `nix-collect-garbage -d` (which also drops all old generations) reliably kept it under its ~23-24G floor — treat that as a per-host example to tune from, not a default to copy verbatim. Also consider scoping `nix.settings.min-free`/`max-free` to the host so a build or deploy triggers proactive GC mid-operation instead of failing outright. If `df -h` still shows the root partition nearly full, it's Nix store garbage (unreferenced paths, not kept generations): run `nix-collect-garbage -d` on the host, or wait for the nightly `nix-gc` timer.
+Cap boot generations (`boot.loader.generic-extlinux-compatible.configurationLimit`) and this host's `custom.nix.gc.keepGenerations` override (shared default: 10) well below the default on a small card. `defiant`'s own 30G card needed both dropped to 3 before a full `nix-collect-garbage -d` reliably kept it under its ~23-24G floor — a per-host example to tune from, not a default to copy verbatim. Also consider scoping `nix.settings.min-free`/`max-free` to the host so a build triggers proactive GC instead of failing outright. If `df -h` still shows the root partition nearly full, it's Nix store garbage: run `nix-collect-garbage -d`, or wait for the nightly `nix-gc` timer.
 
 If the host runs Zigbee2MQTT and/or Z-Wave JS, they start up using the keys created during enrollment — no further extraction step is needed.
 
 ## WSL Hosts (`holodeck-01`)
 
-Fresh WSL bootstrap is **not currently available**. `install.py`'s WSL flow (fetch NixOS-WSL, `wsl --import`, apply the flake) was pulled out of the Python tooling rewrite pending real validation — unlike the disko flow, it had never been run end to end. It will return in a follow-up once there is an environment to validate it against, or may not return at all if WSL usage here winds down as expected.
+Fresh WSL bootstrap is **not currently available**. `install.py`'s WSL flow (fetch NixOS-WSL, `wsl --import`, apply the flake) was pulled out of the Python tooling rewrite pending real validation — unlike the disko flow, it had never been run end to end. It returns in a follow-up once there's an environment to validate against, or not at all if WSL usage here winds down as expected.
 
 If you need to bootstrap a **new** WSL machine before that lands, ask first rather than reaching for old instructions — nothing in this repo currently automates it.
 

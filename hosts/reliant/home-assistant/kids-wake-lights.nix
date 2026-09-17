@@ -1,60 +1,40 @@
 # Home Assistant automation for reliant: Abigail's and Evelyn's Hue wake/sleep
 # lights.
 #
-# Very dim dark blue at bedtime (a low-disturbance "go to sleep" signal),
-# switching to bright neutral white for two hours after wake time (a "get up"
-# signal that then times out on its own to save power), off the rest of the
-# day. One concern (kids' room wake/sleep lighting) covering both rooms, so
-# both live in this one file rather than splitting per room.
+# Very dim dark blue at bedtime, switching to bright neutral white for two
+# hours after wake time (times out on its own to save power), off the rest
+# of the day. One concern covering both rooms, so both live in this file.
 #
-# Per-room wake times are adjustable from the Home Assistant UI (Settings >
-# Devices & Services > Helpers) without touching Nix or rebuilding —
-# input_datetime.<slug>_bedtime / _wake_weekday / _wake_weekend hold the
-# times the automations below trigger from, and
-# input_boolean.<slug>_wake_lights_enabled is the per-room on/off toggle.
+# Per-room wake times are adjustable from the HA UI (Settings > Devices &
+# Services > Helpers) with no Nix/rebuild needed —
+# input_datetime.<slug>_bedtime/_wake_weekday/_wake_weekend hold the trigger
+# times, and input_boolean.<slug>_wake_lights_enabled is the per-room toggle.
 #
-# The bulbs are Hue, paired to Home Assistant through the "hue" integration
-# (Philips Hue Bridge, discovered via the Integrations UI — a one-time manual
-# pairing step, not part of this repo, same as the existing HomeKit/Matter
-# pairings elsewhere in this directory; see README.md § Device Pairing Notes
-# once that entry exists for this bridge). "hue" is in
+# The bulbs are Hue, paired through the "hue" integration (one-time manual
+# pairing, not part of this repo). "hue" is in
 # custom.home-assistant.extraComponents in hosts/reliant/configuration.nix:
-# unlike homekit_controller/matter/sonos, it needs no *extra* extraComponents
-# entry to be *discovered* in the UI (HA's integration picker lists every
-# known integration regardless of what's installed), but selecting it without
-# the entry installed would fail importing its `aiohue` dependency the moment
-# the config flow actually runs — confirmed against nixpkgs'
-# component-packages.nix (pkgs/servers/home-assistant/component-packages.nix,
-# "hue" pulls in `aiohue`) and that "hue" is not part of HA's default_config
-# baseline. Added defensively per docs/smart-home.md § Choosing
-# extraComponents, same reasoning as mqtt/zwave_js there.
+# unlike homekit_controller/matter/sonos it needs no extra entry to be
+# *discovered* in the UI, but selecting it without the entry installed fails
+# importing its `aiohue` dependency the moment the config flow runs — "hue"
+# is not part of HA's default_config baseline. Added defensively per
+# docs/smart-home.md § Choosing extraComponents, same reasoning as
+# mqtt/zwave_js there.
 #
 # `lights` below are the real entity IDs, confirmed against reliant's live
 # entity registry with `tools/check_ha_entities.py reliant` after the Hue
-# bridge was paired. Nothing else here has been run against real hardware
-# yet.
+# bridge was paired. Nothing else here has been run against real hardware yet.
 #
-# Restart-resilient in the same spirit as presence-lighting.nix and
-# ecobee-climate.nix: a `homeassistant` start trigger re-derives which of the
-# three states (sleep / wake-bright / off) the current time of day falls
-# into from the room's own helpers, using a `choose` block, so a reboot
-# doesn't leave a room's lights stuck in whatever they were before the
-# restart. The sleep window wraps midnight (bedtime ~18:00 is later than
-# wake ~06:00-07:00), so the comparison template checks
-# `now < wake or now >= bedtime` rather than a plain `bedtime <= now < wake`
-# range. This is a best-effort re-assertion, not a full replay: after a
-# restart that lands inside what should be the two-hour bright window, the
-# startup branch turns the lights on bright but does not know how much of
-# that window has already elapsed, so it does not schedule the eventual
-# turn-off — that only happens via the wake automation's own `delay` when it
-# fires at the next scheduled wake time, same "known limitation" honesty
-# level as ecobee-climate.nix's header.
+# Restart-resilient like presence-lighting.nix and ecobee-climate.nix: a
+# `homeassistant` start trigger re-derives which of the three states (sleep /
+# wake-bright / off) the current time falls into via a `choose` block, so a
+# reboot doesn't leave lights stuck. The sleep window wraps midnight, so the
+# template checks `now < wake or now >= bedtime` rather than a plain range.
+# Known limitation, same as ecobee-climate.nix: a restart mid-bright-window
+# turns lights on bright but doesn't know how much of the window has
+# elapsed, so it doesn't schedule the eventual turn-off — that only happens
+# via the wake automation's own `delay` at the next scheduled wake time.
 #
-# Declared under the "automation manual" key (not bare "automation") so these
-# coexist with any UI-created automations, matching
-# services.home-assistant.configWritable = true. NixOS merges this list with
-# the "automation manual" lists in the sibling files under this directory
-# (see default.nix).
+# "automation manual" key, not bare "automation" — see default.nix.
 {lib, ...}: let
   rooms = [
     {

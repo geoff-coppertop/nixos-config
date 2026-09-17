@@ -1,138 +1,91 @@
 # Home Assistant automation for reliant: ecobee thermostat schedule.
 #
-# The ecobees connect through the HomeKit Controller integration
-# ("homekit_controller", already in extraComponents in configuration.nix for
-# the outside-light switches) — local Wi-Fi control, no ecobee cloud account
-# or API key. ecobee suspended new developer-key signups, so the cloud
-# `ecobee` integration isn't obtainable for a new setup; local HomeKit control
-# also keeps working through an internet outage.
+# The ecobees connect through the HomeKit Controller integration (local
+# Wi-Fi, no ecobee cloud account or API key — ecobee suspended new
+# developer-key signups, and local HomeKit control also survives an
+# internet outage).
 #
-# This is deliberately scoped to the hardware that actually exists today:
-# two heat-only zones, main/basement and upstairs. Two more zones are
-# planned but not installed — a garage thermostat (frost protection) and
-# an AC for upstairs (which would turn it into a real heat/cool zone) — and
-# will land as their own separate PRs once that hardware is actually in,
-# rather than as feature-flagged code with nothing behind it yet. Adding a
-# zone at that point means adding a new automation alongside these, not
-# touching the shared helpers below.
+# Scoped to the hardware that exists today: two heat-only zones,
+# main/basement and upstairs. A garage thermostat and an upstairs AC are
+# planned but not installed, and will land as their own PRs once that
+# hardware exists rather than as unused code now.
 #
-# Pairing is a one-time interactive step per thermostat (mDNS discovery + the
-# 8-digit HomeKit setup code shown on the thermostat's own screen) — see
-# README.md § Device Pairing Notes. Each thermostat's hold action must be set
-# to "Until I change it" so its own schedule never overrides the setpoint
-# these automations push; otherwise a stray built-in schedule transition
-# fights with HA every time they disagree. Home Assistant/HomeKit has no way
-# to set this remotely — HomeKit's thermostat spec has no hold-type
-# characteristic at all, confirmed against homekit_controller's own climate
-# platform source — so this stays a manual one-time step regardless of how
-# the automation is written.
+# Pairing is a one-time interactive step per thermostat (mDNS discovery +
+# the HomeKit setup code on its screen) — see README.md § Device Pairing
+# Notes. Each thermostat's hold action must be set to "Until I change it" so
+# its own schedule never overrides the setpoint these automations push —
+# HomeKit's thermostat spec has no hold-type characteristic at all, so this
+# stays a manual step regardless of how the automation is written.
 #
 # The entity IDs below are placeholders — HomeKit pairing assigns IDs from
-# each thermostat's device name, which won't match this list. Rename each
-# climate entity after pairing (entity cog → entity ID) to match here, or
-# edit this list to match reality and rebuild. Unlike outside-lights.nix /
-# door-locks.nix / presence-lighting.nix / sonos-wiim.nix, none of this has
-# been run against real hardware yet — nothing here is "confirmed live".
+# each thermostat's device name. Rename each climate entity after pairing to
+# match here, or edit this list to match reality. Nothing here has been run
+# against real hardware yet.
 #
-# main/basement (one thermostat covering both spaces) runs 2°C warmer than
-# upstairs during the day — independent absolute set points, not a delta
-# computed from upstairs' value, so neither zone's schedule depends on the
-# other's.
+# main/basement runs 2°C warmer than upstairs during the day — independent
+# absolute set points, not a delta from upstairs' value.
 #
 # Season: input_boolean.climate_summer_mode. climate_summer_mode_season_default
-# (below) sets it once at each boundary — on May 1, off October 1 — since
-# Alberta's shoulder seasons don't line up with a fixed date range closely
-# enough to enforce it continuously, and a hand-flip in between (an early
-# heat wave, a late cold snap) should stick rather than get fought back to
-# the calendar's opinion at the next check. Flipping it, by hand or by that
-# automation, re-evaluates and re-applies the schedule immediately, same as
-# a restart.
+# sets it once at each boundary (on May 1, off October 1), since Alberta's
+# shoulder seasons don't line up with a fixed date range closely enough to
+# enforce continuously — a hand-flip in between should stick rather than get
+# fought back at the next check. Flipping it re-applies the schedule
+# immediately, same as a restart.
 #
-# Each zone stores six independent set points: Day, Night, and Away, for
-# each of winter and summer — not shared across seasons, so switching
-# between them (by hand or at a boundary) never loses either season's
-# tuning. This replaced an earlier, asymmetric version (winter: separate
-# comfort/setback/away; summer: one shared floor covering day, night, and
-# away alike) once real use made the asymmetry confusing — "floor" and
-# "away" read as different concepts even where they held the same value,
-# and summer had no way to hold a different daytime target from its
-# night/away one even if that were ever wanted. Summer's own real-world
-# finding still applies and is just as expressible now: the original
-# version's daytime summer target (before there was a separate one at all)
-# heated the house to 21-23°C on a warm day for no reason, so summer's
-# seeded defaults below start day/night/away all equal to the old shared
-# floor value per zone — this redesign changes what's adjustable, not the
-# behavior on the day it deploys. All twelve set points (six per zone) are
-# input_number helpers rather than fixed constants — see liveTemp — so
-# they're adjustable from the dashboard without a redeploy. hvac_mode
-# "off" was considered instead of an active summer target, but this house
-# does get occasional summer cold spells — an active low target still
-# protects against those, where "off" wouldn't. That's also why every
-# branch below is an explicit action, not just skipping the automation:
-# leaving the previous setpoint in place would still let a heat-mode
-# thermostat heat back up to whatever it was holding before.
+# Each zone stores six independent set points — Day, Night, Away for each of
+# winter and summer — not shared across seasons, so switching never loses
+# either season's tuning. Summer's own seeded defaults start day/night/away
+# all equal to the old shared "floor" value per zone; an earlier version's
+# daytime summer target heated the house to 21-23°C on a warm day for no
+# reason. All twelve set points are input_number helpers (see liveTemp), so
+# they're adjustable from the dashboard with no redeploy. hvac_mode "off"
+# was considered instead of an active summer target, but this house does get
+# occasional summer cold spells, so an active low target protects against
+# those where "off" wouldn't — every branch below is an explicit action for
+# the same reason: leaving the previous setpoint would let a heat-mode
+# thermostat heat back up to whatever it held before.
 #
 # Each zone also reasserts hvac_mode "heat" alongside every setpoint, not
-# just temperature — confirmed live that this file never called
-# set_hvac_mode at all originally, so an external mode change (upstairs was
-# found switched to "off" with no override active and no explanation)
-# could never self-correct. Composes with the override timer below: a
-# manual mode change still starts that zone's 2-hour override, so this only
-# reasserts once it elapses.
+# just temperature: an earlier version never called set_hvac_mode at all, so
+# an external mode change (upstairs found switched to "off" with no
+# explanation) could never self-correct. Composes with the override timer
+# below — a manual mode change still starts that zone's 2-hour override, so
+# this only reasserts once it elapses.
 #
-# Restart-resilient in the same spirit as presence-lighting.nix: each zone
-# is one automation re-evaluating a single `choose` block of "what should
-# this zone be doing right now" against several triggers (schedule times,
-# presence edges, the season toggle flipping, that zone's manual-override
-# timer elapsing, and Home Assistant startup) rather than one automation per
-# transition. `choose` evaluates branches in order and stops at the first
-# match, so branch order encodes priority — see mkHeatOnlyZone below.
+# Restart-resilient like presence-lighting.nix: each zone is one automation
+# re-evaluating a single `choose` block of "what should this zone be doing
+# right now" against several triggers (schedule times, presence edges, the
+# season toggle, override-timer elapsing, HA startup) rather than one
+# automation per transition. `choose` evaluates branches in order and stops
+# at the first match, so branch order encodes priority — see mkHeatOnlyZone.
 #
 # Manual override: a human changing a thermostat's target temperature or
-# mode — at the unit, in the ecobee app, or via HomeKit/Home Assistant
-# itself — starts a 2-hour per-zone timer
-# (timer.climate_override_main_and_basement / _upstairs) and suppresses
-# that zone's comfort/setback branches until it elapses, so the schedule
-# doesn't fight a deliberate change a few minutes after it's made. The away
+# mode (at the unit, the ecobee app, or HomeKit/HA itself) starts a 2-hour
+# per-zone timer (timer.climate_override_main_and_basement/_upstairs) and
+# suppresses that zone's comfort/setback branches until it elapses, so the
+# schedule doesn't fight a deliberate change made minutes earlier. The away
 # branches are deliberately NOT gated by it — an empty house should still
-# save energy even if a hold was left active.
+# save energy even with a hold active.
 #
 # Detection compares the incoming state against a per-zone "last commanded"
-# snapshot (input_text.climate_last_commanded_*, "<hvac_mode>|<temperature>"),
-# not context — two things this file already tried and both failed for the
-# same underlying reason. context.user_id is only set for a service call
-# issued directly by a logged-in HA user through the frontend/API, so it was
-# null both for this file's own calls and for an externally-pushed state.
-# context.parent_id looked right (HA's automation engine does set it to the
-# triggering run's context ID for every service call an automation makes)
-# and tested fine against a real external change — but confirmed against
-# homekit_controller's own climate platform source: its
-# async_set_temperature/async_set_hvac_mode only send the HomeKit command
-# and return; the entity's actual state write happens later, from a
-# separate callback triggered by the thermostat pushing a
-# characteristic-changed notification back, running outside the original
-# service call entirely. That callback's state write gets a fresh context
-# with no parent regardless of who caused the underlying change — so
-# parent_id was none both for a person's change AND for this file's own
-# setTemp calls, once the resulting push-back actually arrived. Confirmed
-# live: right after a deploy that changed the standby floor, both zones'
-# override timers started simultaneously, from mkHeatOnlyZone's own startup
-# trigger re-asserting the new setpoint. Comparing by value instead of
-# context sidesteps the problem entirely: setTemp records what it just
-# commanded before the HomeKit round-trip even starts, so by the time the
-# real state change arrives — from this file or from anywhere else — it's
-# either an exact match (ours) or it isn't (someone else's).
+# snapshot (input_text.climate_last_commanded_*), not context. Two context-
+# based approaches were tried and failed for the same reason: context.user_id
+# is only set for a logged-in-user service call, so it was null for both this
+# file's calls and external pushes; context.parent_id looked right (HA's
+# automation engine sets it on every service call an automation makes), but
+# homekit_controller's climate platform only sends the HomeKit command and
+# returns — the entity's actual state write happens later, from a separate
+# callback with a fresh context and no parent, regardless of who caused the
+# change. Comparing by value sidesteps this: setTemp records what it just
+# commanded before the HomeKit round-trip starts, so the real state change
+# arriving later is either an exact match (ours) or it isn't (someone else's).
 #
 # notLastCommanded also requires a real prior state (not none/unavailable/
-# unknown) before treating a mismatch as external. Confirmed live: without
-# that guard, restarting HA still started the override immediately and
-# incorrectly — the climate entity's transition from unavailable to its
-# last real state, as homekit_controller reconnects, looks exactly like an
-# unexplained external change (nothing's in last-commanded yet on a fresh
-# boot), and since it isn't guaranteed to lose the race against the
-# schedule's own startup-triggered correction, it could win and lock the
-# schedule out of applying anything correct for the full 2 hours. A restart
-# is the entity coming back online, not a person acting on it.
+# unknown) before treating a mismatch as external — without that guard, an HA
+# restart started the override immediately and incorrectly, since the
+# climate entity's transition from unavailable to its last real state (as
+# homekit_controller reconnects) looks exactly like an unexplained external
+# change on a fresh boot with nothing yet in last-commanded.
 {
   services.home-assistant.config = {
     timer = {

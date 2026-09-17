@@ -33,7 +33,7 @@ The repo is split by responsibility:
 | `modules/` | yes | by every host, whole | none until its option is set |
 | `profiles/` | no | per host, by name | immediate |
 
-There is deliberately no `profiles/default.nix` aggregating every profile the way `modules/default.nix` aggregates every module. Importing all modules is safe because each module contributes nothing to a host that has not set its options. The `modules-inert` flake check (`lib/module-inertness.nix`) enforces that: it applies every module to a probe host with no `custom.*` set and fails any whose `config` isn't inert. Importing all profiles would not be safe, because profiles apply config on import — an aggregator would apply every profile to whichever host imported it, and adding a profile would change that host without anyone choosing to. "Profile" is NixOS's own term for a preset bundle of settings; see `nixpkgs/nixos/modules/profiles/`. "Role" is not a NixOS concept and this repo no longer uses it.
+There is deliberately no `profiles/default.nix` aggregating every profile the way `modules/default.nix` aggregates every module. Importing all modules is safe because each contributes nothing to a host that hasn't set its options — the `modules-inert` flake check (`lib/module-inertness.nix`) enforces this by applying every module to a probe host with no `custom.*` set and failing any whose `config` isn't inert. Importing all profiles would not be safe, since profiles apply config on import — an aggregator would apply every profile to whichever host imported it, changing that host without anyone choosing to. "Profile" is NixOS's own term for a preset bundle of settings; "role" is not a NixOS concept and this repo no longer uses it.
 
 ## Placement Rule
 
@@ -86,7 +86,7 @@ localFile = import ../../lib/local-file.nix;
 
 ### Why
 
-Nix copies this flake's whole local source (`self`) into the store as **one** content-addressed unit before evaluation begins. A bare relative path literal inside that tree — `./files/face.png` — resolves to a *subpath* of that single copy, not to an independently-hashed copy of just that file. Coercing the literal to a string or store path therefore yields a value carrying the whole-repo hash:
+Nix copies this flake's whole local source (`self`) into the store as **one** content-addressed unit before evaluation begins. A bare relative path literal inside that tree — `./files/face.png` — resolves to a *subpath* of that single copy, not an independently-hashed copy of just that file, so coercing it to a string or store path yields a value carrying the whole-repo hash:
 
 - `toString ./file`
 - `${./file}` interpolated into a derivation builder script

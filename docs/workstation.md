@@ -2,7 +2,7 @@
 
 What a workstation-class machine provides: a graphical environment (`profiles/desktop/`) and a development toolchain (`profiles/dev/`), plus the system modules backing them.
 
-This is machine capability, not personal preference — it is what the host *can do*, decided when the machine is defined. `hosts/reliant/configuration.nix` not importing `profiles/desktop` is that decision in action. A person's own settings on top — theme, wallpaper, which optional apps they install — are [docs/desktop.md](desktop.md). The layering rule is [docs/architecture.md § Placement Rule](architecture.md#placement-rule).
+This is machine capability, not personal preference — what the host *can do*, decided when the machine is defined (`hosts/reliant/configuration.nix` not importing `profiles/desktop` is that decision in action). A person's own settings on top — theme, wallpaper, optional apps — are [docs/desktop.md](desktop.md). Layering rule: [docs/architecture.md § Placement Rule](architecture.md#placement-rule).
 
 ## What `profiles/desktop/` Provides
 
@@ -36,14 +36,14 @@ Pruning default desktop applications belongs here, not in per-user config — ty
 
 `profiles/dev/containers.nix` runs Podman with `dockerCompat`, so tooling that shells out to `docker` — notably the VS Code devcontainer CLI — works unmodified. Four settings there are load-bearing and were each set against a real failure:
 
-- **`slirp4netns` instead of pasta for rootless networking.** Podman 5.0 made pasta the rootless default, but pasta clones the host's primary outbound interface into the container netns, which breaks on dual-homed hosts (here Wi-Fi plus USB-C ethernet on the same `/24`): NetworkManager installs the kernel prefix route on only one interface, the container sees the other in isolation, and ends up with no reachable gateway. `slirp4netns` NATs through a private subnet and is host-config-agnostic. Needs both `extraPackages` and `network.default_rootless_network_cmd` — the package alone does nothing.
-- **`localhost` first in `registries.search`.** Podman must resolve locally-built images (tagged `localhost/<name>`) before querying external registries. Without it, the devcontainer `updateRemoteUserUID` build step triggers Podman's interactive short-name disambiguation prompt, because it passes a bare image name in its `FROM` that matches no local image exactly.
+- **`slirp4netns` instead of pasta for rootless networking.** Podman 5.0 made pasta the rootless default, but pasta clones the host's primary outbound interface into the container netns, which breaks on dual-homed hosts (here, Wi-Fi plus USB-C ethernet on the same `/24`): NetworkManager installs the kernel prefix route on only one interface, so the container sees the other in isolation with no reachable gateway. `slirp4netns` NATs through a private subnet instead and is host-config-agnostic. Needs both `extraPackages` and `network.default_rootless_network_cmd` — the package alone does nothing.
+- **`localhost` first in `registries.search`.** Podman must resolve locally-built images (`localhost/<name>`) before querying external registries, or the devcontainer `updateRemoteUserUID` build step triggers Podman's interactive short-name disambiguation prompt (its `FROM` passes a bare image name matching no local image exactly).
 - **`short-name-mode = "disabled"`.** Stops Podman prompting at all; it tries each registry in order and takes the first match.
 - **`engine.image_default_format = "docker"`.** The devcontainer CLI's `updateRemoteUserUID` Dockerfile uses the `SHELL` instruction, which the OCI format does not support and silently ignores with a warning.
 
 ## Connect IQ SDK (Garmin)
 
-`profiles/dev/tools.nix` installs `connect-iq-sdk-manager` (a non-interactive Go CLI replacement for Garmin's broken Electron/webkit2gtk SDK Manager GUI — [lindell/connect-iq-sdk-manager-cli](https://github.com/lindell/connect-iq-sdk-manager-cli)) and a JDK, since the SDK's `monkeyc` compiler is a Java app.
+`profiles/dev/tools.nix` installs `connect-iq-sdk-manager` — a non-interactive Go CLI replacing Garmin's broken Electron/webkit2gtk SDK Manager GUI ([lindell/connect-iq-sdk-manager-cli](https://github.com/lindell/connect-iq-sdk-manager-cli)) — and a JDK, since the SDK's `monkeyc` compiler is a Java app.
 
 Three things are automated so a fresh machine needs no interactive setup:
 
@@ -66,20 +66,18 @@ connect-iq-sdk-manager device download
 
 ## USB Debug Probes (udev)
 
-`custom.debugProbes.enable` (`modules/debug-probes.nix`) installs udev rules for common USB JTAG/SWD debug probes — ST-Link, J-Link, FTDI-based adapters, and CMSIS-DAP compatible devices, which includes the Raspberry Pi Debug Probe. The rules themselves live in `modules/udev-rules/69-probe-rs.rules`, a verbatim copy of the [probe-rs](https://probe.rs/)/OpenOCD project's udev rules (the same file is also kept in the `helicopter-collective` repo's `.devcontainer/`), loaded via `services.udev.packages` — **not** `services.udev.extraRules`. The module also creates the `plugdev` group, the rules' `GROUP="plugdev"` fallback; `thomasga` is a member of it via `hosts/enterprise-d/configuration.nix`.
+`custom.debugProbes.enable` (`modules/debug-probes.nix`) installs udev rules for common USB JTAG/SWD debug probes — ST-Link, J-Link, FTDI-based adapters, and CMSIS-DAP compatible devices (including the Raspberry Pi Debug Probe). The rules live in `modules/udev-rules/69-probe-rs.rules`, a verbatim copy of the [probe-rs](https://probe.rs/)/OpenOCD project's rules (also kept in the `helicopter-collective` repo's `.devcontainer/`), loaded via `services.udev.packages` — **not** `services.udev.extraRules`. The module also creates the `plugdev` group (the rules' `GROUP="plugdev"` fallback); `thomasga` is a member via `hosts/enterprise-d/configuration.nix`.
 
-The rules file is embedded into its builder via `lib/local-file.nix`, not a bare `${./udev-rules/69-probe-rs.rules}` interpolation — see [docs/architecture.md § Local Files As Build Inputs](architecture.md#local-files-as-build-inputs). Any new static asset added under `profiles/dev/` or `profiles/desktop/` (another udev rule, a config file copied into a builder) needs the same treatment.
+The rules file is embedded via `lib/local-file.nix`, not a bare `${./udev-rules/69-probe-rs.rules}` interpolation — see [docs/architecture.md § Local Files As Build Inputs](architecture.md#local-files-as-build-inputs). Any new static asset under `profiles/dev/` or `profiles/desktop/` needs the same treatment.
 
 ### Why `services.udev.packages` and not `extraRules`
 
-This file's own name matters: it is called `69-probe-rs.rules` upstream specifically so it sorts *before* systemd's own `70-uaccess.rules`/`73-seat-late.rules`. Those files only queue the `uaccess` ACL-granting builtin if a device is already `TAG=="uaccess"` at the point they are evaluated; udev processes all rule files in one linear pass sorted by filename.
+The filename matters: `69-probe-rs.rules` sorts *before* systemd's own `70-uaccess.rules`/`73-seat-late.rules`, which only queue the `uaccess` ACL grant if a device is already `TAG=="uaccess"` by the time they run — udev processes all rule files in one linear pass sorted by filename. `extraRules` merges everything into a single `99-local.rules`, sorting *after* 73 and silently breaking the ACL grant on first enumeration, since `TAG+="uaccess"` would run too late to be seen. `services.udev.packages` preserves each file's own name, restoring the intended order.
 
-`services.udev.extraRules` merges its content into a single generated file always named `99-local.rules`, which sorts *after* 73 — silently breaking the ACL grant on every first-ever enumeration of a device, since our `TAG+="uaccess"` assignment would run too late to be seen. `services.udev.packages` preserves each file's own name in `/etc/udev/rules.d/`, restoring the intended ordering.
-
-This bug is easy to miss because re-triggering an already-enumerated device "fixes" it — the tag persists in that device's udev database entry from an earlier pass — making it look like an intermittent timing race rather than a deterministic ordering bug.
+This bug is easy to miss: re-triggering an already-enumerated device "fixes" it (the tag persists from the earlier pass), making it look like a timing race rather than a deterministic ordering bug.
 
 ### Why the rules must live on the host
 
-Embedded-dev devcontainers (e.g. `helicopter-collective`) do not create their own USB device nodes. They bind-mount the host's `/dev/bus/usb` into the container (via `devcontainer.json`'s `mounts`) and rely on `--userns=keep-id` to map the container user to the host user's UID. The kernel enforces permission checks on that bind mount against the same device node the host owns, so whatever the *host's* udev grants `thomasga` — through `plugdev` group membership and the rules' `TAG+="uaccess"` ACL — is exactly what the container process gets. There is no way to grant this access from inside the container image.
+Embedded-dev devcontainers (e.g. `helicopter-collective`) don't create their own USB device nodes — they bind-mount the host's `/dev/bus/usb` and rely on `--userns=keep-id` to map the container user to the host user's UID. The kernel checks permissions on that bind mount against the same device node the host owns, so whatever the *host's* udev grants `thomasga` (via `plugdev` and `TAG+="uaccess"`) is exactly what the container gets — nothing can grant this from inside the container image.
 
 With the ordering fixed, a fresh `nixos-rebuild switch` plus a normal plug-in of the probe is enough — no manual `udevadm trigger` or replug workaround.

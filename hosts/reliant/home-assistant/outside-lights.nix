@@ -1,40 +1,33 @@
 # Home Assistant automation for reliant: outside lights on arrival/departure.
 #
 # Turns the outside lights on when someone is likely leaving or arriving from
-# work/school, but only while the sun is below the horizon (dark enough to need
-# them), and back off otherwise.
+# work/school, but only while the sun is below the horizon, and back off
+# otherwise.
 #
-# Single desired-state automation: on every relevant edge — the window
-# boundaries, sunset/sunrise, and Home Assistant startup — it re-derives what
-# the lights *should* be (on iff dark AND inside a window) and sets them. This
-# is restart-resilient: if HA reboots or reloads mid-window while it's dark, the
-# `homeassistant` start trigger re-evaluates and restores the lights, rather
-# than waiting for the next edge (which edge-triggered on/off automations would
-# miss). Stating the window logic once, with turn-off as the default branch,
-# also removes any chance of a separate on/off automation fighting.
+# Single desired-state automation: on every relevant edge — window
+# boundaries, sunset/sunrise, and HA startup — it re-derives what the lights
+# *should* be (on iff dark AND inside a window) and sets them. Restart-
+# resilient: the `homeassistant` start trigger restores correct state after a
+# reboot instead of waiting for the next edge. Stating the window logic once,
+# with turn-off as the default branch, also removes any chance of a separate
+# on/off automation fighting.
 #
-# Manual interactions (the HomeKit app, a physical switch, the HA dashboard)
-# are respected for a hold-off period: a companion automation records the time
-# of any non-automation change that actually disagrees with what the schedule
-# would have set, and the scheduling automation skips its run entirely while
-# inside that window, leaving the lights exactly as the person left them. A
-# manual change that happens to match the schedule's own desired state doesn't
-# start a hold-off — there's nothing to protect it from. See
+# Manual interactions (HomeKit app, a physical switch, the HA dashboard) get
+# a hold-off period: a companion automation records the time of any
+# non-automation change that disagrees with the schedule's desired state,
+# and the scheduling automation skips its run entirely inside that window,
+# leaving the lights as the person left them. A manual change matching the
+# schedule's own state doesn't start a hold-off — see
 # manualOverrideHoldOffHours below.
 #
-# The outside lights are HomeKit switches, exposed by Home Assistant as
-# `switch.*` entities via the HomeKit Controller integration (enabled in
-# modules/home-assistant.nix), so these use the switch.turn_on / switch.turn_off
-# services.
+# The outside lights are HomeKit switches, exposed as `switch.*` via the
+# HomeKit Controller integration, hence switch.turn_on/switch.turn_off.
 #
-# Declared under the `automation manual` key (not bare `automation`) so these
-# coexist with any UI-created automations, which land in automations.yaml —
-# matching services.home-assistant.configWritable = true.
+# "automation manual" key, not bare "automation" — see default.nix.
 #
-# The two outside-light switches: switch.front_entry_lights and
-# switch.patio_lights. Copied from hosts/defiant/home-assistant/outside-lights.nix
-# (defiant has since been decommissioned) — re-verify these entity IDs against
-# the running instance on this host once activated.
+# The two switches: switch.front_entry_lights and switch.patio_lights.
+# Copied from hosts/defiant/home-assistant/outside-lights.nix (now
+# decommissioned) — re-verify these entity IDs against the running instance.
 let
   # How long a manual change sticks before the schedule is allowed to override
   # it again. Single source of truth, interpolated into the capture automation
