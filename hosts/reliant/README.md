@@ -41,6 +41,63 @@ full design; host-specific facts:
   existing secret (it's just an API credential, not tied to either host's
   identity), not a new one. Confirmed live: cert issuance succeeded.
 
+### lldap + Authelia (web SSO)
+
+**Newly added, not yet deployed or confirmed on this hardware** — see
+[docs/homelab-network.md § Authelia Forward-Auth](../../docs/homelab-network.md#authelia-forward-auth-lldap--authelia-sso)
+for the full design.
+
+- `ad.coppertop.ca` → lldap's own admin UI (`custom.lldap`). Never gated by
+  Authelia — see that doc's § Self-Lockout Rule.
+- `auth.coppertop.ca` → Authelia's own login portal (`custom.authelia`). Also
+  never gated by Authelia, same reason.
+- `dns1.coppertop.ca`/`dns2.coppertop.ca` (AdGuard admin UIs),
+  `zigbee.coppertop.ca` (Zigbee2MQTT), `dcs.coppertop.ca` (excelsior's DCS
+  webtop desktop), `dcs-control.coppertop.ca` (excelsior's DCS start/stop
+  control page — **not** its `/hooks` webhook, which stays ungated since
+  it's called machine-to-machine, not from a browser), and
+  `bambuddy.coppertop.ca` are gated by the `authelia@file` forward-auth
+  middleware (`custom.authelia.protectedSubdomains`). None of these have a
+  login of their own. Several of these routers are self-registered inside
+  modules this host's own file doesn't own (`modules/zigbee.nix`, owned by
+  `smart-home`; `modules/bambuddy.nix`) — `hosts/reliant/configuration.nix`
+  layers the middleware onto them as a data overlay rather than editing
+  those modules; see `docs/homelab-network.md` § Traefik Route
+  Registration.
+- **`home.coppertop.ca` (Home Assistant) is deliberately not on that
+  list.** Forward-auth is the wrong mechanism for a service that already has
+  its own real login — gating it that way would just add a redundant second
+  login in front of HA's existing one, not real SSO. Real SSO for HA is
+  built as a distinct capability instead: Authelia running as an OpenID
+  Connect 1.0 provider (`custom.authelia.oidc`, coexisting with the
+  LDAP-backed forward-auth above on the same instance), with HA registered
+  as an OIDC client (`custom.authelia.oidc.homeAssistant`) via the
+  third-party [`hass-oidc-auth`](https://github.com/christiaangoossens/hass-oidc-auth)
+  HACS component — see
+  [docs/homelab-network.md § OIDC Provider](../../docs/homelab-network.md#oidc-provider)
+  for the full design and the exact values HA's own config needs. Installing
+  `hass-oidc-auth` and HA's own `auth_oidc` config block is `smart-home`'s
+  side of this — wired in `modules/home-assistant.nix`'s
+  `custom.home-assistant.oidc` and this host's own `configuration.nix`, see
+  [docs/smart-home.md § OIDC Login](../../docs/smart-home.md#oidc-login-authelia-sso)
+  — but **not yet functional**: it's still missing the one secret
+  (`home-assistant/oidc-client-secret`) and the real package hash for the
+  `hass-oidc-auth` HACS component, both listed in § Secrets and § Known
+  Gotchas below.
+- **`thomasga` (Geoffrey Thomas) has a real lldap account** —
+  `custom.lldap.bootstrap.users` in `hosts/reliant/configuration.nix`, no
+  `passwordFile` (set by hand through lldap's own UI, `ad.coppertop.ca`, on
+  first login, not declaratively). To add another household member: append
+  another entry the same way. Registering TOTP/WebAuthn 2FA with Authelia
+  is also a self-service, one-time UI step (Authelia's own portal,
+  `auth.coppertop.ca`, prompts for it on first login) — not something this
+  repo can pre-provision.
+- **TODO: password-reset email.** No SMTP notifier is configured — Authelia's
+  password-reset/notification emails currently just write to a local file
+  (`/var/lib/authelia-main/notification.txt`) instead of being sent anywhere.
+  Needs a real SMTP relay's credentials before the password-reset flow is
+  actually usable end-to-end.
+
 ### Ports
 
 Every port this host binds, in ascending order — the complete list for
@@ -60,6 +117,7 @@ Rule](../../docs/architecture.md#placement-rule)).
 | 1883 | tcp | Mosquitto MQTT broker, `custom.mqtt` | 127.0.0.1 only |
 | 3000 | tcp | AdGuard Home admin UI, `custom.dns` (upstream default) | Bound `0.0.0.0`, `openFirewall = false`; reached through Traefik at `dns1.coppertop.ca` |
 | 3001 | tcp | zwave-js websocket, `custom.zwave.port` — overridden here because the module default (3000) is AdGuard's admin UI | Firewall closed; Home Assistant connects over localhost |
+| 3890 | tcp | lldap's own LDAP protocol port, `custom.lldap.ldapPort` (upstream default) | 127.0.0.1 only — Authelia is the only consumer, same host |
 | 3001 | tcp | BambuStudio sidecar, `custom.bambuddy.slicerSidecar.bambuStudio.port` (`bambuStudio.enable` off) | **Not bound today** — and its default is the 3001 zwave-js already holds above; `modules/bambuddy.nix` asserts on that pair, so enabling it needs an explicit `port` here first |
 | 3003 | tcp | OrcaSlicer slicing sidecar (podman publish), `custom.bambuddy.slicerSidecar.port` | 127.0.0.1 only; called only by Bambuddy on this host |
 | 5335 | tcp+udp | unbound recursive resolver, `custom.dns` | LAN (firewall open) — the deliberate AdGuard-bypass |
@@ -70,6 +128,8 @@ Rule](../../docs/architecture.md#placement-rule)).
 | 8082 | tcp | Zigbee2MQTT frontend, `custom.zigbee` (hardcoded in `modules/zigbee.nix`) | Firewall closed; Traefik at `zigbee.coppertop.ca` |
 | 8083 | tcp | Homepage dashboard, `custom.homepage` — moved off its upstream default (8082, Zigbee2MQTT's) after a live collision, see Known Gotchas | 127.0.0.1 only; Traefik at the apex, `coppertop.ca` |
 | 8123 | tcp | Home Assistant frontend, `custom.home-assistant` (HA's own default; the module's Traefik route hardcodes it) | Opened to `192.168.20.0/24` only by `firewall.extraCommands`, for Sonos UPnP callbacks; everything else goes through Traefik at `home.coppertop.ca` |
+| 9091 | tcp | Authelia, `custom.authelia.port` (upstream default) | 127.0.0.1 only; Traefik at `auth.coppertop.ca`, and the `authelia@file` forward-auth middleware's own callback target |
+| 17170 | tcp | lldap web UI/GraphQL API, `custom.lldap.httpPort` (upstream default) | 127.0.0.1 only; Traefik at `ad.coppertop.ca` |
 | 30001–30005, 30104 | tcp | dump1090's raw/Beast/SBS feed listeners, `custom.adsb` (it runs dump1090 with `--net`, so these are dump1090's own defaults) | Bound `0.0.0.0`, firewall closed |
 
 `custom.backups` and `custom.ddns` bind nothing — both are outbound-only (SMB
@@ -313,6 +373,20 @@ slicing sidecar as a podman container. Host-specific notes:
   `firewall.extraCommands` and `modules/home-assistant.nix`'s Traefik route
   registration — since nixpkgs can no longer discover it automatically. See
   [docs/smart-home.md § Firewall](../../docs/smart-home.md#firewall-openfirewall-removed-upstream).
+- **Home Assistant's OIDC SSO (`custom.home-assistant.oidc`) is wired but
+  not deployable yet — two real gaps, not guesses.** (1)
+  `pkgs/home-assistant-oidc-auth.nix`'s `fetchFromGitHub.hash` is a
+  `lib.fakeHash` placeholder — no local Nix toolchain was available to
+  compute the real NAR hash when this was added; a build attempt will fail
+  loudly on the mismatch, and the real hash from that error needs to
+  replace it before deploying (same recovery step as
+  `docs/smart-home.md` § Matter's PAA cert re-pin). (2) `configuration.nix`
+  already points `custom.home-assistant.oidc.clientSecretFile` at
+  `/run/agenix/home-assistant/oidc-client-secret`, which does not exist yet
+  — `home-assistant.service` will fail to start outright the moment this is
+  deployed until `secrets-warden` creates it (see § Secrets above for the
+  exact value and format needed). Do not `nixos-rebuild switch` this change
+  until both are resolved.
 - **`custom.homepage`'s port (8082) collided with Zigbee2MQTT's frontend,
   also 8082.** Confirmed live: `homepage-dashboard.service` failed
   (`EADDRINUSE`) on the first deploy with both enabled on this host. Moved to
@@ -346,6 +420,15 @@ existing job-keyed secret to reuse** — it needs a new
 runs and skips itself ("Missing restic password file"), so it is a pending
 hand-off rather than a broken unit.
 
+The `lldap` (`/var/lib/lldap`) and `authelia` (`/var/lib/authelia-main`)
+entries are the same situation — brand-new services, no existing job-keyed
+secret to reuse, each needing its own new
+`secrets/{lldap,authelia}/restic-password.age` plus the matching
+`age.secrets` entries from `secrets-warden`. Both skip themselves the same
+way until then. Authelia's database in particular holds TOTP/WebAuthn
+registrations that aren't reconstructible from anywhere else, so this one
+matters more than most "skips itself" gaps do.
+
 ## Secrets
 
 `hosts/reliant/secrets.nix` declares, beyond the Phase 1 SSH/NAS entries, six
@@ -373,6 +456,43 @@ tied to, not for `defiant` (see
 `reliant` is now a rekeyed recipient of all five — confirmed live: the config
 evaluates, all four appliance services (DNS/Traefik, Home Assistant,
 Zigbee2MQTT, Z-Wave JS) and ADS-B are up and using them successfully.
+
+**lldap + Authelia adds six more, none reused — all brand new, from
+`secrets-warden`:**
+
+| Secret | Owner (agenix) | Consumer |
+| --- | --- | --- |
+| `lldap/admin-password` | `lldap` | `custom.lldap.adminPasswordFile` — lldap's own superuser password |
+| `lldap/jwt-secret` | `lldap` | `custom.lldap.jwtSecretFile` — lldap's session JWT signing key |
+| `authelia/jwt-secret` | none (default root) — `secrets.jwtSecretFile` is `LoadCredential`-backed, and systemd performs that copy as root before `authelia-main` is assumed | `custom.authelia.jwtSecretFile` — Authelia's password-reset JWT signing key |
+| `authelia/storage-encryption-key` | none (default root) — same `LoadCredential` reasoning as `authelia/jwt-secret` above | `custom.authelia.storageEncryptionKeyFile` — encrypts TOTP/WebAuthn secrets in Authelia's own database |
+| `authelia/ldap-bind-password` | `authelia-main` | Both `custom.authelia.ldap.bindPasswordFile` **and** `custom.lldap.bootstrap.users`' `authelia` entry's `passwordFile` — the same credential, read by two different services, so lldap and Authelia agree on it. `authelia-main` (not root) because Authelia reads this one via a raw environment variable, not `LoadCredential` — see docs/homelab-network.md § Known Gotchas. |
+| `lldap/restic-password`, `authelia/restic-password` | n/a (restic runs as root) | The two new `custom.backups.users` entries above |
+
+Note the `authelia/ldap-bind-password` secret is consumed by **two** hosts'
+worth of config on this one host — both `custom.lldap` (as one bootstrapped
+user's password) and `custom.authelia` (as its own bind credential) — so it
+needs to be readable by whichever system user actually reads each path:
+`lldap-bootstrap.service` runs as root (so any owner works for the copy
+`custom.lldap.bootstrap.users` references), but `custom.authelia.ldap.bindPasswordFile`
+specifically needs `authelia-main` read access.
+
+**Authelia's OIDC provider (Home Assistant SSO) adds three more, all brand
+new, from `secrets-warden`:**
+
+| Secret | Owner (agenix) | Consumer |
+| --- | --- | --- |
+| `authelia/oidc-issuer-private-key` | none (default root) | `custom.authelia.oidc.issuerPrivateKeyFile` — Authelia's OIDC issuer signing key (RSA, PKCS#8/PKCS#1, ≥2048 bits). Generate with `openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048`. Read via nixpkgs' own `secrets.oidcIssuerPrivateKeyFile` — unlike the LDAP bind password, this one **does** go through systemd `LoadCredential`, and systemd performs that copy as root during unit setup, so root-only `0400` is sufficient and is the narrower choice. |
+| `authelia/oidc-hmac-secret` | none (default root) | `custom.authelia.oidc.hmacSecretFile` — signs OIDC JWTs. Generate with `openssl rand -base64 64 \| tr -d '\n=+/' \| head -c 64`. Also `LoadCredential`-backed (`secrets.oidcHmacSecretFile`), same root-only reasoning. |
+| `authelia/oidc-client-secret-home-assistant-hash` | `authelia-main` | `custom.authelia.oidc.homeAssistant.clientSecretHashFile` — **not** a raw secret: Authelia only ever stores a pbkdf2-sha512 hash of Home Assistant's OIDC client secret. Generate both the raw secret and its hash together with `nix run nixpkgs#authelia -- crypto hash generate pbkdf2 --variant sha512 --random`; only the digest goes in this file. The raw secret goes into Home Assistant's own `auth_oidc.client_secret` — that's `smart-home`'s side, not managed by this file or this secret. Read directly at runtime via Authelia's own Go-template `secret` function, the same env-var-style direct read as `authelia/ldap-bind-password` (not `LoadCredential`) — see docs/homelab-network.md § OIDC Provider. |
+
+**Home Assistant's own OIDC config (`smart-home`'s side of the same SSO
+feature) needs one more, not yet created — this is the outstanding blocker
+for turning the feature on:**
+
+| Secret | Owner (agenix) | Consumer |
+| --- | --- | --- |
+| `home-assistant/oidc-client-secret` | none (default root) — same reasoning as `location/coordinates` above: this is an `EnvironmentFile`, read by systemd itself as root before `home-assistant.service` drops to its own user, not read by the `hass` user directly | `custom.home-assistant.oidc.clientSecretFile` (`modules/home-assistant.nix`) — the **raw** (pre-hash) half of the exact same shared secret `authelia/oidc-client-secret-home-assistant-hash` above stores the digest of. Generate both together with the one command in that row; the raw output (not the digest) goes here. **File contents must be `HASS_OIDC_CLIENT_SECRET=<raw value>`** (an `EnvironmentFile` line, not the bare value) — same KEY=VALUE shape as `location/coordinates`. `hosts/reliant/configuration.nix` already references `/run/agenix/home-assistant/oidc-client-secret`; until this secret exists and reliant is a recipient, `home-assistant.service` fails to start outright (`EnvironmentFile=` with a missing target is a hard systemd failure, not a soft warning) — do not deploy `custom.home-assistant.oidc.enable = true` before this exists. |
 
 ## Provisioning
 

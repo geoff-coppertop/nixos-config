@@ -1,6 +1,7 @@
 {
   imports = [
     ./adsb.nix
+    ./authelia.nix
     ./auto-rip.nix
     ./backups.nix
     ./bambuddy.nix
@@ -20,6 +21,7 @@
     ./homepage.nix
     ./is-laptop.nix
     ./jellyfin.nix
+    ./lldap.nix
     ./matter.nix
     ./media-manager.nix
     ./media-ripping.nix
