@@ -73,15 +73,14 @@ in {
             "${cfg.lanSubnet} allow"
           ];
           # transparent, not static: static answers only exactly what's in
-          # local-data and NXDOMAINs everything else in the zone — including
-          # SOA/NS queries. Confirmed live: that broke ACME DNS-01 issuance,
-          # since lego runs ON this host and finds the Cloudflare zone via a
-          # real SOA walk from _acme-challenge.<domain>. up the tree; with
-          # "static" our own resolver told it coppertop.ca doesn't exist at
-          # all, so it walked past it to the public suffix "ca." and failed.
-          # transparent still answers the subdomains below from local-data,
-          # but falls through to real recursion for everything else in the
-          # zone (SOA, NS, the bare domain, any other public record).
+          # local-data and NXDOMAINs everything else in the zone, including
+          # SOA/NS queries — that broke ACME DNS-01 issuance, since lego
+          # runs ON this host and finds the Cloudflare zone via a real SOA
+          # walk from _acme-challenge.<domain>. up the tree; with "static"
+          # our own resolver said coppertop.ca doesn't exist, so it walked
+          # past it to the public suffix "ca." and failed. transparent still
+          # answers the subdomains below from local-data, but falls through
+          # to real recursion for everything else in the zone.
           local-zone = ["\"${cfg.domain}.\" transparent"];
           local-data =
             map (sub: "\"${sub}.${cfg.domain}. A ${cfg.lanIp}\"") cfg.subdomains
@@ -93,13 +92,12 @@ in {
       # ── AdGuard Home: LAN-facing ad-blocking resolver on port 53 ─────────
       services.adguardhome = {
         enable = true;
-        # openFirewall only opens the admin web UI (default port 3000, not
-        # the DNS resolver — that's the explicit allowedTCPPorts/UDPPorts
-        # below) with no source restriction at all. No host needs that open:
-        # reliant reaches its own admin UI via Traefik on 127.0.0.1
-        # regardless of the firewall, and excelsior's cross-host case (see
-        # docs/homelab-network.md § Second DNS Instance) opens it explicitly,
-        # restricted to reliant's IP, in hosts/excelsior/configuration.nix.
+        # openFirewall only opens the admin web UI (3000, not the DNS
+        # resolver — see allowedTCPPorts/UDPPorts below) with no source
+        # restriction. No host needs that open: reliant reaches its own
+        # admin UI via Traefik on 127.0.0.1 regardless, and excelsior's
+        # cross-host case (docs/homelab-network.md § Second DNS Instance)
+        # opens it explicitly, restricted to reliant's IP.
         openFirewall = false;
         mutableSettings = true;
         settings.dns = {
@@ -110,26 +108,21 @@ in {
         };
       };
 
-      # Expose unbound bypass port and DNS to LAN
       networking.firewall.allowedTCPPorts = [5335];
       networking.firewall.allowedUDPPorts = [53 5335];
 
-      # The Pi has no RTC/battery-backed clock, so on every boot the kernel
-      # clock starts wrong (often way in the past) until systemd-timesyncd
-      # completes its first NTP sync. Confirmed live: booting with DNSSEC
-      # validation on, unbound started serving before that first sync landed
-      # and every lookup died with "DNSKEY rrset is not secure" — real
-      # signatures failing validation against a clock that hadn't caught up
-      # yet, not an upstream problem. NTP itself isn't blocked by this: the
-      # box resolves via DHCP-provided nameservers (the router) at boot, not
-      # through unbound, so there's no circular DNS dependency here.
+      # The Pi has no RTC/battery-backed clock, so the kernel clock starts
+      # wrong on every boot until timesyncd's first NTP sync. With DNSSEC
+      # validation on, unbound starting first served every lookup as
+      # "DNSKEY rrset is not secure" — real signatures failing against a
+      # clock that hadn't caught up. Not circular: the box resolves NTP via
+      # DHCP-provided nameservers at boot, not through unbound.
       #
       # systemd-time-wait-sync blocks on the kernel's "clock synchronized"
-      # flag, which timesyncd sets after its first successful sync; it isn't
-      # pulled in by anything by default, so wantedBy enables it. Ordering
-      # unbound after time-sync.target means it never starts validating
-      # until that flag is actually set, letting DNSSEC stay on permanently
-      # instead of needing to be disabled for this host.
+      # flag, set by timesyncd after its first sync; it isn't pulled in by
+      # anything by default, so wantedBy enables it. Ordering unbound after
+      # time-sync.target means it never validates until that flag is set,
+      # letting DNSSEC stay on permanently instead of being disabled.
       systemd.services.systemd-time-wait-sync.wantedBy = ["sysinit.target"];
       systemd.services.unbound = {
         after = ["time-sync.target"];
@@ -137,28 +130,23 @@ in {
       };
     }
 
-    # Self-register Traefik route for AdGuard Home UI
     (mkIf config.custom.traefik.enable {
       services.traefik.dynamicConfigOptions.http = mkTraefikRoute {
         name = "adguard";
         subdomain = cfg.adminSubdomain;
-        # Follows services.adguardhome.port (upstream default 3000) rather
-        # than a literal 3000: reliant's custom.bambuddy asserts against that
-        # same default to flag its own virtual-printer port collision (see
-        # modules/bambuddy.nix and hosts/reliant/README.md § Bambuddy), and
-        # the fix that assertion points at is moving
-        # services.adguardhome.port. A hardcoded 3000 here would silently
-        # decouple this route from that port the moment someone made that
-        # move, breaking the admin UI with no error until someone noticed.
+        # Follows services.adguardhome.port rather than a literal 3000:
+        # reliant's custom.bambuddy asserts against that same default to
+        # flag its own virtual-printer port collision, and the fix that
+        # assertion points at is moving services.adguardhome.port. A
+        # hardcoded 3000 here would silently decouple this route the moment
+        # someone made that move.
         port = config.services.adguardhome.port;
         inherit (config.custom.traefik.acme) domain;
-        # Opts into Authelia forward-auth iff this admin UI's own subdomain is
-        # listed in custom.authelia.protectedSubdomains -- see
+        # Opts into Authelia forward-auth iff this subdomain is listed in
+        # custom.authelia.protectedSubdomains — see
         # docs/homelab-network.md § Authelia Forward-Auth. Safe to reference
         # config.custom.authelia unconditionally: modules/authelia.nix is
-        # always imported (modules/default.nix), so the option exists (and
-        # defaults to enable = false / protectedSubdomains = []) even on a
-        # host that never turns Authelia on.
+        # always imported, so the option exists even where Authelia is off.
         middlewares = optional (config.custom.authelia.enable && builtins.elem cfg.adminSubdomain config.custom.authelia.protectedSubdomains) "authelia@file";
       };
     })
