@@ -1,13 +1,12 @@
 # Bambuddy: self-hosted management, archive, and print queue for Bambu Lab
 # printers, plus the optional server-side slicing sidecars it talks to.
 #
-# The app itself runs natively (pkgs/bambuddy.nix); the slicers do not, and
-# cannot — `maziggy/orca-slicer-api` is a Node HTTP wrapper around a *patched*
-# OrcaSlicer CLI binary that only exists inside its own prebuilt image, with no
-# published source for the patches and no local build path. So this module is
-# deliberately two shapes at once: a systemd unit for Bambuddy and
-# oci-containers for the slicers, the same way modules/dcs-server.nix runs the
-# DCS image.
+# The app runs natively (pkgs/bambuddy.nix); the slicers do not, and cannot —
+# `maziggy/orca-slicer-api` is a Node HTTP wrapper around a *patched*
+# OrcaSlicer CLI that only exists inside its own prebuilt image, with no
+# published source or local build path. So this module is deliberately two
+# shapes at once: a systemd unit for Bambuddy, oci-containers for the
+# slicers, same as modules/dcs-server.nix runs the DCS image.
 {
   config,
   lib,
@@ -138,12 +137,11 @@ in {
     {
       assertions = [
         {
-          # Ports 3000 and 3002 are hardcoded constants in
-          # backend/app/services/virtual_printer/bind_server.py — a slicer
-          # looks for a printer on exactly those ports, so they are not
+          # 3000/3002 are hardcoded constants in
+          # backend/app/services/virtual_printer/bind_server.py — not
           # configurable on either side. AdGuard Home's admin UI defaults to
-          # 3000 and modules/dns.nix keeps that default, which makes the two
-          # features mutually exclusive on one host until AdGuard is moved.
+          # 3000 too (modules/dns.nix), making the two mutually exclusive on
+          # one host until AdGuard is moved.
           assertion =
             !cfg.virtualPrinter.openFirewall
             || !(config.services.adguardhome.enable && config.services.adguardhome.port == 3000);
@@ -151,14 +149,12 @@ in {
         }
 
         {
-          # Same class of collision as the one above, one option group down:
-          # sidecar.bambuStudio.port defaults to 3001, which is also
-          # custom.zwave.port's value on reliant (moved there itself to dodge
-          # the AdGuard/3000 collision — see modules/zwave.nix). Both ports
-          # are configurable here, unlike the virtual printer's, so this is a
-          # hard assertion rather than an off-by-default workaround: nothing
-          # stops someone flipping bambuStudio.enable on later and hitting
-          # EADDRINUSE with no other signal.
+          # Same class of collision, one group down: sidecar.bambuStudio.port
+          # defaults to 3001, also custom.zwave.port's value on reliant
+          # (moved there to dodge the AdGuard/3000 collision — see
+          # modules/zwave.nix). Both ports are configurable here, so this is
+          # a hard assertion — nothing else would catch a later
+          # bambuStudio.enable flip hitting EADDRINUSE.
           assertion =
             !(sidecar.enable && sidecar.bambuStudio.enable)
             || !(config.custom.zwave.enable && config.custom.zwave.port == sidecar.bambuStudio.port);
@@ -166,10 +162,10 @@ in {
         }
       ];
 
-      # A fixed system user, not DynamicUser: the data directory holds a
-      # person's print archive and 3MF library, which is worth being able to
-      # read and copy over SSH without going through /var/lib/private (which
-      # is root-only, see the same reasoning in modules/adsb.nix).
+      # Fixed system user, not DynamicUser: the data directory holds a
+      # person's print archive and 3MF library, worth reading/copying over
+      # SSH without going through root-only /var/lib/private (same reasoning
+      # as modules/adsb.nix).
       users = {
         users.bambuddy = {
           isSystemUser = true;
@@ -194,26 +190,23 @@ in {
           # getpass.getuser()/os.path.expanduser() are called by asyncssh and
           # friends; systemd sets no HOME for a system unit.
           HOME = dataDir;
-          # matplotlib (lazily imported by the STL thumbnail generator) builds
-          # a font cache under $HOME/.config/matplotlib on first import and
-          # falls back to a fresh temp dir — re-scanning every font on every
-          # restart — if it cannot write there. Upstream's image pins it to
-          # /tmp for the same reason; the state directory keeps the cache
-          # across restarts instead.
+          # matplotlib (lazily imported by the STL thumbnail generator)
+          # builds a font cache under $HOME/.config/matplotlib on first
+          # import, falling back to a fresh temp dir (re-scanning every font
+          # every restart) if it can't write there. The state directory
+          # keeps the cache across restarts instead.
           MPLCONFIGDIR = "${dataDir}/matplotlib";
         };
 
         serviceConfig = {
           # --loop asyncio is required, not a preference: uvloop truncates
-          # virtual-printer FTP uploads (upstream issue #1896), which is why
-          # upstream's own generated unit and Dockerfile both pass it despite
-          # shipping uvicorn[standard].
+          # virtual-printer FTP uploads (upstream issue #1896).
           #
           # --timeout-graceful-shutdown likewise: uvicorn otherwise waits
-          # forever for in-flight requests, and an MJPEG camera stream never
-          # completes, so one open camera tile would hang every stop until
-          # systemd SIGKILLs — skipping the SQLite WAL checkpoint and the
-          # MQTT/virtual-printer teardown.
+          # forever for in-flight requests, and an open MJPEG camera stream
+          # never completes, hanging every stop until systemd SIGKILLs —
+          # skipping the SQLite WAL checkpoint and MQTT/virtual-printer
+          # teardown.
           ExecStart = "${cfg.package}/bin/bambuddy --host ${cfg.listenAddress} --port ${toString cfg.port} --loop asyncio --timeout-graceful-shutdown 5";
           User = "bambuddy";
           Group = "bambuddy";
@@ -227,9 +220,8 @@ in {
           LogsDirectory = "bambuddy";
 
           # The virtual printer binds 322 (RTSPS camera proxy) and 990 (FTPS
-          # control) as a non-root user. Upstream's image gets this with
-          # setcap on the interpreter plus docker's cap_add; the native
-          # equivalent is an ambient capability, bounded to just that one.
+          # control) as a non-root user — an ambient capability, bounded to
+          # just that one, is the native equivalent of upstream's setcap.
           AmbientCapabilities = ["CAP_NET_BIND_SERVICE"];
           CapabilityBoundingSet = ["CAP_NET_BIND_SERVICE"];
 
@@ -244,12 +236,10 @@ in {
       };
 
       networking.firewall = mkIf cfg.virtualPrinter.openFirewall {
-        # From upstream's docker-compose.yml, which enumerates what the
-        # virtual printer actually listens on: 3000/3002 bind+detect, 8883
-        # MQTT, 990 FTPS control, 6000 file-transfer tunnel, 322 RTSPS camera,
-        # 2024-2026 the A1/P1S proprietary protocol, plus the passive-data
-        # range above. Port 8000 is deliberately absent — that one goes
-        # through Traefik.
+        # From upstream's docker-compose.yml: 3000/3002 bind+detect, 8883
+        # MQTT, 990 FTPS control, 6000 file-transfer tunnel, 322 RTSPS
+        # camera, 2024-2026 the A1/P1S protocol, plus the passive-data range
+        # above. 8000 is deliberately absent — that one goes through Traefik.
         allowedTCPPorts = [322 990 3000 3002 6000 8883];
         allowedTCPPortRanges = [
           {
@@ -314,7 +304,6 @@ in {
       systemd.services.bambuddy.environment.BAMBU_STUDIO_API_URL = "http://127.0.0.1:${toString sidecar.bambuStudio.port}";
     })
 
-    # Self-register Traefik route
     (mkIf config.custom.traefik.enable {
       services.traefik.dynamicConfigOptions.http = mkTraefikRoute {
         name = "bambuddy";
