@@ -102,50 +102,18 @@ in {
         # Not part of default_config — same "config-flow-only" gap as "hue"
         # above, see docs/smart-home.md § Choosing extraComponents.
         "broadlink"
-        # NOT "linkplay": unlike ecobee/zha below, adding this dependency
-        # would not get to a clean discovered-device card -- confirmed
-        # against HA core's own linkplay/config_flow.py, its zeroconf step
-        # calls the getMetaInfo-probing bridge factory unconditionally,
-        # before showing any confirm form. That probe fails against these
-        # Wiim Pro units specifically — confirmed live, getMetaInfo returns
-        # the literal string "Failed" instead of JSON (home-assistant/
-        # core#145132 and related open issues), which aborts the flow before
-        # it ever reaches the UI. The community "wiim" integration
-        # (services.home-assistant.customComponents, in the services block
-        # above) already fixed this exact getMetaInfo handling — see
-        # hosts/reliant/README.md § Known Gotchas.
+        # NOT "linkplay" -- its dependency wouldn't reach a clean discovered
+        # card (unconditional getMetaInfo probe fails against these Wiim Pro
+        # units); the community "wiim" integration already handles this
+        # hardware -- see docs/smart-home.md § Discovery-flow
+        # ModuleNotFoundErrors and hosts/reliant/README.md § Known Gotchas.
         "ssdp"
-        # cast: real Chromecast-capable device on the LAN triggers this via
-        # discovery — dependency confirmed as pychromecast against nixpkgs'
-        # component-packages.nix. See docs/smart-home.md § Discovery-flow
-        # ModuleNotFoundErrors.
+        # cast/ipp/ecobee/zha: real devices on the LAN trigger discovery for
+        # each. See docs/smart-home.md § Discovery-flow ModuleNotFoundErrors
+        # for why each dependency is added (or, for linkplay above, isn't).
         "cast"
-        # ipp: real network printer on the LAN triggers this via discovery —
-        # dependency confirmed as pyipp against nixpkgs' component-packages.nix.
-        # See docs/smart-home.md § Discovery-flow ModuleNotFoundErrors.
         "ipp"
-        # ecobee: the ecobee thermostats' zeroconf/SSDP discovery triggers
-        # this too. Adding the dependency (python-ecobee-api, confirmed
-        # against nixpkgs' component-packages.nix) only lets the discovered-
-        # device card render cleanly instead of crashing on import -- it does
-        # NOT configure or start the native cloud integration. Nobody
-        # completes that config flow: hosts/reliant/home-assistant/
-        # ecobee-climate.nix already gets full local, no-cloud-account
-        # control via homekit_controller (already in extraComponents), and
-        # ecobee suspended new developer-key signups regardless. The
-        # discovered card gets Ignore'd in the UI instead. See
-        # docs/smart-home.md § Discovery-flow ModuleNotFoundErrors.
         "ecobee"
-        # zha: the Zigbee coordinator's discovery triggers this too. Adding
-        # the dependency only lets the discovered-device card render cleanly
-        # instead of crashing on import -- confirmed against HA core's own
-        # zha/config_flow.py that showing that card does not probe or open
-        # the coordinator's serial port (only completing the confirm form
-        # does). Nobody completes that form: custom.zigbee (Zigbee2MQTT)
-        # already owns the coordinator, and only one stack can hold its
-        # serial port at a time. The discovered card gets Ignore'd in the UI
-        # instead. See docs/smart-home.md § Discovery-flow
-        # ModuleNotFoundErrors.
         "zha"
         # mobile_app: required for the iOS/Android companion app to connect —
         # without it the app's error dialog reads "The mobile_app component is

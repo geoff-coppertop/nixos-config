@@ -513,109 +513,38 @@ of problem.
 
 ### Discovery-flow `ModuleNotFoundError`s: `cast`, `ecobee`, `ipp`, `linkplay`, `zha`
 
-`reliant`'s journal recurringly logged a `ModuleNotFoundError` for each of
-these five components, e.g. `homeassistant.components.zha: No module named
-'zha'`. All five are HA core components whose Python dependency wasn't in
-`extraComponents`, and zeroconf/SSDP discovery — part of HA's always-on core
-bootstrap, not something this repo configures — kept finding a real device on
-the LAN (a Wiim speaker, a Chromecast-capable device, the ecobee thermostats,
-a network printer, the Zigbee coordinator) and offering that device's core
-integration's config flow, which then failed to import. Each was evaluated on
-its own merits, not written off as one class of noise.
+Zeroconf/SSDP discovery kept finding five real devices on the LAN (a Wiim
+speaker, a Chromecast, the ecobee thermostats, a network printer, the Zigbee
+coordinator) and offering their core integration's config flow, which then
+crashed with `ModuleNotFoundError` because the dependency wasn't in
+`extraComponents`. A missing dependency only blocks the flow from
+*initializing* — it has no bearing on whether the integration gets
+configured, since that needs a household member to complete the flow
+(cloud credentials, confirming a coordinator claim). So all four below get
+the dependency added; only `linkplay` is a genuine exception.
 
-Adding a component's dependency to `extraComponents` only makes the module
-importable, so the discovery-flow handler can initialize and (usually) render
-a clean discovered-device card instead of crashing — it does **not**
-configure the integration or make it start connecting to anything. That only
-happens if a household member goes on to complete its config flow (enters
-cloud credentials, confirms a coordinator claim, etc.); otherwise the card
-just sits there, or gets dismissed with Ignore (below). So "we don't want
-this integration running" is not, by itself, a reason to leave a dependency
-out — it only becomes one if the dependency's absence was the only thing
-standing between "inert card" and "actually running." That's true for none of
-`cast`/`ipp`/`ecobee`/`zha` below; it's specifically **not** true for
-`linkplay`, which is why that one stays out:
+- **`cast`** (`pychromecast`) / **`ipp`** (`pyipp`) — real new capabilities,
+  wanted. Added to `extraComponents`.
+- **`ecobee`** (`python-ecobee-api` — differs from the journal's `pyecobee`)
+  — added. Nobody will complete its config flow (HomeKit already controls
+  both thermostats via `ecobee-climate.nix`; ecobee also closed developer-key
+  signups), so the discovered card just gets Ignore'd.
+- **`zha`** — added. Checked HA core's own `zha/config_flow.py` (2026.8.2):
+  the coordinator's serial port only opens on confirming the flow, not on
+  discovery/rendering the card. So there's no port conflict with the
+  already-adopted Zigbee2MQTT (`custom.zigbee`) from adding the dependency —
+  the conflict is avoided by never confirming, same as `ecobee`.
+- **`linkplay`** stays out. Checked `linkplay/config_flow.py`: unlike `zha`,
+  its zeroconf step probes the device (`getMetaInfo`) unconditionally before
+  any card exists. That probe genuinely fails against these Wiim Pro units
+  (`home-assistant/core#145132`) — confirmed live — so the dependency would
+  just trade one crash for another. The community `wiim` integration (§ Wiim
+  above) already handles this hardware correctly.
 
-- **`cast`** (dep: `pychromecast`, confirmed against the pinned nixpkgs
-  `component-packages.nix`) is a real fix: a genuine Chromecast-capable
-  device exists on the LAN and nothing blocks HA from actually driving it, so
-  `"cast"` is now in `extraComponents` (`hosts/reliant/configuration.nix`).
-  This is a real new capability (HA-driven casting), not just log suppression
-  — intended, not scope creep.
-- **`ipp`** (dep: `pyipp`, same verification) is the same story: a real
-  network printer triggers this discovery, nothing blocks integrating it, so
-  `"ipp"` is now in `extraComponents` too.
-- **`ecobee`** (dep: `python-ecobee-api`, confirmed against the pinned
-  nixpkgs `component-packages.nix` — this differs from the PyPI/import name
-  that surfaces in the journal error, `pyecobee`) is now also a real fix:
-  `"ecobee"` is in `extraComponents`. This makes the *native cloud* ecobee
-  integration's discovered-device card render cleanly instead of crashing on
-  import — it does not configure or start that integration, and nothing here
-  completes its config flow: `hosts/reliant/home-assistant/
-  ecobee-climate.nix` already gets full local, no-cloud-account control of
-  both thermostats through `homekit_controller` (already in
-  `extraComponents`), a wholly separate code path unaffected either way, and
-  ecobee suspended new developer-key signups regardless, so there's no path
-  to actually complete the cloud flow even if it were wanted. The discovered
-  card gets the same one-time Ignore treatment described below.
-- **`zha`** (dep list includes `zha`, `zha-quirks`,
-  `ha-silabs-firmware-client`, `universal-silabs-flasher`, and others,
-  confirmed against the same pinned `component-packages.nix`) is now also a
-  real fix: `"zha"` is in `extraComponents`. Checked against HA core's own
-  `homeassistant/components/zha/config_flow.py` (HA 2026.8.2, the version
-  this nixpkgs revision pins) before adding this, rather than assumed: its
-  discovery `async_step_confirm` only reaches the radio-probing code that
-  actually opens the coordinator's serial port
-  (`self._radio_mgr.detect_radio_type()`) when the confirm form is submitted
-  (`user_input is not None`) or during first-run onboarding with no existing
-  ZHA entries — neither applies here (this household is long past onboarding,
-  and `custom.zigbee` already has a config entry). Simply rendering the
-  discovered card does not touch the port. The real conflict — only one
-  stack can hold the coordinator's serial port at a time, and this household
-  already committed that stack to Zigbee2MQTT (`custom.zigbee`, see §
-  Zigbee below) — is real, but it's a config-flow-*completion* conflict, not
-  a discovery-flow one, so it's avoided procedurally (never submitting ZHA's
-  confirm form) rather than by leaving the dependency out and crashing on
-  every discovery pass instead.
-- **`linkplay`** is the one that stays out: unlike the two above, its
-  dependency doesn't get from `ModuleNotFoundError` to a clean discovered
-  card. Checked against HA core's own
-  `homeassistant/components/linkplay/config_flow.py` (2026.8.2): its
-  `async_step_zeroconf` calls `linkplay_factory_httpapi_bridge()` —
-  performing the same `getMetaInfo` probe documented in § Wiim below —
-  unconditionally, before ever showing a confirm form, unlike `zha`'s
-  deferred probe above. Confirmed live on `reliant` (§ Wiim below): that
-  probe gets back the literal string `"Failed"` instead of JSON from these
-  Wiim Pro units' firmware, an exception the integration's own zeroconf
-  handler doesn't catch for this failure mode, aborting the flow before it
-  creates an integration entry or a discovered-device card at all. Adding
-  `python-linkplay` to `extraComponents` would only trade the
-  `ModuleNotFoundError` for that crash — not fix anything, and not produce
-  anything to click Ignore on either. The community `wiim` integration
-  already handles this hardware correctly (§ Wiim below).
-
-For `ecobee` and `zha`, now that their dependencies are in, the actual
-resolution is a one-time action in the HA UI, not a Nix change and not
-"nothing to do here": **Settings → Devices & Services → find the discovered
-card for that device → click it → Ignore.** This writes a real, permanent
-config entry into HA's own storage (`.storage/core.config_entries`, with
-`source: "ignore"`) that HA's discovery flow checks before ever offering that
-domain's config flow again for that specific discovered device — it survives
-reboots and isn't a log-suppression trick, it's the same category of
-one-time manual step as pairing a HomeKit accessory. Run it once per device
-(each ecobee thermostat for `ecobee`, the Zigbee coordinator for `zha`). If a
-real intent to integrate either of these ever exists (a working native
-ecobee API key, or a coordinator switch away from Zigbee2MQTT for `zha`),
-completing the discovered card's own flow — not a further Nix change — is
-all that's left to do; the dependency is already in place.
-
-For `linkplay`, there is nothing to click Ignore on — the flow aborts before
-a card exists — so the journal line is expected, benign noise from a
-hardware/firmware quirk with no config-flow surface to act on. If a real fix
-ever lands upstream (see § Wiim below for the tracked issue), add
-`python-linkplay` to `extraComponents` the same way as `cast`/`ipp` above,
-verifying the exact nixpkgs package name against `component-packages.nix`
-rather than guessing from the journal's import name.
+Resolution for `ecobee`/`zha`: **Settings → Devices & Services → find the
+discovered card → Ignore.** One-time, survives reboots. `linkplay` has
+nothing to Ignore — the flow aborts before a card exists — so its journal
+line is expected noise until upstream fixes `getMetaInfo` handling.
 
 ### Geoff's Office AV: CEC handles volume, not power
 

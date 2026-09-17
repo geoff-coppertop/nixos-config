@@ -332,37 +332,13 @@ slicing sidecar as a podman container. Host-specific notes:
   Tracked upstream at
   [home-assistant/core#145132](https://github.com/home-assistant/core/issues/145132).
 - **`journalctl` recurringly logged `homeassistant.components.{linkplay,cast,
-  ecobee,ipp,zha}: No module named '...'` every few minutes.** Confirmed
-  live: zeroconf/SSDP discovery (part of HA's always-on core bootstrap) keeps
-  finding real devices on the LAN — the Wiim speaker, a Chromecast-capable
-  device, the ecobee thermostats, a network printer, the Zigbee coordinator —
-  and offering each one's core integration's config flow, which failed to
-  import since none of these five components' dependencies were in
-  `extraComponents`. A component's dependency being importable only lets its
-  discovery card render; it does not configure or start the integration, so
-  "we don't want it running" alone isn't a reason to leave a dependency out —
-  `cast` (dep: `pychromecast`), `ipp` (dep: `pyipp`), `ecobee` (dep:
-  `python-ecobee-api`), and `zha` (dep list includes `zha`/`zha-quirks`) are
-  all now in `extraComponents`. For `ecobee` and `zha`, adding the dependency
-  was checked to be safe first, not just convenient: `ecobee-climate.nix`'s
-  HomeKit-based control is a separate code path nothing here touches, and
-  HA core's own `zha/config_flow.py` (checked against the pinned nixpkgs
-  revision) confirms showing ZHA's discovered card doesn't probe or open the
-  Zigbee coordinator's serial port — only submitting its confirm form does,
-  and nobody does, since Zigbee2MQTT already owns that port
-  (`custom.zigbee`). Only `linkplay` still gets no code fix: unlike the
-  other three, HA core's own `linkplay/config_flow.py` calls the
-  `getMetaInfo`-probing bridge factory unconditionally during discovery,
-  before any confirm form exists, so its dependency alone would only trade
-  this `ModuleNotFoundError` for the `getMetaInfo` crash documented in the
-  entry above — not a clean discovered card, and nothing to Ignore. For
-  `ecobee` and `zha`, the resolution is a one-time UI action: Settings →
-  Devices & Services → find that device's discovered card → click it →
-  Ignore. This writes a real, persistent `source: "ignore"` entry into HA's
-  own `.storage/core.config_entries`, which HA's discovery flow checks
-  before ever offering that domain's config flow again for that device — it
-  survives reboots, it's not a log-suppression trick. See
-  [docs/smart-home.md § Discovery-flow `ModuleNotFoundError`s](../../docs/smart-home.md#discovery-flow-modulenotfounderrors-cast-ecobee-ipp-linkplay-zha)
+  ecobee,ipp,zha}: No module named '...'` every few minutes.** `cast`, `ipp`,
+  `ecobee`, and `zha` are now fixed via `extraComponents`; `linkplay` is a
+  verified exception (its discovery step crashes on a hardware probe before
+  a dependency would even help — the community `wiim` integration is the
+  real fix, see the entry above). Full reasoning, including why a missing
+  dependency isn't the same as "integration running", in
+  [docs/smart-home.md § Discovery-flow `ModuleNotFoundError`s](../../docs/smart-home.md#discovery-flow-modulenotfounderrors-cast-ecobee-ipp-linkplay-zha).
   for the full per-component reasoning.
 - **iOS companion app failed to connect with "The mobile_app component is not
   loaded."** `"mobile_app"` was already in `extraComponents`, which installs
