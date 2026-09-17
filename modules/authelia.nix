@@ -325,9 +325,7 @@ in {
 
           storage.local.path = "/var/lib/authelia-main/db.sqlite3";
 
-          # notifier.smtp.password is deliberately absent here -- goes
-          # through environmentVariables above instead, see
-          # notifier.smtp.passwordFile's doc comment.
+          # smtp.password set via environmentVariables above, not here.
           notifier = mkMerge [
             (mkIf cfg.notifier.smtp.enable {
               smtp = {

@@ -127,10 +127,7 @@ _: {
       owner = "authelia-main";
     };
 
-    # Owner authelia-main: like ldap-bind-password above, this one is NOT a
-    # LoadCredential secret. It is handed to Authelia as a raw path in
-    # AUTHELIA_NOTIFIER_SMTP_PASSWORD_FILE, so the file itself must be
-    # readable by the instance's own system user.
+    # Same non-LoadCredential reasoning as ldap-bind-password above.
     "authelia/smtp-password" = {
       file = ../../secrets/authelia/smtp-password.age;
       owner = "authelia-main";

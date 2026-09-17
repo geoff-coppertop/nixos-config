@@ -482,8 +482,6 @@ in {
         };
       };
 
-      # See docs/homelab-network.md § Known Gotchas for the username/domain
-      # deploy issues this hit.
       notifier.smtp = {
         enable = true;
         address = "submission://smtp-relay.brevo.com:587";
