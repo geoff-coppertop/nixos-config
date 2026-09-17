@@ -51,7 +51,7 @@ This requires the age identity to already be installed at `/var/lib/agenix/ident
 
 ## Fresh Bootstrap Is Not Available
 
-`install.py`'s WSL flow — fetch NixOS-WSL, `wsl --import`, apply the flake — was pulled out of the Python tooling rewrite pending real validation. Unlike the disko flow, which was tested thoroughly, it had never been run end to end. It will return in a follow-up once there is an environment to validate it against, or may not return at all if WSL usage here winds down as expected.
+`install.py`'s WSL flow — fetch NixOS-WSL, `wsl --import`, apply the flake — was pulled out of the Python tooling rewrite pending real validation. Unlike the disko flow, it had never been run end to end. It will return in a follow-up once there is an environment to validate it against, or may not return at all if WSL usage here winds down as expected.
 
 If you need to bootstrap a **new** WSL machine before that lands, ask first rather than reaching for old instructions — nothing in this repo currently automates it.
 
@@ -61,6 +61,6 @@ None of this affects rebuilding `holodeck-01`, which already exists and boots no
 
 ## Backups
 
-Backs up `thomasga`'s home directory to the NAS at `192.168.1.21`, share `Personal-Drive`, using `/run/agenix/thomasga/nas-smb-credentials` (the user's own personal NAS login — this host has no shared/appliance backup jobs, so `backup-svc` is never involved). `custom.isLaptop` is unset, so backups are not AC-gated on this host.
+Backs up `thomasga`'s home directory to the NAS at `192.168.1.21`, share `Personal-Drive`, using `/run/agenix/thomasga/nas-smb-credentials` (the user's own personal NAS login — this host has no shared/appliance backup jobs, so `backup-svc` is never involved). `custom.isLaptop` is unset, so backups aren't AC-gated here.
 
 See [docs/backups.md](../../docs/backups.md).

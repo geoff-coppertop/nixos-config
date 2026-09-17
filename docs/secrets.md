@@ -2,7 +2,7 @@
 
 This repo uses agenix for committed secrets and Bitwarden for recovery material. Secrets live in `secrets/` and are safe to commit; only the decrypted content is sensitive.
 
-SSH login keys are agenix secrets and are covered here too — see [SSH Keys And Host Trust](#ssh-keys-and-host-trust) below. SSH host-key pinning is not encrypted material, but it is wired up by the same `enroll.py` procedure, so it lives in this doc rather than a separate one.
+SSH login keys are agenix secrets — see [SSH Keys And Host Trust](#ssh-keys-and-host-trust) below. SSH host-key pinning is not encrypted material, but the same `enroll.py` procedure wires it up, so it lives in this doc too.
 
 ## Model
 
@@ -140,13 +140,13 @@ Because a job-keyed secret is shared, more than one host can be a recipient of t
 | --- | --- | --- |
 | `secrets/factorio/game-password.age` | Valid JSON with exactly one key, `game_password` | `excelsior` |
 
-The Factorio dedicated server's in-game join password. It must decrypt to valid JSON — not a bare line like the restic passwords above — because the nixpkgs `services.factorio` module merges `extraSettingsFile` into the generated `server-settings.json` with a `jq -s add` in the unit's `ExecStartPre`. Any other shape, or extra keys, either fails the merge or silently overrides settings the module manages:
+The Factorio dedicated server's in-game join password. It must decrypt to valid JSON, not a bare line like the restic passwords above: the nixpkgs `services.factorio` module merges `extraSettingsFile` into the generated `server-settings.json` with a `jq -s add` in the unit's `ExecStartPre`. Any other shape, or extra keys, either fails the merge or silently overrides settings the module manages:
 
 ```json
 {"game_password": "<password>"}
 ```
 
-Declared in `hosts/excelsior/secrets.nix` with `mode = "0444"` and no `owner`. That is intentional: `services.factorio` runs with `DynamicUser = true`, so its UID does not exist when agenix decrypts secrets at activation time and there is no static account to `chown` the file to. World-readable is the accepted tradeoff for this one secret — `excelsior` is a headless game server with no local accounts besides the admin login, and this is how upstream's `extraSettingsFile` is meant to be used with a `DynamicUser` service. Do not copy this pattern to a secret whose consumer has a real static user.
+Declared in `hosts/excelsior/secrets.nix` with `mode = "0444"` and no `owner`. That is intentional: `services.factorio` runs with `DynamicUser = true`, so its UID does not exist when agenix decrypts at activation time and there is no static account to `chown` to. World-readable is the accepted tradeoff for this one secret — `excelsior` is a headless game server with no local accounts besides the admin login, and this is how upstream's `extraSettingsFile` is meant to be used with a `DynamicUser` service. Do not copy this pattern to a secret whose consumer has a real static user.
 
 ### NAS SMB credentials
 
@@ -165,11 +165,11 @@ There are three, one per **purpose**, not per host. `lib/nas.nix` names three in
 | `secrets/media-svc/nas-smb-credentials.age` | `media-svc` → `Media` | `excelsior`'s `/mnt/media` Jellyfin library mount (`hosts/excelsior/media.nix`) | `excelsior`, `offlineAdmin` |
 | `secrets/thomasga/nas-smb-credentials.age` | the user's own personal login → `Personal-Drive` | `enterprise-d`'s `custom.networkDrives.users.thomasga` desktop mount, **and** the `thomasga` home-directory backup job on every host that runs it, via the per-entry NAS override on `custom.backups.users.thomasga` | `enterprise-d`, `reliant`, `excelsior`, `holodeck-01`, `offlineAdmin` |
 
-`backup-svc` is shared across `reliant` and `excelsior` on purpose: the restic repository path embeds the hostname (`<mountPoint>/<job>/<hostname>`), so the two hosts do not collide, and a per-host SMB account would buy nothing the NAS-side share ACL does not already give. `enterprise-d` and `holodeck-01` are not recipients — neither runs any shared/appliance backup job, only `thomasga`, which stays on the personal login. Split a new `*-svc` account out only when a new *purpose* needs a different share, the way `media-svc` did.
+`backup-svc` is shared across `reliant` and `excelsior` on purpose: the restic repository path embeds the hostname (`<mountPoint>/<job>/<hostname>`), so the two hosts do not collide, and a per-host SMB account would buy nothing the NAS-side share ACL does not already give. `enterprise-d` and `holodeck-01` are not recipients — neither runs any shared/appliance backup job. Split a new `*-svc` account out only when a new *purpose* needs a different share, the way `media-svc` did.
 
-`thomasga/nas-smb-credentials.age` is a person's credential and belongs on nothing but that person's own mounts — their desktop personal drive (`Personal-Drive`) and their own home-directory backup (`Personal-Drive/backups`, the pre-existing repository location, see `lib/nas.nix`'s `personalBackups` — not the bare share root). That is why it is a recipient of all four hosts: the `thomasga` backup job runs on all of them and stays on the personal login. Do not reuse it for a machine or service mount; mint a `*-svc` account on the NAS instead.
+`thomasga/nas-smb-credentials.age` is a person's credential and belongs on nothing but that person's own mounts — their desktop personal drive (`Personal-Drive`) and their own home-directory backup (`Personal-Drive/backups`, the pre-existing repository location, see `lib/nas.nix`'s `personalBackups` — not the bare share root). It is a recipient of all four hosts because the `thomasga` backup job runs on all of them. Do not reuse it for a machine or service mount; mint a `*-svc` account on the NAS instead.
 
-`reliant` and `excelsior` hold both credentials, because the NAS mount is configurable per backup entry rather than only per host — see [docs/backups.md](backups.md). `backup-svc` handles their shared/appliance jobs, and the personal login (declared with no `owner`, since the backup mount is performed by root) handles `thomasga` on the same host. `enterprise-d` and `holodeck-01` hold only the personal login, since neither runs anything else — on `enterprise-d` it is owned by `thomasga` because the desktop mount needs it, and root reads it for the backup mount regardless; on `holodeck-01` it has no owner, matching `reliant`/`excelsior`'s pattern.
+`reliant` and `excelsior` hold both credentials, because the NAS mount is configurable per backup entry rather than only per host — see [docs/backups.md](backups.md). `backup-svc` handles their shared/appliance jobs; the personal login (no `owner`, since the backup mount is performed by root) handles `thomasga` on the same host. `enterprise-d` and `holodeck-01` hold only the personal login. On `enterprise-d` it is owned by `thomasga` because the desktop mount needs it, and root reads it for the backup mount regardless; on `holodeck-01` it has no owner, matching `reliant`/`excelsior`.
 
 ### Wi-Fi passphrases
 
@@ -187,9 +187,9 @@ WIFI_AGT_HOME_PASSWORD=your-passphrase-here
 
 ### Shared hardware and domain secrets
 
-Named for what they hold or which physical hardware they're tied to, not for `reliant` — the Zigbee/Z-Wave keys are matched to the coordinator/controller's own NVRAM/NVM state, and the Cloudflare token and location aren't host-specific at all, so none of them are renamed if that hardware or responsibility ever moves to a different host.
+Named for what they hold or which physical hardware they're tied to, not for `reliant`. The Zigbee/Z-Wave keys are matched to the coordinator/controller's own NVRAM/NVM state; the Cloudflare token and the receiver location aren't host-specific at all. So none are renamed, rotated or duplicated per host if that hardware or responsibility moves.
 
-None are rotated or duplicated per host, since each is tied to physical hardware state (the Zigbee/Z-Wave radios' own NVRAM/NVM) or isn't host-specific at all (the Cloudflare token, the receiver location). A new host taking over that hardware or responsibility is simply added as an extra recipient — this is what let the Zigbee/Z-Wave radios keep working without a re-pair when they physically moved to `reliant`.
+A new host taking over that hardware or responsibility is simply added as an extra recipient — this is what let the Zigbee/Z-Wave radios keep working without a re-pair when they physically moved to `reliant`.
 
 | Secret | Contents | Host recipients |
 | --- | --- | --- |
@@ -198,7 +198,7 @@ None are rotated or duplicated per host, since each is tied to physical hardware
 | `zigbee/network-key.age` | A bracketed byte array, e.g. `[12,34,...,255]` | `reliant` |
 | `zwave/secrets.age` | JSON with one `securityKeys` object | `reliant` |
 
-`traefik/cloudflare-api-token.age` has a second consumer: `custom.ddns` (`modules/ddns.nix`) reuses this same file for ddclient's Cloudflare DDNS updates rather than a second secret, running as the `traefik` system user (this secret's existing owner) to read it and stripping its `CLOUDFLARE_DNS_API_TOKEN=` prefix at service start — see [docs/homelab-network.md § Dynamic DNS](homelab-network.md#dynamic-dns).
+`traefik/cloudflare-api-token.age` has a second consumer: `custom.ddns` (`modules/ddns.nix`) reuses this same file for ddclient's Cloudflare DDNS updates rather than minting a second secret. It reads it as the `traefik` system user (this secret's existing owner) and strips the `CLOUDFLARE_DNS_API_TOKEN=` prefix at service start — see [docs/homelab-network.md § Dynamic DNS](homelab-network.md#dynamic-dns).
 
 ### Home Assistant integration credentials
 
@@ -208,7 +208,7 @@ Unlike the shared hardware/domain secrets above, these are specific to one Home 
 | --- | --- | --- |
 | `hass/aqicn-token.age` | The AQICN API token as a single line, no quotes or prefix | `reliant` |
 
-`hass/aqicn-token.age` backs the outdoor-AQI REST sensor in `hosts/reliant/home-assistant/climate-dashboard.nix`. Home Assistant's own `!secret` mechanism resolves from a `secrets.yaml` file in its config directory, which nothing populates by default — the module injects this secret into that file at service start, the same pattern `modules/zigbee.nix` uses for the Zigbee network key (see that module's comments): the raw token never touches the Nix store, only `/run/agenix/hass/aqicn-token`.
+`hass/aqicn-token.age` backs the outdoor-AQI REST sensor in `hosts/reliant/home-assistant/climate-dashboard.nix`. Home Assistant's own `!secret` mechanism resolves from a `secrets.yaml` file in its config directory, which nothing populates by default. The module injects this secret into that file at service start, the same pattern `modules/zigbee.nix` uses for the Zigbee network key (see that module's comments). The raw token never touches the Nix store, only `/run/agenix/hass/aqicn-token`.
 
 `zwave/secrets.age` must look exactly like this:
 
@@ -235,7 +235,7 @@ done
 
 ### lldap and Authelia SSO credentials
 
-Specific to `reliant`'s one lldap + Authelia deployment — each is tied to that instance's own database, bind account or issuer identity, so a second host running SSO would mint its own rather than become a recipient of these. All are declared in `hosts/reliant/secrets.nix`; the design they back is [docs/homelab-network.md § Authelia Forward-Auth](homelab-network.md#authelia-forward-auth-lldap--authelia-sso) and its § OIDC Provider subsection.
+Specific to `reliant`'s one lldap + Authelia deployment — each is tied to that instance's own database, bind account or issuer identity, so a second host running SSO would mint its own rather than reuse these. All are declared in `hosts/reliant/secrets.nix`; the design they back is [docs/homelab-network.md § Authelia Forward-Auth](homelab-network.md#authelia-forward-auth-lldap--authelia-sso) and its § OIDC Provider subsection.
 
 | Secret | Contents | agenix owner | Host recipients |
 | --- | --- | --- | --- |
@@ -432,7 +432,7 @@ The script:
 4. Adds the machine to `lib/ssh-hosts.nix` with the login key under `userPublicKeys.<user>`
 5. Re-keys all secrets so the machine is a recipient
 
-The private key is decrypted at runtime by agenix and deployed by home-manager. The public key recorded in `lib/ssh-hosts.nix` is added to that user's `openssh.authorizedKeys.keys` on every machine that declares them — no manual `authorized_keys` editing.
+The private key is decrypted at runtime by agenix and deployed by home-manager. The public key recorded in `lib/ssh-hosts.nix` lands in that user's `openssh.authorizedKeys.keys` on every machine that declares them — no manual `authorized_keys` editing.
 
 For machines already provisioned, the corresponding `thomasga/ssh-id-ed25519-<machine>.age` secret already exists; run the enrollment script and skip the key generation step if you only need to register a new machine's identity.
 
@@ -440,9 +440,9 @@ For machines already provisioned, the corresponding `thomasga/ssh-id-ed25519-<ma
 
 ### Collect And Pin The Host Key After Deploy
 
-The deployed machine generates its own SSH **host** keypair automatically when sshd starts. This is separate from the login keypair above; it is what remote machines use to verify they are talking to the correct host.
+The deployed machine generates its own SSH **host** keypair — `/etc/ssh/ssh_host_ed25519_key` and its `.pub` — on first boot with sshd enabled. This is separate from the login keypair above; it is what remote machines use to verify they are talking to the correct host.
 
-NixOS generates `/etc/ssh/ssh_host_ed25519_key` and its `.pub` on first boot with sshd enabled. The private key stays on the machine unencrypted (standard SSH practice); only the public key belongs in the repo.
+The private key stays on the machine unencrypted (standard SSH practice); only the public key belongs in the repo.
 
 After the machine boots for the first time:
 

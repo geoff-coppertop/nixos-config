@@ -23,7 +23,7 @@ Bringing up a machine is always two phases, and they are separate PRs:
 - **Phase 1 — Machine Provisioning** (this document, Steps 1-7 below): get the machine installed, on the network, reachable over SSH, and enrolled in backups and secrets. Nothing else.
 - **Phase 2 — Application Provisioning**: everything that makes the machine useful for a person or a service — desktop or dev capability, home-manager user environments, homelab or smart-home service modules. See [Phase 2 — Application Provisioning](#phase-2--application-provisioning) below.
 
-Phase 1 and Phase 2 are always separate PRs — never bundled together. Phase 2 work can start any time, including in parallel with Phase 1, but a Phase 2 PR must not merge before its Phase 1 PR has merged and the machine is confirmed up — Phase 2 assumes the machine is already up per the Phase 1 checklist. This keeps a new machine's first PR provably minimal: reviewable purely as "does this box boot, join the network, and back itself up," with no capability or service-module changes mixed in.
+Phase 1 and Phase 2 are always separate PRs — never bundled together. Phase 2 work can start any time, including in parallel with Phase 1, but a Phase 2 PR must not merge before its Phase 1 PR has merged and the machine is confirmed up; Phase 2 assumes the machine is already up per the Phase 1 checklist. This keeps a new machine's first PR provably minimal: reviewable purely as "does this box boot, join the network, and back itself up," with no capability or service-module changes mixed in.
 
 ## Phase 1 — Machine Provisioning
 
@@ -156,7 +156,7 @@ The LUKS passphrase you enter unlocks the disk whenever TPM auto-unlock is unava
 
 ## Step 6 — Enroll Secure Boot
 
-This repo uses lanzaboote, in its manual mode — `modules/secure-boot.nix` sets `pkiBundle = "/etc/secureboot"` but does not set `boot.lanzaboote.autoGenerateKeys.enable` or `autoEnrollKeys.enable`, so nothing enrolls keys for you. Verified against the pinned `lanzaboote` rev (`flake.nix`, currently `v1.1.0`)'s own docs and source.
+This repo uses lanzaboote in its manual mode: `modules/secure-boot.nix` sets `pkiBundle = "/etc/secureboot"` but does not set `boot.lanzaboote.autoGenerateKeys.enable` or `autoEnrollKeys.enable`, so nothing enrolls keys for you (verified against the pinned `lanzaboote` rev's own docs and source — `flake.nix`, currently `v1.1.0`).
 
 1. Ensure the installed system has `/etc/secureboot` populated with your Secure Boot keys (`tools/install.py` does this at Step 5, via `sbctl create-keys`).
 2. Rebuild the system so lanzaboote signs the current generation's boot files, then check the signature:
@@ -168,8 +168,7 @@ This repo uses lanzaboote, in its manual mode — `modules/secure-boot.nix` sets
    Every file should show as signed except ones starting with `kernel-` — that one is expected to stay unsigned.
 
 3. **`sbctl` does not know where the keys are by default — point it there explicitly.** Only `autoGenerateKeys`/`autoEnrollKeys` make lanzaboote write `/etc/sbctl/sbctl.conf` (`nix/modules/lanzaboote.nix`: `environment.etc."sbctl/sbctl.conf" = lib.mkIf (cfg.autoGenerateKeys.enable
-   || cfg.autoEnrollKeys.enable) ...`); this repo doesn't set either, so that
-   file never exists here, and a bare `sbctl` invocation silently falls back to its own default, `/var/lib/sbctl` — not `/etc/secureboot`, where this repo's keys actually live. Every `sbctl` command below needs `--config` pointed at a file with the right paths:
+   || cfg.autoEnrollKeys.enable) ...`). This repo sets neither, so that file never exists here, and a bare `sbctl` invocation silently falls back to its own default, `/var/lib/sbctl` — not `/etc/secureboot`, where this repo's keys actually live. Every `sbctl` command below needs `--config` pointed at a file with the right paths:
 
    ```bash
    printf 'keydir: /etc/secureboot/keys\nguid: /etc/secureboot/GUID\n' | sudo tee /tmp/sbctl.conf
@@ -183,7 +182,7 @@ This repo uses lanzaboote, in its manual mode — `modules/secure-boot.nix` sets
    sudo sbctl --config /tmp/sbctl.conf enroll-keys --microsoft
    ```
 
-   Include the vendor's OEM certificates (`--microsoft`) unless you know you don't need them — some OptionROMs are only signed with those. On hardware that ships pre-provisioned firmware keys (Framework laptops are the documented case), add `--firmware-builtin` too, to keep those keys for vendor firmware updates — confirmed in lanzaboote's own `docs/getting-started/enable-secure-boot.md`.
+   Include the vendor's OEM certificates (`--microsoft`) unless you know you don't need them — some OptionROMs are only signed with those. On hardware that ships pre-provisioned firmware keys (Framework laptops are the documented case, per lanzaboote's own `docs/getting-started/enable-secure-boot.md`), add `--firmware-builtin` too, to keep those keys for vendor firmware updates.
 6. Turn Secure Boot enforcement on in UEFI.
 7. Reboot and verify:
 
@@ -191,7 +190,7 @@ This repo uses lanzaboote, in its manual mode — `modules/secure-boot.nix` sets
    bootctl status | grep -i "secure boot"
    ```
 
-   Expect `Secure Boot: enabled (user)`. `enabled (setup)` means the firmware never left Setup Mode; `disabled` means the UEFI toggle itself is still off. Both read the same firmware `SecureBoot` EFI variable that the lanzaboote UEFI stub checks at boot (`rust/uefi/stub/src/thin.rs`) — if the stub warns `Secure Boot is not active!` on boot, this command will not show `enabled (user)` either; they can't disagree.
+   Expect `Secure Boot: enabled (user)`. `enabled (setup)` means the firmware never left Setup Mode; `disabled` means the UEFI toggle itself is still off. Both read the same firmware `SecureBoot` EFI variable the lanzaboote UEFI stub checks at boot (`rust/uefi/stub/src/thin.rs`), so they can't disagree — a stub warning `Secure Boot is not active!` on boot means this command won't show `enabled (user)` either.
 
 Keep copies of Secure Boot key material in a safe recovery location. Bitwarden is a reasonable place for the recovery instructions and escrowed material if that matches your threat model.
 
@@ -313,7 +312,7 @@ An SD card is fixed-size — unlike `enterprise-d`/`excelsior`'s NVMe/SSD, there
 ssh thomasga@<machine>.local "df -h /"
 ```
 
-Cap boot generations (`boot.loader.generic-extlinux-compatible.configurationLimit`) and this host's `custom.nix.gc.keepGenerations` override (a per-host override of `profiles/common/base.nix`'s option, shared default: 10) well below the default on a small card — `defiant`'s own 30G card needed both dropped to 3 before a full `nix-collect-garbage -d` (which also drops all old generations) reliably kept it under its ~23-24G floor; treat that as a per-host example to tune from, not a default to copy verbatim. Also consider scoping `nix.settings.min-free`/`max-free` to the host so a build or deploy triggers proactive GC mid-operation instead of failing outright. If `df -h` still shows the root partition nearly full, it's Nix store garbage (unreferenced paths, not kept generations): run `nix-collect-garbage -d` on the host, or wait for the nightly `nix-gc` timer.
+Cap boot generations (`boot.loader.generic-extlinux-compatible.configurationLimit`) and this host's `custom.nix.gc.keepGenerations` override (a per-host override of `profiles/common/base.nix`'s option, shared default: 10) well below the default on a small card. `defiant`'s own 30G card needed both dropped to 3 before a full `nix-collect-garbage -d` (which also drops all old generations) reliably kept it under its ~23-24G floor — treat that as a per-host example to tune from, not a default to copy verbatim. Also consider scoping `nix.settings.min-free`/`max-free` to the host so a build or deploy triggers proactive GC mid-operation instead of failing outright. If `df -h` still shows the root partition nearly full, it's Nix store garbage (unreferenced paths, not kept generations): run `nix-collect-garbage -d` on the host, or wait for the nightly `nix-gc` timer.
 
 If the host runs Zigbee2MQTT and/or Z-Wave JS, they start up using the keys created during enrollment — no further extraction step is needed.
 

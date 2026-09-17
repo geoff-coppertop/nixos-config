@@ -8,7 +8,7 @@ Everything here assumes your shell is already at the repo root. Commands never u
 
 ## Workstation Setup
 
-Mandatory before doing any provisioning or defining new machines. Complete it once per development environment.
+Mandatory before any provisioning or defining new machines. Complete it once per development environment.
 
 ### Prerequisites
 
@@ -94,13 +94,13 @@ The normal path is one command, run from any machine with Nix and SSH access to 
 nix run .#deploy-all
 ```
 
-It runs `pre-commit run --all-files`, then probes each remotable host with `ssh -o BatchMode=yes -o ConnectTimeout=5 thomasga@<host>.local true`. The probe is an SSH command, not a ping, so it exercises the same path (auth included) that `nixos-rebuild --target-host` will use. An unreachable host is dropped from the run before the builds start — it can't be switched this time, so building its closure would be wasted — and is reported under `unreachable` in the summary.
+It runs `pre-commit run --all-files`, then probes each remotable host with `ssh -o BatchMode=yes -o ConnectTimeout=5 thomasga@<host>.local true`. The probe is an SSH command, not a ping, so it exercises the same path (auth included) that `nixos-rebuild --target-host` will use. An unreachable host is dropped before the builds start — building a closure that can't be switched would be wasted — and is reported under `unreachable` in the summary.
 
-It then builds *every* remaining host registered in `nixosConfigurations` — including hosts excluded by `--only`/`--skip` — and refuses to touch any machine if any host fails to build. Only then does it run `nixos-rebuild switch --flake .#<host> --target-host thomasga@<host>.local` for each reachable host, prompting `Switch <host> now? [y/N]` before each one. The host list comes from the flake, so a newly registered machine is picked up with no change to the tool.
+It then builds *every* remaining host registered in `nixosConfigurations`, including hosts excluded by `--only`/`--skip`, and refuses to touch any machine if any host fails to build. Only then does it run `nixos-rebuild switch --flake .#<host> --target-host thomasga@<host>.local` for each reachable host, prompting `Switch <host> now? [y/N]` before each one. The host list comes from the flake, so a newly registered machine is picked up with no change to the tool.
 
-How that switch elevates is decided before it runs, not after it fails. Immediately before each host's switch, that host is probed with `ssh -o BatchMode=yes -o ConnectTimeout=5 thomasga@<host>.local sudo -n true`, and the switch gets `--sudo` if the probe succeeded or `--ask-sudo-password` if it did not. `--sudo` only works on a target that already allows passwordless privilege elevation; `--ask-sudo-password` prompts locally for the password and passes it to the target over stdin, which is the path hosts needing a password take (`enterprise-d` does). Watch for the `no passwordless sudo — you will be prompted locally` line on stderr: that is why a password prompt appears mid-run.
+How that switch elevates is decided before it runs, not after it fails. Immediately before each host's switch, that host is probed with `ssh -o BatchMode=yes -o ConnectTimeout=5 thomasga@<host>.local sudo -n true`. The switch gets `--sudo` if the probe succeeded, `--ask-sudo-password` if it did not. `--sudo` only works on a target that already allows passwordless privilege elevation; `--ask-sudo-password` prompts locally for the password and passes it to the target over stdin, which is the path hosts needing a password take (`enterprise-d` does). Watch for the `no passwordless sudo — you will be prompted locally` line on stderr: that is why a password prompt appears mid-run.
 
-The switch itself is attempted exactly once per host. There is no retry: a `nixos-rebuild switch` failure after the probe has already answered the sudo question is a real deployment failure — a unit that would not (re)start, an activation script that errored — not a privilege problem, and re-running the whole switch would only redecrypt secrets and restart every changed unit again to reach the same error. Such a host is reported under `failed` in the summary and the run exits non-zero.
+The switch is attempted exactly once per host, with no retry. A `nixos-rebuild switch` failure after the probe has already answered the sudo question is a real deployment failure — a unit that would not (re)start, an activation script that errored — not a privilege problem, and re-running would only redecrypt secrets and restart every changed unit again to reach the same error. Such a host is reported under `failed` in the summary and the run exits non-zero.
 
 Preview the whole fleet without changing anything:
 
@@ -116,15 +116,15 @@ nix run .#deploy-all -- --dry-run
 | `--skip h1,h2` | Leave these hosts alone |
 | `--skip-checks` | Skip the pre-commit pre-flight |
 
-Progress goes to stderr; the built/switched/skipped/unreachable/failed summary goes to stdout. Exit status is non-zero if any build or switch failed. An unreachable host is not a failure on its own — bring it up and re-run with `--only <host>`. If every host named by `--only` is unreachable, the run exits non-zero without building anything.
+Progress goes to stderr; the built/switched/skipped/unreachable/failed summary goes to stdout. Exit status is non-zero if any build or switch failed. An unreachable host is not itself a failure — bring it up and re-run with `--only <host>`. If every host named by `--only` is unreachable, the run exits non-zero without building anything.
 
-**`holodeck-01` is the exception.** It is a WSL distro with no SSH-reachable remote path, so `deploy-all` never probes or attempts to reach it — it builds it unconditionally like any other host and prints the manual command as a closing reminder. Run that inside the WSL distro:
+**`holodeck-01` is the exception.** It is a WSL distro with no SSH-reachable remote path, so `deploy-all` never probes it. It builds it unconditionally like any other host and prints the manual command as a closing reminder. Run that inside the WSL distro:
 
 ```bash
 sudo nixos-rebuild switch --flake .#holodeck-01
 ```
 
-The per-host commands below remain valid for one-off or edge-case use — a host that is down, a machine you are sitting at, or when you don't want the full fleet build:
+The per-host commands below remain valid for one-off use — a host that is down, a machine you are sitting at, or when you don't want the full fleet build:
 
 | Machine | Command | Where to run |
 | --- | --- | --- |
@@ -136,7 +136,7 @@ The per-host commands below remain valid for one-off or edge-case use — a host
 
 ### Automatic updates
 
-`profiles/common/base.nix` enables `system.autoUpgrade` for every host: it fetches `github:geoff-coppertop/nixos-config#<hostname>` weekly and stages the result as the next boot entry (`operation = boot`, `allowReboot = false`). Nothing reboots automatically; apply the staged generation at your convenience. Because it tracks the GitHub remote, only pushed commits are picked up.
+`profiles/common/base.nix` enables `system.autoUpgrade` for every host: it fetches `github:geoff-coppertop/nixos-config#<hostname>` weekly and stages the result as the next boot entry (`operation = boot`, `allowReboot = false`). Nothing reboots automatically; reboot into the staged generation at your convenience. Because it tracks the GitHub remote, only pushed commits are picked up.
 
 On hosts with `custom.isLaptop = true` (currently `enterprise-d`) the upgrade also skips while on battery — the same `ConditionACPower` gating used for NAS backups.
 
@@ -155,7 +155,7 @@ sudo nixos-rebuild dry-activate --flake .#enterprise-d
 sudo nixos-rebuild switch --flake .#enterprise-d
 ```
 
-The package and kernel baseline tracks whichever branch the `nixpkgs` input in `flake.nix` points at (`nixos-unstable` today). Moving to a more conservative or more aggressive baseline is the same mechanism: change the `nixpkgs` input's branch or revision, then run the three commands above — `nix flake update` picks up the new target, and the lock file records it.
+The package and kernel baseline tracks whichever branch the `nixpkgs` input in `flake.nix` points at (`nixos-unstable` today). Moving to a more conservative or more aggressive baseline uses the same mechanism: change the `nixpkgs` input's branch or revision, then run the three commands above. `nix flake update` picks up the new target and the lock file records it.
 
 ### User environment updates (self-serve, no sudo)
 
@@ -174,7 +174,7 @@ This works for any user, including users not in the `wheel` group. Only changes 
 
 ## Validation Commands
 
-Run these before switching on a real machine. They work on any Linux or WSL host with Nix installed; `nixos-rebuild` itself only makes sense on NixOS or from a NixOS installer environment.
+Run these before switching on a real machine. They work on any Linux or WSL host with Nix installed; `nixos-rebuild` itself only makes sense on NixOS or a NixOS installer environment.
 
 ```bash
 nix develop -c pre-commit run --all-files
@@ -192,9 +192,9 @@ sudo nixos-rebuild switch --flake .#enterprise-d
 
 ### What these do not catch: port collisions
 
-Two modules enabled on the same host claiming the same TCP port is not a build error. `nix flake check` sees only the hand-written assertions in `modules/bambuddy.nix`; everything else evaluates and builds cleanly and then fails at runtime with `EADDRINUSE` in the service's journal, after a `nixos-rebuild switch`. Two have landed that way already: `custom.zwave` against AdGuard Home's admin UI on 3000 (fixed by moving zwave-js to 3001), and `custom.homepage`, whose upstream default landed on Zigbee2MQTT's hardcoded 8082 (moved to 8083). Both were found by reading a service journal, not at review time. A third — `custom.bambuddy`'s virtual printer against that same AdGuard 3000, which is unfixable since the printer's ports are hardcoded upstream — is caught before deploy only because someone hand-wrote the assertion in `modules/bambuddy.nix` for it.
+Two modules enabled on the same host claiming the same TCP port is not a build error. `nix flake check` sees only the hand-written assertions in `modules/bambuddy.nix`; everything else evaluates and builds cleanly, then fails at runtime with `EADDRINUSE` in the service's journal after a `nixos-rebuild switch`. Two have landed that way already: `custom.zwave` against AdGuard Home's admin UI on 3000 (fixed by moving zwave-js to 3001), and `custom.homepage`, whose upstream default landed on Zigbee2MQTT's hardcoded 8082 (moved to 8083). Both were found by reading a service journal, not at review time. A third — `custom.bambuddy`'s virtual printer against that same AdGuard 3000, unfixable since the printer's ports are hardcoded upstream — is caught before deploy only because someone hand-wrote the assertion in `modules/bambuddy.nix` for it.
 
-There is no command for this — the check is reading the port table in `hosts/<machine>/README.md` for every host that will run the module before choosing a port, and updating those tables in the same commit that adds or moves one. Each host README carries its own complete list; a port only collides with another claim on the same machine, so there is deliberately no fleet-wide one. If a service came up dead after a switch, check its journal for `EADDRINUSE` against that host's table first:
+There is no command for this. The check is reading the port table in `hosts/<machine>/README.md` for every host that will run the module before choosing a port, and updating those tables in the same commit that adds or moves one. Each host README carries its own complete list; a port only collides with another claim on the same machine, so there is deliberately no fleet-wide one. If a service came up dead after a switch, check its journal for `EADDRINUSE` against that host's table first:
 
 ```bash
 systemctl status <unit>
@@ -217,7 +217,7 @@ nix build .#nixosConfigurations.<aarch64-host>.config.system.build.sdImage
 
 `enterprise-d` sets `boot.binfmt.emulatedSystems = ["aarch64-linux"]`, so it can cross-build an aarch64 host locally, slowly. CI sidesteps this by building aarch64 hosts natively on an `ubuntu-24.04-arm` runner, when one exists in the matrix.
 
-Use `nix flake check --no-build`, never bare `nix flake check`: the latter tries to build every `nixosConfiguration` including the aarch64 one, which fails with a platform mismatch on x86_64. Use `--no-build` for the eval-only check, then `nix build` per platform.
+Use `nix flake check --no-build`, never bare `nix flake check`: the latter tries to build every `nixosConfiguration` including the aarch64 one, which fails with a platform mismatch on x86_64. Run the eval-only check, then `nix build` per platform.
 
 ## Lint, Format, And CI
 
@@ -241,9 +241,9 @@ The `no-plaintext-secrets` pre-commit hook blocks staging anything that looks li
 | `build` | Matrix over the hosts `changes` selected: `nix build .#nixosConfigurations.<host>.config.system.build.toplevel --no-link` |
 | `ha-config-check` | `python3 tools/ha_config_check.py reliant`, scoped by `changes` (see below) |
 
-`lint` and `flake-check` are unconditional. `build` and `ha-config-check` are not — both depend on `changes`, which runs two derivation-diff scripts to decide what actually needs to happen for this push or PR.
+`lint` and `flake-check` are unconditional. `build` and `ha-config-check` are not — both depend on `changes`, which runs two derivation-diff scripts to decide what this push or PR needs.
 
-`build`'s scoping: `tools/ci_changed_hosts.py` evaluates each host's toplevel `drvPath` at the base commit and again at the head commit, and prints a build matrix containing only those hosts whose `drvPath` differs. A host whose derivation is byte-identical at both commits cannot produce a different build, so it is skipped; a docs-only change moves no host's `drvPath` and runs zero build jobs.
+`build`'s scoping: `tools/ci_changed_hosts.py` evaluates each host's toplevel `drvPath` at the base and head commits, and prints a build matrix of only those hosts whose `drvPath` differs. A host whose derivation is byte-identical at both commits cannot produce a different build, so it is skipped; a docs-only change moves no host's `drvPath` and runs zero build jobs.
 
 Nothing about the host list is hand-maintained. The script reads it out of the flake at each commit:
 
@@ -251,30 +251,30 @@ Nothing about the host list is hand-maintained. The script reads it out of the f
 nix eval --json .#nixosConfigurations --apply builtins.attrNames
 ```
 
-Registering a host in `flake.nix`'s `nixosConfigurations` is therefore the only step needed for it to get CI coverage — there is no second list to update, and no way to add a host that CI silently never builds. A host present at head but not at base (a newly added machine) has nothing to compare against and is always built.
+Registering a host in `flake.nix`'s `nixosConfigurations` is therefore the only step needed for CI coverage — there is no second list to update, and no way to add a host CI silently never builds. A host present at head but not at base (a newly added machine) has nothing to compare against and is always built.
 
-The runner is derived the same way. For each host the script evaluates `pkgs.system` (not `config.nixpkgs.hostPlatform.system` — that NixOS *option* isn't populated by this repo's `mkNixosSystem`, which threads `system` through `nixosSystem`'s top-level argument instead; `pkgs.system` is set unconditionally regardless of how `system` was passed in) and the host's `drvPath` in a single `nix eval`, then maps the system to the runner that builds it natively: `x86_64-linux` to `ubuntu-latest`, `aarch64-linux` to `ubuntu-24.04-arm`. A second aarch64 machine gets an arm64 runner automatically; no host name appears in the mapping. A system with no mapping falls back to `ubuntu-latest`, so it fails loudly in the build rather than vanishing from the matrix.
+The runner is derived the same way. For each host the script evaluates `pkgs.system` and the host's `drvPath` in a single `nix eval`, then maps the system to the runner that builds it natively: `x86_64-linux` to `ubuntu-latest`, `aarch64-linux` to `ubuntu-24.04-arm`. It reads `pkgs.system`, not `config.nixpkgs.hostPlatform.system`: that NixOS *option* isn't populated by this repo's `mkNixosSystem`, which threads `system` through `nixosSystem`'s top-level argument instead, while `pkgs.system` is set unconditionally. A second aarch64 machine gets an arm64 runner automatically; no host name appears in the mapping. A system with no mapping falls back to `ubuntu-latest`, so it fails loudly in the build rather than vanishing from the matrix.
 
 The comparison is on the derivation itself, not on changed file paths, so there is no host-to-path map that can go stale. It fails safe: if the base commit is unreachable (new branch, force-push, shallow history) or an eval errors out, the host is built anyway. The one hard failure is being unable to enumerate `nixosConfigurations` at head — there is no safe list to fall back to, so `changes` exits non-zero and CI goes red instead of building nothing.
 
-**Caveat — over-selection from bare local-file references.** A host can show as changed even when nothing it imports functionally changed, if anywhere in its closure a `.nix` file hands a bare `./`/`../` path literal to a derivation as a build input. Such a literal resolves to a subpath of the one whole-repo store copy of `self`, so its store identity moves on every commit and drags the host's `drvPath` with it. This costs a wasted build, never a missed one — the optimization stays correct, just less effective. The mechanism and the fix (`lib/local-file.nix`) are in [docs/architecture.md § Local Files As Build Inputs](architecture.md#local-files-as-build-inputs).
+**Caveat — over-selection from bare local-file references.** A host can show as changed even when nothing it imports functionally changed, if anywhere in its closure a `.nix` file hands a bare `./`/`../` path literal to a derivation as a build input. Such a literal resolves to a subpath of the one whole-repo store copy of `self`, so its store identity moves on every commit and drags the host's `drvPath` with it. This costs a wasted build, never a missed one. The mechanism and the fix (`lib/local-file.nix`) are in [docs/architecture.md § Local Files As Build Inputs](architecture.md#local-files-as-build-inputs).
 
 The build job frees disk space on the runner before building, since a full desktop closure can exhaust the default runner disk.
 
 **`ha-config-check`'s scoping** is two layers, both keyed to `reliant` (the only host with Home Assistant enabled — there is no second host yet to justify generalizing this):
 
-1. If `reliant` isn't in the `changes` matrix above, its toplevel didn't change at all, so nothing about its Home Assistant config could have either — the check is skipped with no further evaluation (`ha-reliant-changed=false`). The matrix JSON reaches that test as a `MATRIX_JSON` env var on the step, never interpolated as `${{ ... }}` inside the shell script: the matrix is quote-heavy JSON, and substituting it into a shell string mangles it before `jq` ever sees it (which is exactly how this layer silently answered "not in the matrix" on every run until it was fixed).
+1. If `reliant` isn't in the `changes` matrix above, its toplevel didn't change at all, so nothing about its Home Assistant config could have either — the check is skipped with no further evaluation (`ha-reliant-changed=false`). The matrix JSON reaches that test as a `MATRIX_JSON` env var on the step, never interpolated as `${{ ... }}` inside the shell script: the matrix is quote-heavy JSON, and substituting it into a shell string mangles it before `jq` sees it, which made this layer silently answer "not in the matrix" on every run until it was fixed.
 2. If it is, `tools/ci_ha_config_changed.py` diffs the drvPaths of the three flake packages `tools/ha_config_check.py` actually builds (`packages.<system>.ha-config-reliant`, the rendered automation config; `ha-check-hass` and `ha-check-colorlog`, the validator itself) between base and head. Most reliant changes — Traefik, Bambuddy, Z-Wave, etc. — move reliant's toplevel without touching any of these three, and are correctly skipped. A nixpkgs bump that changes the `home-assistant` package still trips this even when no automation file moved, since `ha-check-hass`'s drvPath moves too.
 
 Both scripts fail safe: any checkout/eval problem is treated as "changed" rather than risking a skipped validation.
 
 ### Pull request template
 
-`.github/pull_request_template.md` pre-fills the description of every PR opened against this repo. It is a checklist, not prose, and exists so no PR ships without a test plan someone else can re-run.
+`.github/pull_request_template.md` pre-fills the description of every PR opened against this repo. It is a checklist, not prose, so no PR ships without a test plan someone else can re-run.
 
 It asks for two things:
 
 1. **Summary** — why the change is needed and which hosts it affects. Not what changed — the diff shows that.
-2. **Test plan** — one ordered checklist of concrete copyable commands in fenced code blocks with the expected output noted. Tick a box only if you ran that command and saw that output; leave unchecked whatever needs hardware, an unreachable host, or a command nobody automates (`nixos-rebuild switch`, `nix flake update`, a manual backup, the installer), and say in the item who runs it. Lint and format is never skippable — `pre-commit` runs markdownlint over every `.md` file, so even a docs-only PR runs it. Only the flake-evaluation and host-build steps are N/A when no `.nix` file changed.
+2. **Test plan** — one ordered checklist of concrete copyable commands in fenced code blocks with the expected output noted. Tick a box only if you ran that command and saw that output. Leave unchecked whatever needs hardware, an unreachable host, or a command nobody automates (`nixos-rebuild switch`, `nix flake update`, a manual backup, the installer), and say in the item who runs it. Lint and format is never skippable — `pre-commit` runs markdownlint over every `.md` file, so even a docs-only PR runs it. Only the flake-evaluation and host-build steps are N/A when no `.nix` file changed.
 
 The default author steps mirror the [validation commands](#validation-commands) above and the CI jobs in the table before this section; keep the three in step when any of them changes.

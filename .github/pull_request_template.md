@@ -8,7 +8,7 @@ Affected hosts: `enterprise-d` / `holodeck-01` / `excelsior` / `reliant` / none.
 
 ## Test plan
 
-One checklist, in the order to run it. Every step is a concrete, copyable command in a fenced block with the expected result noted. "Verify it works" is not a test step. Check a box only if you actually ran it and saw the expected output; leave unchecked steps that need hardware, a host you can't reach, or a state-changing command you must not run (`nixos-rebuild switch`, `nix flake update`, a manual backup, the installer) — say who runs those in the item.
+One checklist, in the order to run it. Every step is a concrete, copyable command in a fenced block with the expected result noted — "verify it works" is not a test step. Check a box only if you actually ran it and saw the expected output. Leave unchecked any step that needs hardware, a host you can't reach, or a state-changing command you must not run (`nixos-rebuild switch`, `nix flake update`, a manual backup, the installer), and say who runs it in the item.
 
 - [ ] Lint and format
 
