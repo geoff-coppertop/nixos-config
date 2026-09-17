@@ -16,11 +16,10 @@ in {
       description = ''
         Integration components to bundle into the Home Assistant Python
         environment, beyond the small built-in default_config baseline.
-        Confirmed live: the "Add Integration" search lists every
-        integration regardless of this option (that catalog is static
-        frontend data), but selecting one whose component isn't listed
-        here fails with "Invalid handler specified" — the backend
-        component was never installed into the Nix-built package.
+        The "Add Integration" search lists every integration regardless of
+        this option (static frontend data), but selecting one whose
+        component isn't listed here fails with "Invalid handler specified"
+        — the backend component was never installed.
       '';
     };
 
@@ -31,30 +30,24 @@ in {
         Path to an agenix-managed EnvironmentFile providing LOCATION_LAT,
         LOCATION_LON, and LOCATION_ELEVATION — same secret/env-var naming
         as custom.adsb.locationEnvFile (the shared location/coordinates.age
-        file), reused rather than duplicated since it's the same home
-        address either way. Wires the core homeassistant: latitude/
-        longitude/elevation config below via HA's own `!env_var` YAML tag,
-        so zone.home (and anything derived from it — met's forecast,
-        sun.sun's solar calculations) reflects this repo's own secret
-        instead of whatever was typed into onboarding by hand. null skips
-        both the EnvironmentFile and the homeassistant: block entirely,
-        leaving location exactly as UI-configured (Settings > System >
-        General), same as before this option existed.
+        file, reused since it's the same home address either way). Wires the
+        core homeassistant: latitude/longitude/elevation config below via
+        HA's own `!env_var` YAML tag, so zone.home (and anything derived
+        from it — met's forecast, sun.sun's solar calculations) reflects
+        this repo's own secret instead of whatever was typed into onboarding
+        by hand. null skips both the EnvironmentFile and the homeassistant:
+        block, leaving location exactly as UI-configured.
       '';
     };
 
     oidc = {
       enable = mkEnableOption ''
-        Home Assistant's side of Authelia SSO: the third-party
-        hass-oidc-auth HACS component (pkgs/home-assistant-oidc-auth.nix,
-        wired in via services.home-assistant.customComponents in the
-        consuming host's configuration.nix — this option only renders the
-        auth_oidc: configuration.yaml block) plus HA's own auth_oidc config,
-        pointed at Authelia running as an OpenID Connect 1.0 provider
-        (custom.authelia.oidc in modules/authelia.nix, homelab-network's
-        module). Deliberately not forward-auth — see docs/smart-home.md
-        § OIDC Login for why HA gets real SSO via this mechanism instead of
-        the authelia@file middleware every other gated subdomain uses.
+        Home Assistant's side of Authelia SSO: renders the auth_oidc:
+        configuration.yaml block for the third-party hass-oidc-auth HACS
+        component (installed separately via
+        services.home-assistant.customComponents), pointed at Authelia's
+        OpenID Connect provider (custom.authelia.oidc). Deliberately not
+        forward-auth — see docs/smart-home.md § OIDC Login for why.
       '';
 
       clientId = mkOption {
@@ -63,10 +56,7 @@ in {
         description = ''
           hass-oidc-auth's auth_oidc.client_id. Must match
           custom.authelia.oidc.homeAssistant.clientId on whichever host
-          runs Authelia — both default to the same literal
-          ("home-assistant") for exactly this reason, the same symmetric
-          relationship custom.authelia.oidc.homeAssistant.redirectUri has
-          with this module's own hardcoded "home" Traefik subdomain.
+          runs Authelia — both default to the same literal for that reason.
         '';
       };
 
@@ -75,12 +65,9 @@ in {
         default = "https://${config.custom.authelia.subdomain}.${config.custom.traefik.acme.domain}/.well-known/openid-configuration";
         description = ''
           hass-oidc-auth's auth_oidc.discovery_url — Authelia's OIDC
-          discovery endpoint. Defaults to composing
-          custom.authelia.subdomain and custom.traefik.acme.domain (both
-          homelab-network options, read here purely as values — this
-          module doesn't otherwise depend on custom.authelia), which is
-          correct whenever Authelia and Home Assistant share the same
-          Traefik/ACME domain, as they do on reliant.
+          discovery endpoint. The default is correct whenever Authelia and
+          Home Assistant share the same Traefik/ACME domain, as they do on
+          reliant.
         '';
       };
 
@@ -89,15 +76,12 @@ in {
         default = false;
         description = ''
           hass-oidc-auth's auth_oidc.features.default_redirect. When true,
-          visiting Home Assistant skips its own login page entirely and
-          redirects straight to Authelia -- real SSO, not just an extra
-          login button next to HA's normal form. Confirmed against
-          hass-oidc-auth's own configuration docs
-          (github.com/christiaangoossens/hass-oidc-auth/blob/main/docs/configuration.md),
-          not guessed. HA's own local login form stays reachable as a
-          fallback by appending ?skip_oidc_redirect=true to the login URL
-          -- worth remembering before enabling this, so a broken Authelia
-          never locks out local access entirely.
+          visiting Home Assistant skips its own login page and redirects
+          straight to Authelia — real SSO, not just an extra login button.
+          HA's own local login stays reachable as a fallback by appending
+          ?skip_oidc_redirect=true to the login URL — worth remembering
+          before enabling this, so a broken Authelia never locks out local
+          access entirely.
         '';
       };
 
@@ -105,32 +89,25 @@ in {
         type = types.str;
         description = ''
           Path to an agenix-managed file holding the RAW (pre-hash) OIDC
-          client secret shared with Authelia — the plaintext value hass-
-          oidc-auth's own auth_oidc.client_secret needs. This is the
-          mirror image of custom.authelia.oidc.homeAssistant.clientSecretHashFile
-          over on the Authelia side, which stores only a pbkdf2-sha512
-          hash of the same value: both are generated together via
-          `nix run nixpkgs#authelia -- crypto hash generate pbkdf2 --variant sha512 --random`,
-          the raw output going here and the digest going there. Wired as
-          an EnvironmentFile (read by systemd itself as root before the
-          home-assistant unit's own user/sandboxing applies, same
-          reasoning as locationEnvFile above), exposed to configuration.yaml
-          via HA's own `!env_var` YAML tag rather than the `!secret`/
-          secrets.yaml mechanism hass-oidc-auth's own docs show, to stay
-          consistent with this repo's existing secret-wiring convention
-          (see docs/smart-home.md § Core location for why `!env_var` works
-          here at all).
+          client secret shared with Authelia — the plaintext value
+          hass-oidc-auth's auth_oidc.client_secret needs. Mirror image of
+          custom.authelia.oidc.homeAssistant.clientSecretHashFile on the
+          Authelia side, which stores only a pbkdf2-sha512 hash of the same
+          value: both are generated together via `nix run nixpkgs#authelia
+          -- crypto hash generate pbkdf2 --variant sha512 --random`, the raw
+          output here and the digest there. Wired as an EnvironmentFile
+          (read by systemd as root, same as locationEnvFile above), exposed
+          via HA's own `!env_var` YAML tag rather than hass-oidc-auth's
+          documented `!secret`/secrets.yaml route, to match this repo's
+          existing secret-wiring convention.
 
-          As an EnvironmentFile, its contents must be a `HASS_OIDC_CLIENT_SECRET=<value>`
-          line (the exact env-var name this module's auth_oidc.client_secret
-          reads via `!env_var`), not the bare secret value on its own — same
-          KEY=VALUE shape as locationEnvFile's LOCATION_LAT/LON/ELEVATION
-          lines above.
+          As an EnvironmentFile, its contents must be a
+          `HASS_OIDC_CLIENT_SECRET=<value>` line, not the bare value — same
+          shape as locationEnvFile's lines above.
 
           No secret exists at this path yet — secrets-warden needs to
           generate the shared pair above and create a new agenix secret
-          (e.g. home-assistant/oidc-client-secret) for the raw half. See
-          hosts/reliant/README.md § Secrets.
+          for the raw half. See hosts/reliant/README.md § Secrets.
         '';
       };
     };
@@ -140,75 +117,59 @@ in {
     {
       services.home-assistant = {
         enable = true;
-        # No openFirewall here: nixpkgs removed the option (it used to parse
-        # the frontend port out of the module's rendered YAML config at eval
-        # time, which is no longer possible — see
-        # docs/smart-home.md § HTTP config). Defining it at all, true or
-        # false, is now an eval-time assertion failure
-        # (mkRemovedOptionModule). The desired posture — frontend port 8123
-        # closed except to the Sonos UPnP-callback VLAN — is unchanged and
-        # keeps working exactly as before, because it was already achieved
+        # No openFirewall here: nixpkgs removed the option entirely
+        # (mkRemovedOptionModule — see docs/smart-home.md § HTTP config).
+        # The desired posture — port 8123 closed except to the Sonos
+        # UPnP-callback VLAN — is unchanged, since it was already achieved
         # by NOT opening the port here: hosts/reliant/configuration.nix's
-        # networking.firewall.extraCommands carries the one narrow iptables
-        # rule, and everything else reaches HA only via Traefik.
+        # firewall.extraCommands carries the one narrow rule, and
+        # everything else reaches HA only via Traefik.
         configWritable = true;
         inherit (cfg) extraComponents;
         config =
           {
-            # sun: confirmed live — sun.sun doesn't exist at all without this.
-            # Unlike ssdp/zeroconf (part of HA's true always-on core bootstrap,
-            # set up regardless of YAML), sun is never attempted unless
-            # explicitly referenced. Needs zero extra packages (no entry in
-            # nixpkgs' component-packages.nix), so no extraComponents change.
+            # sun, mobile_app, recorder, and history are all set explicitly
+            # for the same reason: unlike ssdp/zeroconf (HA's true always-on
+            # core bootstrap, set up regardless of YAML), none of these are
+            # attempted unless explicitly referenced, so leaving them out is
+            # a silent no-op, not a default. Each also needs its own
+            # custom.home-assistant.extraComponents entry per host — see
+            # docs/smart-home.md § Choosing extraComponents.
+            #
+            # sun: sun.sun doesn't exist at all without this. No extra
+            # package needed (no component-packages.nix entry).
             sun = {};
-            # mobile_app: confirmed live — extraComponents only bundles the
-            # mobile_app Python package into the closure, it does not cause HA
-            # to load it at boot. mobile_app also has no "Add Integration" UI
-            # flow to trigger setup after the fact (unlike most components):
-            # it's driven entirely by the companion app's own registration API
-            # call, which is exactly the call that fails with "The mobile_app
-            # component is not loaded" when this entry is missing. Same gap as
-            # sun above — not part of HA's true always-on core bootstrap
-            # (ssdp/zeroconf), so it's never attempted unless explicitly
-            # referenced here. `mobile_app` still needs to stay in each host's
-            # custom.home-assistant.extraComponents too (that part was correct
-            # already, just not sufficient alone without this YAML entry).
+            # mobile_app: extraComponents only bundles the Python package,
+            # it doesn't load it at boot, and mobile_app has no "Add
+            # Integration" UI flow to trigger setup afterward — it's driven
+            # by the companion app's own registration call, which fails
+            # with "The mobile_app component is not loaded" without this.
             mobile_app = {};
-            # recorder/history: confirmed live — a history-graph Lovelace card
+            # recorder/history: a history-graph Lovelace card
             # (hosts/reliant/home-assistant/climate-dashboard.nix) reported
-            # "History integration is disabled" with neither of these present.
-            # Same gap as sun/mobile_app above: nothing else in this repo
-            # declares either as a manifest dependency (unlike ssdp, pulled in
-            # automatically by sonos/apple_tv), so neither is ever attempted
-            # without an explicit key here. history itself depends on recorder
-            # (per Home Assistant's own docs) to have anything to read, so both
-            # are needed together. Each also needs its own
-            # custom.home-assistant.extraComponents entry per host, same as
-            # every other component here — see docs/smart-home.md § Choosing
-            # extraComponents.
+            # "History integration is disabled" with neither present.
+            # history depends on recorder to have anything to read, so both
+            # are needed together.
             recorder = {};
             history = {};
             logger.default = "warning";
             # NOT http.trusted_proxies/use_x_forwarded_for here (previously
-            # set): confirmed live, newer HA versions deprecate YAML http:
-            # config entirely in favor of UI-managed storage
-            # (Settings > System > Network), auto-importing whatever YAML
-            # value existed once and then repair-warning "remove the http:
-            # block" every boot afterward until it's gone (stops being read
-            # at all from HA 2027.2.0). configWritable = true above means the
-            # already-imported value persists in an existing instance's own
-            # /var/lib/hass/.storage regardless of this file, so removing the
-            # YAML is safe for a host that's already run with it set.
+            # set): newer HA versions deprecate YAML http: config entirely
+            # in favor of UI-managed storage (Settings > System > Network),
+            # auto-importing the old YAML value once and then
+            # repair-warning to remove the block every boot until it's gone
+            # (stops being read at all from HA 2027.2.0). configWritable =
+            # true above means the already-imported value persists in
+            # /var/lib/hass/.storage regardless of this file, so removing
+            # the YAML is safe for a host that's already run with it set.
             #
-            # For a FRESH install (no existing .storage — a from-scratch
-            # install on any future host), this is a real gap: Traefik
-            # fronts HA on every host with custom.traefik.enable (self-
-            # registered below), so HA needs to trust its X-Forwarded-For
-            # headers to see real client IPs rather than always 127.0.0.1 —
-            # and there is no longer a declarative way to set that. One-time
-            # manual step after first boot: Settings > System > Network >
-            # enable "Use X-Forwarded-For" and add 127.0.0.1 as a trusted
-            # proxy.
+            # For a FRESH install (no existing .storage), this is a real
+            # gap: Traefik fronts HA on every host with custom.traefik.enable
+            # (self-registered below), so HA needs to trust its
+            # X-Forwarded-For headers to see real client IPs — and there's
+            # no longer a declarative way to set that. One-time manual step
+            # after first boot: Settings > System > Network > enable "Use
+            # X-Forwarded-For" and add 127.0.0.1 as a trusted proxy.
           }
           // optionalAttrs (cfg.locationEnvFile != null) {
             # Confirmed against nixpkgs' home-assistant module source
