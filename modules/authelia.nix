@@ -227,53 +227,35 @@ in {
       address = mkOption {
         type = types.str;
         description = ''
-          Authelia's notifier.smtp.address, a URI-scheme value, e.g.
-          "submission://smtp-relay.brevo.com:587" -- confirmed against
-          Authelia's own SMTP notifier configuration docs, current version:
-          this field takes a URI (scheme selects the connection mode --
-          "submission" is STARTTLS on 587, "submissions" would be implicit
-          TLS on 465, "smtp" plaintext), not a bare host:port pair.
+          Authelia's notifier.smtp.address, a URI (scheme picks STARTTLS/TLS/
+          plaintext), e.g. "submission://smtp-relay.brevo.com:587" -- not a
+          bare host:port.
         '';
       };
 
       username = mkOption {
         type = types.str;
         description = ''
-          SMTP AUTH username for notifier.smtp.username. For Brevo's
-          transactional relay this is NOT the account's login email --
-          confirmed live (a real switch got "535 5.7.8 Authentication
-          failed" using the account email here) -- it's the distinct
-          generated "Login" value shown on Settings > SMTP & API > SMTP tab
-          (format <id>@smtp-brevo.com), separate from the email used to sign
-          into app.brevo.com.
+          SMTP AUTH username. For Brevo this is the generated "Login" on
+          Settings > SMTP & API, not the account's sign-in email -- see
+          docs/homelab-network.md § Known Gotchas.
         '';
       };
 
       sender = mkOption {
         type = types.str;
         description = ''
-          Authelia's notifier.smtp.sender (required whenever notifier.smtp is
-          used) -- an RFC5322-formatted From address, e.g.
-          "Authelia <no-reply@example.com>".
+          RFC5322 From address, e.g. "Authelia <no-reply@example.com>".
         '';
       };
 
       passwordFile = mkOption {
         type = types.str;
         description = ''
-          Path to an agenix-managed file holding the SMTP AUTH password (a
-          provider-issued SMTP key, e.g. Brevo's "SMTP key" -- not the
-          account password or a general API key). Confirmed against
-          nixpkgs' services.authelia.instances.<name>.secrets submodule
-          (nixos/modules/services/security/authelia.nix): the only named
-          secrets are jwtSecretFile, oidcIssuerPrivateKeyFile,
-          oidcHmacSecretFile, sessionSecretFile, and
-          storageEncryptionKeyFile -- there is no smtpPasswordFile, and
-          plain YAML has no notifier.smtp.password_file key either
-          (confirmed against Authelia's own SMTP notifier docs). So this
-          goes through Authelia's own env-var secret convention instead,
-          the same way custom.authelia.ldap.bindPasswordFile does:
-          environmentVariables.AUTHELIA_NOTIFIER_SMTP_PASSWORD_FILE.
+          Path to an agenix-managed file holding the SMTP AUTH password.
+          Not one of nixpkgs' services.authelia secrets.* fields, so it's
+          wired via environmentVariables.AUTHELIA_NOTIFIER_SMTP_PASSWORD_FILE
+          instead, the same convention as custom.authelia.ldap.bindPasswordFile.
         '';
       };
     };
@@ -368,24 +350,16 @@ in {
 
           storage.local.path = "/var/lib/authelia-main/db.sqlite3";
 
-          # notifier.smtp.password is deliberately absent here -- plain YAML
-          # has no notifier.smtp.password_file key (confirmed against
-          # Authelia's own SMTP notifier docs), and it isn't one of nixpkgs'
-          # services.authelia.secrets fields either, so it's set via
-          # environmentVariables.AUTHELIA_NOTIFIER_SMTP_PASSWORD_FILE above
-          # instead -- see custom.authelia.notifier.smtp.passwordFile's own
-          # doc comment for the full reasoning.
+          # notifier.smtp.password is deliberately absent here -- goes
+          # through environmentVariables above instead, see
+          # notifier.smtp.passwordFile's doc comment.
           notifier = mkMerge [
             (mkIf cfg.notifier.smtp.enable {
               smtp = {
                 inherit (cfg.notifier.smtp) address username sender;
               };
             })
-            # Fallback when no real SMTP relay is configured: writes
-            # password-reset/notification emails to a local file instead of
-            # actually sending them. Fine for a dev/test instance, but a real
-            # gap for the password-reset flow on anything reachable by an
-            # actual household -- see custom.authelia.notifier.smtp.enable.
+            # Dev/test fallback when no SMTP relay is configured.
             (mkIf (!cfg.notifier.smtp.enable) {
               filesystem.filename = "/var/lib/authelia-main/notification.txt";
             })
