@@ -489,7 +489,7 @@ one more, from `secrets-warden`:**
 
 | Secret | Owner (agenix) | Consumer |
 | --- | --- | --- |
-| `authelia/smtp-password` | `authelia-main` | Authelia's SMTP notifier password — a Brevo **SMTP key**, which functions as the password for SMTP AUTH. File contents are the bare key on one line: no `password=` prefix, no quotes. `authelia-main` (not root) for the same reason as `authelia/ldap-bind-password` above: it is handed to Authelia as a raw path in `AUTHELIA_NOTIFIER_SMTP_PASSWORD_FILE`, not via systemd `LoadCredential`, so the instance's own user must be able to read it. |
+| `authelia/smtp-password` | `authelia-main` | `custom.authelia.notifier.smtp.passwordFile` — the bare Brevo SMTP key, one line, no `password=` prefix. Same owner reasoning as `authelia/ldap-bind-password` above. |
 
 **Home Assistant's own OIDC config (`smart-home`'s side of the same SSO
 feature) needs one more, not yet created — this is the outstanding blocker
