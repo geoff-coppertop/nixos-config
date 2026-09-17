@@ -754,12 +754,7 @@ and the automation-file conventions in that doc.
   explicitly (a `Type = oneshot` unit that only reports done once
   `bootstrap.sh` actually exits) instead of relying on the restart policy
   to paper over the race.
-- **Also confirmed live**, two Brevo SMTP deploy failures:
-  `custom.authelia.notifier.smtp.username` is Brevo's generated "Login"
-  (`<id>@smtp-brevo.com` on Settings > SMTP & API), not the account's
-  sign-in email — using the latter fails AUTH with `535`. And Brevo
-  rejects sends from an unverified sender; single-sender validation
-  doesn't work for `no-reply@coppertop.ca` since it confirms by emailing
-  that address. Fixed by authenticating the whole `coppertop.ca` domain
-  instead (Brevo Settings > Senders, Domains, IPs > Domains), adding the
-  SPF/DKIM records it generates to Cloudflare by hand.
+- **Brevo SMTP**: `notifier.smtp.username` is the generated "Login" on
+  Settings > SMTP & API, not the account email. Sending also needs
+  `coppertop.ca` authenticated as a domain there (SPF/DKIM added to
+  Cloudflare) — single-sender validation doesn't work for a `no-reply@` address.
