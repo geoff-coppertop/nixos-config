@@ -776,8 +776,8 @@ and the automation-file conventions in that doc.
   actually expects.
 - **Also confirmed live**: past the AUTH fix above, Brevo still rejected
   every send with "Sending has been rejected because the sender you used
-  no-reply@coppertop.ca is not valid. Validate your sender or authenticate
-  your domain." Single-sender validation was a dead end here — Brevo
+  `no-reply@coppertop.ca` is not valid. Validate your sender or
+  authenticate your domain." Single-sender validation was a dead end here — Brevo
   confirms a sender by emailing a link *to* that address, and
   `no-reply@coppertop.ca` isn't a real mailbox. Fixed by authenticating the
   whole `coppertop.ca` domain instead (Brevo Settings > Senders, Domains,
