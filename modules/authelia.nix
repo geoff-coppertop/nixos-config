@@ -216,47 +216,26 @@ in {
     };
 
     notifier.smtp = {
-      enable = mkEnableOption ''
-        Sending Authelia's password-reset/identity-verification and other
-        notification emails over real SMTP, instead of the filesystem-stub
-        fallback (notifier.filesystem, which just writes to a local file and
-        never actually delivers anything). See docs/homelab-network.md §
-        Authelia.
-      '';
+      enable = mkEnableOption "sending Authelia's notification emails over real SMTP instead of the notifier.filesystem stub";
 
       address = mkOption {
         type = types.str;
-        description = ''
-          Authelia's notifier.smtp.address, a URI (scheme picks STARTTLS/TLS/
-          plaintext), e.g. "submission://smtp-relay.brevo.com:587" -- not a
-          bare host:port.
-        '';
+        description = "Authelia's notifier.smtp.address, a URI e.g. \"submission://smtp-relay.brevo.com:587\" -- not a bare host:port.";
       };
 
       username = mkOption {
         type = types.str;
-        description = ''
-          SMTP AUTH username. For Brevo this is the generated "Login" on
-          Settings > SMTP & API, not the account's sign-in email -- see
-          docs/homelab-network.md § Known Gotchas.
-        '';
+        description = "SMTP AUTH username -- for Brevo, the generated \"Login\", not the account's sign-in email. See docs/homelab-network.md § Known Gotchas.";
       };
 
       sender = mkOption {
         type = types.str;
-        description = ''
-          RFC5322 From address, e.g. "Authelia <no-reply@example.com>".
-        '';
+        description = "RFC5322 From address, e.g. \"Authelia <no-reply@example.com>\".";
       };
 
       passwordFile = mkOption {
         type = types.str;
-        description = ''
-          Path to an agenix-managed file holding the SMTP AUTH password.
-          Not one of nixpkgs' services.authelia secrets.* fields, so it's
-          wired via environmentVariables.AUTHELIA_NOTIFIER_SMTP_PASSWORD_FILE
-          instead, the same convention as custom.authelia.ldap.bindPasswordFile.
-        '';
+        description = "Path to an agenix-managed file holding the SMTP AUTH password -- wired via environmentVariables.AUTHELIA_NOTIFIER_SMTP_PASSWORD_FILE, same convention as ldap.bindPasswordFile.";
       };
     };
   };
@@ -315,10 +294,6 @@ in {
             AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD_FILE = cfg.ldap.bindPasswordFile;
           }
           (mkIf cfg.notifier.smtp.enable {
-            # SMTP AUTH password: not one of nixpkgs' services.authelia.secrets
-            # fields either (see custom.authelia.notifier.smtp.passwordFile's
-            # own doc comment above for why), so it goes through this same
-            # env-var convention.
             AUTHELIA_NOTIFIER_SMTP_PASSWORD_FILE = cfg.notifier.smtp.passwordFile;
           })
         ];

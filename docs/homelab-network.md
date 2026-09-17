@@ -172,17 +172,10 @@ later.
     `services.authelia.instances.main`) — the agenix secret's `owner` needs
     to be set to that, not root.
   - Password-reset/identity-verification emails go over real SMTP
-    (`custom.authelia.notifier.smtp`) via Brevo's transactional relay —
-    `submission://smtp-relay.brevo.com:587`, sending as
-    `Authelia <no-reply@coppertop.ca>`. Two gotchas: the SMTP AUTH username
-    is Brevo's generated "Login" (`<id>@smtp-brevo.com`), not the account's
-    sign-in email; and the password isn't one of Authelia's `secrets.*`
-    fields, so it goes through the same `AUTHELIA_..._PASSWORD_FILE`
-    env-var convention as the LDAP bind password above (same
-    `authelia-main`-readable ownership). See § Known Gotchas for the two
-    real deploy failures this caused. Disabled (the default), Authelia
-    falls back to `notifier.filesystem` — writes to a local file instead of
-    sending, fine for dev/test only.
+    (`custom.authelia.notifier.smtp`) via Brevo's transactional relay when
+    enabled; otherwise Authelia falls back to `notifier.filesystem` (writes
+    to a local file, dev/test only). See § Known Gotchas for the two real
+    deploy failures this caused.
   - Session storage is the in-memory provider (no Redis) — sessions don't
     survive an Authelia restart. Acceptable for this deployment's scale; a
     Redis-backed session store is a future option if that becomes annoying.

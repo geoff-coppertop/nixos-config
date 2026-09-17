@@ -92,15 +92,10 @@ for the full design.
   is also a self-service, one-time UI step (Authelia's own portal,
   `auth.coppertop.ca`, prompts for it on first login) — not something this
   repo can pre-provision.
-- **Password-reset email** is live: Authelia's `notifier.smtp`
-  (`custom.authelia.notifier.smtp`) sends over Brevo's transactional SMTP
-  relay, `submission://smtp-relay.brevo.com:587`, sender
-  `Authelia <no-reply@coppertop.ca>`, credential at `authelia/smtp-password`
-  (see § Secrets). Confirmed working end-to-end (real reset email received)
-  only after authenticating `coppertop.ca` as a sending domain in Brevo
-  (Settings > Senders, Domains, IPs > Domains) — see docs/homelab-network.md
-  § Authelia Forward-Auth / § Known Gotchas for the full field-by-field
-  reasoning and both deploy-time fixes.
+- **Password-reset email** is live via Brevo (`custom.authelia.notifier.smtp`,
+  credential at `authelia/smtp-password` — see § Secrets), confirmed
+  end-to-end. See docs/homelab-network.md § Known Gotchas for the two
+  deploy-time fixes it took.
 
 ### Ports
 
