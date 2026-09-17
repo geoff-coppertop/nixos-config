@@ -174,8 +174,7 @@ later.
   - Password-reset/identity-verification emails go over real SMTP
     (`custom.authelia.notifier.smtp`) via Brevo's transactional relay when
     enabled; otherwise Authelia falls back to `notifier.filesystem` (writes
-    to a local file, dev/test only). See § Known Gotchas for the two real
-    deploy failures this caused.
+    to a local file, dev/test only).
   - Session storage is the in-memory provider (no Redis) — sessions don't
     survive an Authelia restart. Acceptable for this deployment's scale; a
     Redis-backed session store is a future option if that becomes annoying.
@@ -747,7 +746,3 @@ and the automation-file conventions in that doc.
   explicitly (a `Type = oneshot` unit that only reports done once
   `bootstrap.sh` actually exits) instead of relying on the restart policy
   to paper over the race.
-- **Brevo SMTP**: `notifier.smtp.username` is the generated "Login" on
-  Settings > SMTP & API, not the account email. Sending also needs
-  `coppertop.ca` authenticated as a domain there (SPF/DKIM added to
-  Cloudflare) — single-sender validation doesn't work for a `no-reply@` address.

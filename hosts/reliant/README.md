@@ -94,8 +94,7 @@ for the full design.
   repo can pre-provision.
 - **Password-reset email** is live via Brevo (`custom.authelia.notifier.smtp`,
   credential at `authelia/smtp-password` — see § Secrets), confirmed
-  end-to-end. See docs/homelab-network.md § Known Gotchas for the two
-  deploy-time fixes it took.
+  end-to-end.
 
 ### Ports
 
