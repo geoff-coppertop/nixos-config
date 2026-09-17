@@ -103,6 +103,7 @@ in {
   # passwordFile. Deliberately the same secret so lldap and Authelia cannot
   # drift apart on it.
   "authelia/ldap-bind-password.age".publicKeys = [reliant offlineAdmin];
+  "authelia/smtp-password.age".publicKeys = [reliant offlineAdmin];
   # Job-keyed like every other restic password, but these two jobs
   # (custom.backups.users.lldap / .authelia) only exist on reliant.
   "lldap/restic-password.age".publicKeys = [reliant offlineAdmin];

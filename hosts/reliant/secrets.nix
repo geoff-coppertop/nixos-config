@@ -127,6 +127,12 @@ _: {
       owner = "authelia-main";
     };
 
+    # Same non-LoadCredential reasoning as ldap-bind-password above.
+    "authelia/smtp-password" = {
+      file = ../../secrets/authelia/smtp-password.age;
+      owner = "authelia-main";
+    };
+
     # Same job-keyed restic pattern as the entries above; attribute names
     # match custom.backups.users.lldap / .authelia exactly, so the module's
     # default passwordFile path resolves with no override. No owner —

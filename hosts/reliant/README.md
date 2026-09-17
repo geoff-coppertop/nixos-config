@@ -92,11 +92,9 @@ for the full design.
   is also a self-service, one-time UI step (Authelia's own portal,
   `auth.coppertop.ca`, prompts for it on first login) — not something this
   repo can pre-provision.
-- **TODO: password-reset email.** No SMTP notifier is configured — Authelia's
-  password-reset/notification emails currently just write to a local file
-  (`/var/lib/authelia-main/notification.txt`) instead of being sent anywhere.
-  Needs a real SMTP relay's credentials before the password-reset flow is
-  actually usable end-to-end.
+- **Password-reset email** is live via Brevo (`custom.authelia.notifier.smtp`,
+  credential at `authelia/smtp-password` — see § Secrets), confirmed
+  end-to-end.
 
 ### Ports
 
@@ -485,6 +483,13 @@ new, from `secrets-warden`:**
 | `authelia/oidc-issuer-private-key` | none (default root) | `custom.authelia.oidc.issuerPrivateKeyFile` — Authelia's OIDC issuer signing key (RSA, PKCS#8/PKCS#1, ≥2048 bits). Generate with `openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048`. Read via nixpkgs' own `secrets.oidcIssuerPrivateKeyFile` — unlike the LDAP bind password, this one **does** go through systemd `LoadCredential`, and systemd performs that copy as root during unit setup, so root-only `0400` is sufficient and is the narrower choice. |
 | `authelia/oidc-hmac-secret` | none (default root) | `custom.authelia.oidc.hmacSecretFile` — signs OIDC JWTs. Generate with `openssl rand -base64 64 \| tr -d '\n=+/' \| head -c 64`. Also `LoadCredential`-backed (`secrets.oidcHmacSecretFile`), same root-only reasoning. |
 | `authelia/oidc-client-secret-home-assistant-hash` | `authelia-main` | `custom.authelia.oidc.homeAssistant.clientSecretHashFile` — **not** a raw secret: Authelia only ever stores a pbkdf2-sha512 hash of Home Assistant's OIDC client secret. Generate both the raw secret and its hash together with `nix run nixpkgs#authelia -- crypto hash generate pbkdf2 --variant sha512 --random`; only the digest goes in this file. The raw secret goes into Home Assistant's own `auth_oidc.client_secret` — that's `smart-home`'s side, not managed by this file or this secret. Read directly at runtime via Authelia's own Go-template `secret` function, the same env-var-style direct read as `authelia/ldap-bind-password` (not `LoadCredential`) — see docs/homelab-network.md § OIDC Provider. |
+
+**Authelia's SMTP notifier (password reset and 2FA registration email) adds
+one more, from `secrets-warden`:**
+
+| Secret | Owner (agenix) | Consumer |
+| --- | --- | --- |
+| `authelia/smtp-password` | `authelia-main` | `custom.authelia.notifier.smtp.passwordFile` — the bare Brevo SMTP key, one line, no `password=` prefix. Same owner reasoning as `authelia/ldap-bind-password` above. |
 
 **Home Assistant's own OIDC config (`smart-home`'s side of the same SSO
 feature) needs one more, not yet created — this is the outstanding blocker

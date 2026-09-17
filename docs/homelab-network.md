@@ -171,11 +171,10 @@ later.
     user (nixpkgs' instance-name-derived user for
     `services.authelia.instances.main`) — the agenix secret's `owner` needs
     to be set to that, not root.
-  - No SMTP notifier is configured — password-reset/notification emails write
-    to a local file (`notifier.filesystem`) instead of actually sending
-    anything. This is a real gap in the password-reset flow, not a design
-    choice to revisit casually: SMTP credentials weren't fabricated for a
-    server that doesn't exist yet.
+  - Password-reset/identity-verification emails go over real SMTP
+    (`custom.authelia.notifier.smtp`) via Brevo's transactional relay when
+    enabled; otherwise Authelia falls back to `notifier.filesystem` (writes
+    to a local file, dev/test only).
   - Session storage is the in-memory provider (no Redis) — sessions don't
     survive an Authelia restart. Acceptable for this deployment's scale; a
     Redis-backed session store is a future option if that becomes annoying.

@@ -346,6 +346,7 @@ and its § OIDC Provider subsection.
 | `authelia/jwt-secret.age` | One line, a random high-entropy string | default (root) | `reliant` |
 | `authelia/storage-encryption-key.age` | One line, a random high-entropy string | default (root) | `reliant` |
 | `authelia/ldap-bind-password.age` | One line, the bare password | `authelia-main` | `reliant` |
+| `authelia/smtp-password.age` | One line, the bare Brevo SMTP key — no `password=` prefix, no quotes | `authelia-main` | `reliant` |
 | `authelia/oidc-issuer-private-key.age` | An RSA private key in PEM form, PKCS#8 or PKCS#1, ≥2048 bits | default (root) | `reliant` |
 | `authelia/oidc-hmac-secret.age` | One line, ≥64 random alphanumeric characters | default (root) | `reliant` |
 | `authelia/oidc-client-secret-home-assistant-hash.age` | One line, the `$pbkdf2-sha512$...` **digest** of the Home Assistant client secret — never the raw secret | `authelia-main` | `reliant` |
@@ -360,12 +361,13 @@ Owners follow how each file is actually read, not which service it belongs to:
   `LoadCredential` entries. systemd performs that copy as root during unit
   setup, so root-only `0400` is both sufficient and narrower than granting the
   service user direct read access.
-- `authelia/ldap-bind-password` and
+- `authelia/ldap-bind-password`, `authelia/smtp-password` and
   `authelia/oidc-client-secret-home-assistant-hash` are **not**
-  `LoadCredential`-backed — the first is passed as a raw path in
-  `AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD_FILE`, the second is read by
-  Authelia's own Go-template `secret` function — so both must be readable by
-  `authelia-main` itself.
+  `LoadCredential`-backed — the first two are passed as raw paths in
+  `AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD_FILE` and
+  `AUTHELIA_NOTIFIER_SMTP_PASSWORD_FILE` respectively, the third is read by
+  Authelia's own Go-template `secret` function — so all three must be readable
+  by `authelia-main` itself.
 - `home-assistant/oidc-client-secret` is a systemd `EnvironmentFile`, read by
   systemd as root before `home-assistant.service` drops to its own user —
   the same pattern, and the same `KEY=VALUE` shape, as

@@ -481,6 +481,14 @@ in {
           clientSecretHashFile = "/run/agenix/authelia/oidc-client-secret-home-assistant-hash";
         };
       };
+
+      notifier.smtp = {
+        enable = true;
+        address = "submission://smtp-relay.brevo.com:587";
+        username = "b96cce001@smtp-brevo.com";
+        sender = "Authelia <no-reply@coppertop.ca>";
+        passwordFile = "/run/agenix/authelia/smtp-password";
+      };
     };
 
     # Keeps coppertop.ca's apex A record pointed at this residential
