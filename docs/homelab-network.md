@@ -171,11 +171,31 @@ later.
     user (nixpkgs' instance-name-derived user for
     `services.authelia.instances.main`) — the agenix secret's `owner` needs
     to be set to that, not root.
-  - No SMTP notifier is configured — password-reset/notification emails write
-    to a local file (`notifier.filesystem`) instead of actually sending
-    anything. This is a real gap in the password-reset flow, not a design
-    choice to revisit casually: SMTP credentials weren't fabricated for a
-    server that doesn't exist yet.
+  - Password-reset/identity-verification emails are delivered over real SMTP
+    (`custom.authelia.notifier.smtp`), via Brevo's (formerly Sendinblue)
+    transactional SMTP relay on reliant — `submission://smtp-relay.brevo.com:587`
+    (STARTTLS), sending as `Authelia <no-reply@coppertop.ca>`. The SMTP AUTH
+    username is **not** the Brevo account's login email — confirmed live (a
+    real switch failed with "535 5.7.8 Authentication failed" using the
+    account email) — it's the distinct generated "Login" value on Settings >
+    SMTP & API > SMTP tab (`<id>@smtp-brevo.com`). `notifier.smtp.address` is a
+    URI-scheme value (confirmed against Authelia's own SMTP notifier
+    configuration docs) — the scheme picks the connection mode
+    (`submission` = STARTTLS on 587, `submissions` = implicit TLS on 465,
+    `smtp` = plaintext), it isn't a bare `host:port`. The SMTP AUTH password
+    (a Brevo "SMTP key", not the account password or a general API key) is
+    the second Authelia secret that isn't one of nixpkgs'
+    `services.authelia.instances.<name>.secrets.*` fields — plain YAML has no
+    `notifier.smtp.password_file` key either (confirmed against Authelia's
+    own SMTP notifier docs) — so it goes through the same
+    environment-variable secret convention as the LDAP bind password above:
+    `AUTHELIA_NOTIFIER_SMTP_PASSWORD_FILE`, with the same
+    directly-readable-by-`authelia-main` ownership requirement. When
+    `custom.authelia.notifier.smtp.enable` is `false` (the default),
+    Authelia falls back to writing notification emails to a local file
+    (`notifier.filesystem`) instead of sending them — fine for a dev/test
+    instance, not for anything a real household relies on for password
+    resets.
   - Session storage is the in-memory provider (no Redis) — sessions don't
     survive an Authelia restart. Acceptable for this deployment's scale; a
     Redis-backed session store is a future option if that becomes annoying.
@@ -747,3 +767,25 @@ and the automation-file conventions in that doc.
   explicitly (a `Type = oneshot` unit that only reports done once
   `bootstrap.sh` actually exits) instead of relying on the restart policy
   to paper over the race.
+- **Also confirmed live**: `custom.authelia.notifier.smtp.username` is
+  **not** the Brevo account's login email — the first real deploy failed
+  Authelia's SMTP startup check with `535 5.7.8 "Authentication failed"`
+  using it. Brevo's own SMTP & API > SMTP tab shows a distinct
+  system-generated "Login" value (`<id>@smtp-brevo.com`), separate from the
+  email used to sign into app.brevo.com, and that's the value SMTP AUTH
+  actually expects.
+- **Also confirmed live**: past the AUTH fix above, Brevo still rejected
+  every send with "Sending has been rejected because the sender you used
+  no-reply@coppertop.ca is not valid. Validate your sender or authenticate
+  your domain." Single-sender validation was a dead end here — Brevo
+  confirms a sender by emailing a link *to* that address, and
+  `no-reply@coppertop.ca` isn't a real mailbox. Fixed by authenticating the
+  whole `coppertop.ca` domain instead (Brevo Settings > Senders, Domains,
+  IPs > Domains > Authenticate a domain), which adds SPF/DKIM (and
+  optionally DMARC) TXT/CNAME records — generated per-account by Brevo, so
+  fetched from that page, not reused from generic docs — to the zone at
+  Cloudflare (the same DNS provider `custom.traefik.acme`/`custom.ddns`
+  already use; these are static records added by hand there, not something
+  this repo's `custom.ddns` module manages). Authenticating the domain
+  authorizes sending from any `@coppertop.ca` address without needing that
+  address to receive mail, unlike single-sender validation.

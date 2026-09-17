@@ -103,6 +103,11 @@ in {
   # passwordFile. Deliberately the same secret so lldap and Authelia cannot
   # drift apart on it.
   "authelia/ldap-bind-password.age".publicKeys = [reliant offlineAdmin];
+  # Authelia's SMTP notifier credential — the Brevo "SMTP key", which acts as
+  # the password for SMTP AUTH. Specific to this deployment's own Brevo
+  # sending identity, so reliant only, same reasoning as the rest of the
+  # authelia/* block.
+  "authelia/smtp-password.age".publicKeys = [reliant offlineAdmin];
   # Job-keyed like every other restic password, but these two jobs
   # (custom.backups.users.lldap / .authelia) only exist on reliant.
   "lldap/restic-password.age".publicKeys = [reliant offlineAdmin];

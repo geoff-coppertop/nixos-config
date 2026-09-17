@@ -481,6 +481,24 @@ in {
           clientSecretHashFile = "/run/agenix/authelia/oidc-client-secret-home-assistant-hash";
         };
       };
+
+      # Real SMTP delivery for password-reset/identity-verification emails,
+      # via Brevo's (formerly Sendinblue) transactional SMTP relay --
+      # replaces the notifier.filesystem stub. See
+      # docs/homelab-network.md § Authelia.
+      notifier.smtp = {
+        enable = true;
+        address = "submission://smtp-relay.brevo.com:587";
+        # NOT the Brevo account's login email -- confirmed live, a real
+        # switch got "535 5.7.8 Authentication failed" from Brevo with the
+        # account email here. Brevo's SMTP & API > SMTP tab shows a distinct
+        # generated "Login" value (format <id>@smtp-brevo.com), separate
+        # from the email used to sign into app.brevo.com, and that's what
+        # SMTP AUTH actually expects.
+        username = "b96cce001@smtp-brevo.com";
+        sender = "Authelia <no-reply@coppertop.ca>";
+        passwordFile = "/run/agenix/authelia/smtp-password";
+      };
     };
 
     # Keeps coppertop.ca's apex A record pointed at this residential
