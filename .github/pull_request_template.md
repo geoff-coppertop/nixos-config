@@ -2,21 +2,13 @@
 
 ## Summary
 
-Why this change is needed. The diff already shows what changed — don't
-restate it here.
+Why this change is needed. The diff already shows what changed — don't restate it here.
 
-Affected hosts: `enterprise-d` / `holodeck-01` / `excelsior` / `reliant` /
-none.
+Affected hosts: `enterprise-d` / `holodeck-01` / `excelsior` / `reliant` / none.
 
 ## Test plan
 
-One checklist, in the order to run it. Every step is a concrete, copyable
-command in a fenced block with the expected result noted. "Verify it works"
-is not a test step. Check a box only if you actually ran it and saw the
-expected output; leave unchecked steps that need hardware, a host you can't
-reach, or a state-changing command you must not run (`nixos-rebuild switch`,
-`nix flake update`, a manual backup, the installer) — say who runs those in
-the item.
+One checklist, in the order to run it. Every step is a concrete, copyable command in a fenced block with the expected result noted. "Verify it works" is not a test step. Check a box only if you actually ran it and saw the expected output; leave unchecked steps that need hardware, a host you can't reach, or a state-changing command you must not run (`nixos-rebuild switch`, `nix flake update`, a manual backup, the installer) — say who runs those in the item.
 
 - [ ] Lint and format
 
@@ -26,8 +18,7 @@ the item.
 
   Expected: every hook `Passed`.
 
-- [ ] Flake evaluation — N/A if no `.nix` file changed (never bare
-      `nix flake check`, it builds aarch64 on x86_64)
+- [ ] Flake evaluation — N/A if no `.nix` file changed (never bare `nix flake check`, it builds aarch64 on x86_64)
 
   ```bash
   nix flake check --no-build
@@ -75,7 +66,4 @@ the item.
   # output
   ```
 
-Docs-only changes still run the Lint and format step above — it includes
-markdownlint over every `.md` file. "Docs-only" only excuses the flake
-evaluation and host build steps (marked N/A when no `.nix` file changed);
-it never excuses lint.
+Docs-only changes still run the Lint and format step above — it includes markdownlint over every `.md` file. "Docs-only" only excuses the flake evaluation and host build steps (marked N/A when no `.nix` file changed); it never excuses lint.

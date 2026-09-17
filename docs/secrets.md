@@ -1,38 +1,25 @@
 # Secrets
 
-This repo uses agenix for committed secrets and Bitwarden for recovery material.
-Secrets live in `secrets/` and are safe to commit; only the decrypted content is
-sensitive.
+This repo uses agenix for committed secrets and Bitwarden for recovery material. Secrets live in `secrets/` and are safe to commit; only the decrypted content is sensitive.
 
-SSH login keys are agenix secrets and are covered here too — see
-[SSH Keys And Host Trust](#ssh-keys-and-host-trust) below. SSH host-key pinning
-is not encrypted material, but it is wired up by the same `enroll.py` procedure,
-so it lives in this doc rather than a separate one.
+SSH login keys are agenix secrets and are covered here too — see [SSH Keys And Host Trust](#ssh-keys-and-host-trust) below. SSH host-key pinning is not encrypted material, but it is wired up by the same `enroll.py` procedure, so it lives in this doc rather than a separate one.
 
 ## Model
 
 Secrets never exist as plaintext on disk. The flow is:
 
 1. Encrypted `.age` files are committed to `secrets/`.
-2. `secrets/secrets.nix` declares which age public keys (hosts plus the offline
-   admin) can decrypt each file.
-3. `age.secrets.*` entries declared in each host's `secrets.nix` are decrypted at
-   activation time into `/run/agenix/` (tmpfs).
+2. `secrets/secrets.nix` declares which age public keys (hosts plus the offline admin) can decrypt each file.
+3. `age.secrets.*` entries declared in each host's `secrets.nix` are decrypted at activation time into `/run/agenix/` (tmpfs).
 4. NixOS modules and home-manager reference `/run/agenix/<name>` paths.
 
-Runtime decryption uses the dedicated age private key at
-`/var/lib/agenix/identity`, configured by `modules/secrets.nix` — that module
-sets the identity path and nothing else. Every host has its own
-`hosts/<machine>/secrets.nix` declaring the `age.secrets` for that machine.
+Runtime decryption uses the dedicated age private key at `/var/lib/agenix/identity`, configured by `modules/secrets.nix` — that module sets the identity path and nothing else. Every host has its own `hosts/<machine>/secrets.nix` declaring the `age.secrets` for that machine.
 
-The offline admin private key lives **only** in Bitwarden. It is never installed
-on a machine permanently; it is placed temporarily when rekeying and shredded
-afterwards.
+The offline admin private key lives **only** in Bitwarden. It is never installed on a machine permanently; it is placed temporarily when rekeying and shredded afterwards.
 
 ## Generating Age Identities
 
-Run these from the repo root inside `nix develop`. Confirm the tooling is
-present first:
+Run these from the repo root inside `nix develop`. Confirm the tooling is present first:
 
 ```bash
 command -v age
@@ -40,9 +27,7 @@ command -v agenix
 printf '%s\n' "$EDITOR"
 ```
 
-If `EDITOR` is empty, set it before using `nix run .#secret-edit` — either
-inline (`EDITOR=nano nix run .#secret-edit -- ...`) or `export EDITOR=nano` for
-the session.
+If `EDITOR` is empty, set it before using `nix run .#secret-edit` — either inline (`EDITOR=nano nix run .#secret-edit -- ...`) or `export EDITOR=nano` for the session.
 
 1. Generate the offline admin age identity, outside the repo:
 
@@ -60,15 +45,11 @@ the session.
    chmod 600 ~/.config/agenix/<machine>.age
    ```
 
-3. Copy the public keys printed by `age-keygen` into `secrets/secrets.nix` —
-   `offlineAdmin` for the recovery key, and the machine name for the host key.
+3. Copy the public keys printed by `age-keygen` into `secrets/secrets.nix` — `offlineAdmin` for the recovery key, and the machine name for the host key.
 
-4. Store the offline admin private key, or its recovery material, in Bitwarden.
-   Do not install that key onto machines.
+4. Store the offline admin private key, or its recovery material, in Bitwarden. Do not install that key onto machines.
 
-5. Install the host private key onto the target. During a first install,
-   `tools/install.py` handles this interactively; to do it manually against a
-   mounted target:
+5. Install the host private key onto the target. During a first install, `tools/install.py` handles this interactively; to do it manually against a mounted target:
 
    ```bash
    sudo python3 tools/install_age_identity.py --file ~/.config/agenix/<machine>.age
@@ -83,13 +64,11 @@ the session.
      --target /var/lib/agenix/identity
    ```
 
-In practice `tools/enroll.py` does steps 2-3 for you as part of enrolling a new
-machine — see [docs/provisioning.md](provisioning.md#step-2--enroll-the-machine).
+In practice `tools/enroll.py` does steps 2-3 for you as part of enrolling a new machine — see [docs/provisioning.md](provisioning.md#step-2--enroll-the-machine).
 
 ## Creating Or Rotating a Secret
 
-Never create plaintext files under `secrets/`. Use the helper command so the
-plaintext only ever exists in a temporary editor buffer.
+Never create plaintext files under `secrets/`. Use the helper command so the plaintext only ever exists in a temporary editor buffer.
 
 For a brand-new secret:
 
@@ -105,14 +84,11 @@ For a brand-new secret:
    EDITOR=nano nix run .#secret-edit -- secrets/thomasga/nas-smb-credentials.age
    ```
 
-3. If NixOS or home-manager needs a runtime path for that secret, expose it
-   through `age.secrets` in the host's `secrets.nix` (e.g.
-   `hosts/enterprise-d/secrets.nix`).
+3. If NixOS or home-manager needs a runtime path for that secret, expose it through `age.secrets` in the host's `secrets.nix` (e.g. `hosts/enterprise-d/secrets.nix`).
 
 To rotate an existing secret, run the same `secret-edit` command against it.
 
-After changing recipients in `secrets/secrets.nix`, re-encrypt every tracked
-secret with the offline admin key available locally:
+After changing recipients in `secrets/secrets.nix`, re-encrypt every tracked secret with the offline admin key available locally:
 
 ```bash
 # The offline admin age private key must be present at ~/.config/agenix/admin.age
@@ -126,15 +102,11 @@ shred -u ~/.config/agenix/admin.age
 
 ## Scope For Future Hosts
 
-When you add another host, generate a separate age identity for it and add its
-public key to `secrets/secrets.nix` under a new host name. Only add that host to
-the recipient list for the secrets it actually needs. Do not widen existing
-recipient lists just because a new machine exists.
+When you add another host, generate a separate age identity for it and add its public key to `secrets/secrets.nix` under a new host name. Only add that host to the recipient list for the secrets it actually needs. Do not widen existing recipient lists just because a new machine exists.
 
 ## Secret Inventory
 
-Exact plaintext contents matter — these files are consumed by tools that parse
-them strictly.
+Exact plaintext contents matter — these files are consumed by tools that parse them strictly.
 
 ### Restic repository passwords
 
@@ -146,10 +118,7 @@ correct-horse-battery-staple
 
 No `password=` prefix, no quotes, no JSON.
 
-There is one restic-password secret **per backup job**, keyed to the entry name
-under `custom.backups.users`, not to the machine — each entry gets its own
-restic repository. `passwordFile` defaults to
-`/run/agenix/<name>/restic-password`.
+There is one restic-password secret **per backup job**, keyed to the entry name under `custom.backups.users`, not to the machine — each entry gets its own restic repository. `passwordFile` defaults to `/run/agenix/<name>/restic-password`.
 
 | Secret | Backup job | Host recipients |
 | --- | --- | --- |
@@ -163,10 +132,7 @@ restic repository. `passwordFile` defaults to
 | `secrets/lldap/restic-password.age` | `lldap` | `reliant` |
 | `secrets/authelia/restic-password.age` | `authelia` | `reliant` |
 
-Because a job-keyed secret is shared, more than one host can be a recipient of
-the same file — the restic repository path embeds the hostname
-(`<mountPoint>/<job>/<hostname>`), so the hosts do not collide in the
-repository. Add a host only when that host actually runs the job.
+Because a job-keyed secret is shared, more than one host can be a recipient of the same file — the restic repository path embeds the hostname (`<mountPoint>/<job>/<hostname>`), so the hosts do not collide in the repository. Add a host only when that host actually runs the job.
 
 ### Factorio server settings
 
@@ -174,25 +140,13 @@ repository. Add a host only when that host actually runs the job.
 | --- | --- | --- |
 | `secrets/factorio/game-password.age` | Valid JSON with exactly one key, `game_password` | `excelsior` |
 
-The Factorio dedicated server's in-game join password. It must decrypt to valid
-JSON — not a bare line like the restic passwords above — because the nixpkgs
-`services.factorio` module merges `extraSettingsFile` into the generated
-`server-settings.json` with a `jq -s add` in the unit's `ExecStartPre`. Any
-other shape, or extra keys, either fails the merge or silently overrides
-settings the module manages:
+The Factorio dedicated server's in-game join password. It must decrypt to valid JSON — not a bare line like the restic passwords above — because the nixpkgs `services.factorio` module merges `extraSettingsFile` into the generated `server-settings.json` with a `jq -s add` in the unit's `ExecStartPre`. Any other shape, or extra keys, either fails the merge or silently overrides settings the module manages:
 
 ```json
 {"game_password": "<password>"}
 ```
 
-Declared in `hosts/excelsior/secrets.nix` with `mode = "0444"` and no `owner`.
-That is intentional: `services.factorio` runs with `DynamicUser = true`, so its
-UID does not exist when agenix decrypts secrets at activation time and there is
-no static account to `chown` the file to. World-readable is the accepted
-tradeoff for this one secret — `excelsior` is a headless game server with no
-local accounts besides the admin login, and this is how upstream's
-`extraSettingsFile` is meant to be used with a `DynamicUser` service. Do not
-copy this pattern to a secret whose consumer has a real static user.
+Declared in `hosts/excelsior/secrets.nix` with `mode = "0444"` and no `owner`. That is intentional: `services.factorio` runs with `DynamicUser = true`, so its UID does not exist when agenix decrypts secrets at activation time and there is no static account to `chown` the file to. World-readable is the accepted tradeoff for this one secret — `excelsior` is a headless game server with no local accounts besides the admin login, and this is how upstream's `extraSettingsFile` is meant to be used with a `DynamicUser` service. Do not copy this pattern to a secret whose consumer has a real static user.
 
 ### NAS SMB credentials
 
@@ -203,11 +157,7 @@ username=nas-user
 password=nas-password
 ```
 
-There are three, one per **purpose**, not per host. `lib/nas.nix` names three
-independent top-level shares on the NAS (`Personal-Drive`, `Backups`,
-`Media`), and each has its own NAS-side account with access to that share
-only. A compromised or misconfigured consumer of one therefore cannot reach
-another's data.
+There are three, one per **purpose**, not per host. `lib/nas.nix` names three independent top-level shares on the NAS (`Personal-Drive`, `Backups`, `Media`), and each has its own NAS-side account with access to that share only. A compromised or misconfigured consumer of one therefore cannot reach another's data.
 
 | Secret | NAS account / share | Consumer | Host recipients |
 | --- | --- | --- | --- |
@@ -215,37 +165,15 @@ another's data.
 | `secrets/media-svc/nas-smb-credentials.age` | `media-svc` → `Media` | `excelsior`'s `/mnt/media` Jellyfin library mount (`hosts/excelsior/media.nix`) | `excelsior`, `offlineAdmin` |
 | `secrets/thomasga/nas-smb-credentials.age` | the user's own personal login → `Personal-Drive` | `enterprise-d`'s `custom.networkDrives.users.thomasga` desktop mount, **and** the `thomasga` home-directory backup job on every host that runs it, via the per-entry NAS override on `custom.backups.users.thomasga` | `enterprise-d`, `reliant`, `excelsior`, `holodeck-01`, `offlineAdmin` |
 
-`backup-svc` is shared across `reliant` and `excelsior` on purpose: the restic
-repository path embeds the hostname (`<mountPoint>/<job>/<hostname>`), so the
-two hosts do not collide, and a per-host SMB account would buy nothing the
-NAS-side share ACL does not already give. `enterprise-d` and `holodeck-01` are
-not recipients — neither runs any shared/appliance backup job, only
-`thomasga`, which stays on the personal login. Split a new `*-svc` account out
-only when a new *purpose* needs a different share, the way `media-svc` did.
+`backup-svc` is shared across `reliant` and `excelsior` on purpose: the restic repository path embeds the hostname (`<mountPoint>/<job>/<hostname>`), so the two hosts do not collide, and a per-host SMB account would buy nothing the NAS-side share ACL does not already give. `enterprise-d` and `holodeck-01` are not recipients — neither runs any shared/appliance backup job, only `thomasga`, which stays on the personal login. Split a new `*-svc` account out only when a new *purpose* needs a different share, the way `media-svc` did.
 
-`thomasga/nas-smb-credentials.age` is a person's credential and belongs on
-nothing but that person's own mounts — their desktop personal drive
-(`Personal-Drive`) and their own home-directory backup
-(`Personal-Drive/backups`, the pre-existing repository location, see
-`lib/nas.nix`'s `personalBackups` — not the bare share root). That is why it
-is a recipient of all four hosts: the `thomasga` backup job runs on all of
-them and stays on the personal login. Do not reuse it for a machine or service
-mount; mint a `*-svc` account on the NAS instead.
+`thomasga/nas-smb-credentials.age` is a person's credential and belongs on nothing but that person's own mounts — their desktop personal drive (`Personal-Drive`) and their own home-directory backup (`Personal-Drive/backups`, the pre-existing repository location, see `lib/nas.nix`'s `personalBackups` — not the bare share root). That is why it is a recipient of all four hosts: the `thomasga` backup job runs on all of them and stays on the personal login. Do not reuse it for a machine or service mount; mint a `*-svc` account on the NAS instead.
 
-`reliant` and `excelsior` hold both credentials, because the NAS mount is
-configurable per backup entry rather than only per host — see
-[docs/backups.md](backups.md). `backup-svc` handles their shared/appliance
-jobs, and the personal login (declared with no `owner`, since the backup mount
-is performed by root) handles `thomasga` on the same host. `enterprise-d` and
-`holodeck-01` hold only the personal login, since neither runs anything else —
-on `enterprise-d` it is owned by `thomasga` because the desktop mount needs it,
-and root reads it for the backup mount regardless; on `holodeck-01` it has no
-owner, matching `reliant`/`excelsior`'s pattern.
+`reliant` and `excelsior` hold both credentials, because the NAS mount is configurable per backup entry rather than only per host — see [docs/backups.md](backups.md). `backup-svc` handles their shared/appliance jobs, and the personal login (declared with no `owner`, since the backup mount is performed by root) handles `thomasga` on the same host. `enterprise-d` and `holodeck-01` hold only the personal login, since neither runs anything else — on `enterprise-d` it is owned by `thomasga` because the desktop mount needs it, and root reads it for the backup mount regardless; on `holodeck-01` it has no owner, matching `reliant`/`excelsior`'s pattern.
 
 ### Wi-Fi passphrases
 
-Each Wi-Fi secret decrypts to exactly one line — the variable name and password,
-no quotes, no other lines:
+Each Wi-Fi secret decrypts to exactly one line — the variable name and password, no quotes, no other lines:
 
 ```text
 WIFI_AGT_HOME_PASSWORD=your-passphrase-here
@@ -259,18 +187,9 @@ WIFI_AGT_HOME_PASSWORD=your-passphrase-here
 
 ### Shared hardware and domain secrets
 
-Named for what they hold or which physical hardware they're tied to, not for
-`reliant` — the Zigbee/Z-Wave keys are matched to the coordinator/controller's
-own NVRAM/NVM state, and the Cloudflare token and location aren't
-host-specific at all, so none of them are renamed if that hardware or
-responsibility ever moves to a different host.
+Named for what they hold or which physical hardware they're tied to, not for `reliant` — the Zigbee/Z-Wave keys are matched to the coordinator/controller's own NVRAM/NVM state, and the Cloudflare token and location aren't host-specific at all, so none of them are renamed if that hardware or responsibility ever moves to a different host.
 
-None are rotated or duplicated per host, since each is tied to physical
-hardware state (the Zigbee/Z-Wave radios' own NVRAM/NVM) or isn't
-host-specific at all (the Cloudflare token, the receiver location). A new
-host taking over that hardware or responsibility is simply added as an extra
-recipient — this is what let the Zigbee/Z-Wave radios keep working without a
-re-pair when they physically moved to `reliant`.
+None are rotated or duplicated per host, since each is tied to physical hardware state (the Zigbee/Z-Wave radios' own NVRAM/NVM) or isn't host-specific at all (the Cloudflare token, the receiver location). A new host taking over that hardware or responsibility is simply added as an extra recipient — this is what let the Zigbee/Z-Wave radios keep working without a re-pair when they physically moved to `reliant`.
 
 | Secret | Contents | Host recipients |
 | --- | --- | --- |
@@ -279,30 +198,17 @@ re-pair when they physically moved to `reliant`.
 | `zigbee/network-key.age` | A bracketed byte array, e.g. `[12,34,...,255]` | `reliant` |
 | `zwave/secrets.age` | JSON with one `securityKeys` object | `reliant` |
 
-`traefik/cloudflare-api-token.age` has a second consumer: `custom.ddns`
-(`modules/ddns.nix`) reuses this same file for ddclient's Cloudflare DDNS
-updates rather than a second secret, running as the `traefik` system user
-(this secret's existing owner) to read it and stripping its
-`CLOUDFLARE_DNS_API_TOKEN=` prefix at service start — see
-[docs/homelab-network.md § Dynamic DNS](homelab-network.md#dynamic-dns).
+`traefik/cloudflare-api-token.age` has a second consumer: `custom.ddns` (`modules/ddns.nix`) reuses this same file for ddclient's Cloudflare DDNS updates rather than a second secret, running as the `traefik` system user (this secret's existing owner) to read it and stripping its `CLOUDFLARE_DNS_API_TOKEN=` prefix at service start — see [docs/homelab-network.md § Dynamic DNS](homelab-network.md#dynamic-dns).
 
 ### Home Assistant integration credentials
 
-Unlike the shared hardware/domain secrets above, these are specific to one
-Home Assistant instance and not reused across hosts.
+Unlike the shared hardware/domain secrets above, these are specific to one Home Assistant instance and not reused across hosts.
 
 | Secret | Contents | Host recipients |
 | --- | --- | --- |
 | `hass/aqicn-token.age` | The AQICN API token as a single line, no quotes or prefix | `reliant` |
 
-`hass/aqicn-token.age` backs the outdoor-AQI REST sensor in
-`hosts/reliant/home-assistant/climate-dashboard.nix`. Home Assistant's own
-`!secret` mechanism resolves from a `secrets.yaml` file in its config
-directory, which nothing populates by default — the module injects this
-secret into that file at service start, the same pattern
-`modules/zigbee.nix` uses for the Zigbee network key (see that module's
-comments): the raw token never touches the Nix store, only
-`/run/agenix/hass/aqicn-token`.
+`hass/aqicn-token.age` backs the outdoor-AQI REST sensor in `hosts/reliant/home-assistant/climate-dashboard.nix`. Home Assistant's own `!secret` mechanism resolves from a `secrets.yaml` file in its config directory, which nothing populates by default — the module injects this secret into that file at service start, the same pattern `modules/zigbee.nix` uses for the Zigbee network key (see that module's comments): the raw token never touches the Nix store, only `/run/agenix/hass/aqicn-token`.
 
 `zwave/secrets.age` must look exactly like this:
 
@@ -317,10 +223,7 @@ comments): the raw token never touches the Nix store, only
 }
 ```
 
-Generate both sets of keys **before the first deploy**. Neither Zigbee2MQTT nor
-Z-Wave JS generates a working key on its own, and regenerating either after
-devices are paired or included breaks every one of them, requiring a full
-re-pair:
+Generate both sets of keys **before the first deploy**. Neither Zigbee2MQTT nor Z-Wave JS generates a working key on its own, and regenerating either after devices are paired or included breaks every one of them, requiring a full re-pair:
 
 ```bash
 python3 -c "import secrets; print('[' + ','.join(str(b) for b in secrets.token_bytes(16)) + ']')"
@@ -332,12 +235,7 @@ done
 
 ### lldap and Authelia SSO credentials
 
-Specific to `reliant`'s one lldap + Authelia deployment — each is tied to that
-instance's own database, bind account or issuer identity, so a second host
-running SSO would mint its own rather than become a recipient of these. All are
-declared in `hosts/reliant/secrets.nix`; the design they back is
-[docs/homelab-network.md § Authelia Forward-Auth](homelab-network.md#authelia-forward-auth-lldap--authelia-sso)
-and its § OIDC Provider subsection.
+Specific to `reliant`'s one lldap + Authelia deployment — each is tied to that instance's own database, bind account or issuer identity, so a second host running SSO would mint its own rather than become a recipient of these. All are declared in `hosts/reliant/secrets.nix`; the design they back is [docs/homelab-network.md § Authelia Forward-Auth](homelab-network.md#authelia-forward-auth-lldap--authelia-sso) and its § OIDC Provider subsection.
 
 | Secret | Contents | agenix owner | Host recipients |
 | --- | --- | --- | --- |
@@ -353,30 +251,12 @@ and its § OIDC Provider subsection.
 
 Owners follow how each file is actually read, not which service it belongs to:
 
-- `lldap` reads `ldap_user_pass_file` and `jwt_secret_file` itself, as its own
-  static (non-`DynamicUser`) system user.
-- The four Authelia entries with **no** owner reach Authelia through nixpkgs'
-  `services.authelia.instances.main.secrets.*`, which wires them up as systemd
-  `LoadCredential` entries. systemd performs that copy as root during unit
-  setup, so root-only `0400` is both sufficient and narrower than granting the
-  service user direct read access.
-- `authelia/ldap-bind-password` and
-  `authelia/oidc-client-secret-home-assistant-hash` are **not**
-  `LoadCredential`-backed — the first is passed as a raw path in
-  `AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD_FILE`, the second is read by
-  Authelia's own Go-template `secret` function — so both must be readable by
-  `authelia-main` itself.
-- `home-assistant/oidc-client-secret` is a systemd `EnvironmentFile`, read by
-  systemd as root before `home-assistant.service` drops to its own user —
-  the same pattern, and the same `KEY=VALUE` shape, as
-  `location/coordinates.age`.
+- `lldap` reads `ldap_user_pass_file` and `jwt_secret_file` itself, as its own static (non-`DynamicUser`) system user.
+- The four Authelia entries with **no** owner reach Authelia through nixpkgs' `services.authelia.instances.main.secrets.*`, which wires them up as systemd `LoadCredential` entries. systemd performs that copy as root during unit setup, so root-only `0400` is both sufficient and narrower than granting the service user direct read access.
+- `authelia/ldap-bind-password` and `authelia/oidc-client-secret-home-assistant-hash` are **not** `LoadCredential`-backed — the first is passed as a raw path in `AUTHELIA_AUTHENTICATION_BACKEND_LDAP_PASSWORD_FILE`, the second is read by Authelia's own Go-template `secret` function — so both must be readable by `authelia-main` itself.
+- `home-assistant/oidc-client-secret` is a systemd `EnvironmentFile`, read by systemd as root before `home-assistant.service` drops to its own user — the same pattern, and the same `KEY=VALUE` shape, as `location/coordinates.age`.
 
-`authelia/ldap-bind-password.age` has two consumers on the same host:
-`custom.authelia.ldap.bindPasswordFile` and the `authelia` entry's
-`passwordFile` in `custom.lldap.bootstrap.users`. One file on purpose — if
-these were two secrets they could drift apart and Authelia's bind would start
-failing silently. `lldap-bootstrap.service` runs as root, so the
-`authelia-main` owner does not affect its read.
+`authelia/ldap-bind-password.age` has two consumers on the same host: `custom.authelia.ldap.bindPasswordFile` and the `authelia` entry's `passwordFile` in `custom.lldap.bootstrap.users`. One file on purpose — if these were two secrets they could drift apart and Authelia's bind would start failing silently. `lldap-bootstrap.service` runs as root, so the `authelia-main` owner does not affect its read.
 
 Generate the plain random values with:
 
@@ -392,20 +272,13 @@ openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048
 
 #### The paired Home Assistant OIDC client secret
 
-`authelia/oidc-client-secret-home-assistant-hash.age` and
-`home-assistant/oidc-client-secret.age` are two halves of **one** shared
-secret and must be generated together, by running this exactly once:
+`authelia/oidc-client-secret-home-assistant-hash.age` and `home-assistant/oidc-client-secret.age` are two halves of **one** shared secret and must be generated together, by running this exactly once:
 
 ```bash
 nix run nixpkgs#authelia -- crypto hash generate pbkdf2 --variant sha512 --random
 ```
 
-It prints a random plaintext secret and its pbkdf2-sha512 digest. The digest
-goes into `authelia/oidc-client-secret-home-assistant-hash.age` verbatim; the
-plaintext goes into `home-assistant/oidc-client-secret.age` as
-`HASS_OIDC_CLIENT_SECRET=<plaintext>`. Generating them independently produces
-two unrelated values and the OIDC handshake fails at the token endpoint.
-Rotating one means rotating both, from a single new run of that command.
+It prints a random plaintext secret and its pbkdf2-sha512 digest. The digest goes into `authelia/oidc-client-secret-home-assistant-hash.age` verbatim; the plaintext goes into `home-assistant/oidc-client-secret.age` as `HASS_OIDC_CLIENT_SECRET=<plaintext>`. Generating them independently produces two unrelated values and the OIDC handshake fails at the token endpoint. Rotating one means rotating both, from a single new run of that command.
 
 ## What May Be Committed
 
@@ -429,17 +302,9 @@ The repo is set up to make mistakes harder:
 
 ## Wi-Fi Credentials
 
-Wi-Fi profiles are declared in `modules/wifi.nix` (behind `custom.wifi.enable`) using
-`networking.networkmanager.ensureProfiles`. The SSID is stored in plaintext in
-the config; the passphrase is kept in an agenix secret and substituted at
-activation time. NetworkManager writes the final profile to
-`/etc/NetworkManager/system-connections/` (0600, root-only) — the same location
-and permissions as any manually configured connection. LUKS encryption protects
-those files at rest, and the agenix secret itself lives on tmpfs (`/run/agenix/`)
-and is never written to disk.
+Wi-Fi profiles are declared in `modules/wifi.nix` (behind `custom.wifi.enable`) using `networking.networkmanager.ensureProfiles`. The SSID is stored in plaintext in the config; the passphrase is kept in an agenix secret and substituted at activation time. NetworkManager writes the final profile to `/etc/NetworkManager/system-connections/` (0600, root-only) — the same location and permissions as any manually configured connection. LUKS encryption protects those files at rest, and the agenix secret itself lives on tmpfs (`/run/agenix/`) and is never written to disk.
 
-`profiles/common/networking.nix` is a separate file for network *discovery*
-(avahi/mDNS) and is not involved in Wi-Fi.
+`profiles/common/networking.nix` is a separate file for network *discovery* (avahi/mDNS) and is not involved in Wi-Fi.
 
 Currently configured networks: `agt-home`, `agt-iot`, `agt-work`.
 
@@ -453,8 +318,7 @@ EDITOR=nano nix run .#secret-edit -- secrets/wifi/agt-iot.age
 EDITOR=nano nix run .#secret-edit -- secrets/wifi/agt-work.age
 ```
 
-See the Wi-Fi table under [Secret Inventory](#wi-fi-passphrases) for the
-variable name each network requires.
+See the Wi-Fi table under [Secret Inventory](#wi-fi-passphrases) for the variable name each network requires.
 
 ### Adding another network
 
@@ -466,15 +330,13 @@ Three files change, and one new secret is created:
    "wifi/newnet.age".publicKeys = [enterprise-d offlineAdmin];
    ```
 
-2. `modules/wifi.nix` — expose the secret at runtime, alongside the existing
-   Wi-Fi entries:
+2. `modules/wifi.nix` — expose the secret at runtime, alongside the existing Wi-Fi entries:
 
    ```nix
    "wifi/newnet".file = ../secrets/wifi/newnet.age;
    ```
 
-3. `modules/wifi.nix` — add the secret path to `environmentFiles` and add a
-   profile block:
+3. `modules/wifi.nix` — add the secret path to `environmentFiles` and add a profile block:
 
    ```nix
    environmentFiles = [
@@ -490,8 +352,7 @@ Three files change, and one new secret is created:
    };
    ```
 
-   The `$WIFI_NEWNET_PASSWORD` placeholder must match the variable name inside
-   the secret file exactly.
+   The `$WIFI_NEWNET_PASSWORD` placeholder must match the variable name inside the secret file exactly.
 
 4. Create the encrypted secret:
 
@@ -512,19 +373,15 @@ sudo cat /etc/NetworkManager/system-connections/agt-home.nmconnection
 
 ## SSH Keys And Host Trust
 
-SSH trust is managed separately from the rest of this doc's agenix material,
-but by the same tooling.
+SSH trust is managed separately from the rest of this doc's agenix material, but by the same tooling.
 
 - SSH login keys are per-host keypairs, stored as agenix secrets.
-- SSH host trust is pinned in `lib/ssh-hosts.nix` and rendered to
-  `programs.ssh.knownHosts` by `modules/ssh-known-hosts.nix`.
-- `known_hosts` records **server identity**. `authorized_keys` grants **login
-  access**. They are different data flows and are wired separately.
+- SSH host trust is pinned in `lib/ssh-hosts.nix` and rendered to `programs.ssh.knownHosts` by `modules/ssh-known-hosts.nix`.
+- `known_hosts` records **server identity**. `authorized_keys` grants **login access**. They are different data flows and are wired separately.
 
 ### The Inventory: `lib/ssh-hosts.nix`
 
-`lib/ssh-hosts.nix` is the single inventory for all managed machines. Each entry
-has:
+`lib/ssh-hosts.nix` is the single inventory for all managed machines. Each entry has:
 
 | Field | Meaning |
 | --- | --- |
@@ -548,22 +405,12 @@ enterprise-d = {
 
 Two consumers read it:
 
-- `profiles/common/ssh-known-hosts.nix` turns non-null `publicKey` values into
-  `programs.ssh.knownHosts`, so clients do not prompt on first connect.
-- `modules/users.nix` collects, for each user, every `userPublicKeys.<user>`
-  entry across all machines into that user's `openssh.authorizedKeys.keys`. Once
-  a user is enrolled on a machine, they can log in from it to every other machine
-  that declares them.
+- `profiles/common/ssh-known-hosts.nix` turns non-null `publicKey` values into `programs.ssh.knownHosts`, so clients do not prompt on first connect.
+- `modules/users.nix` collects, for each user, every `userPublicKeys.<user>` entry across all machines into that user's `openssh.authorizedKeys.keys`. Once a user is enrolled on a machine, they can log in from it to every other machine that declares them.
 
-No machine currently has `publicKey` pinned — all three are `null`, pending the
-out-of-band verification below. Until one is pinned, `programs.ssh.knownHosts`
-evaluates to an empty set and clients still prompt on first connect. That is
-expected, not a fault.
+No machine currently has `publicKey` pinned — all three are `null`, pending the out-of-band verification below. Until one is pinned, `programs.ssh.knownHosts` evaluates to an empty set and clients still prompt on first connect. That is expected, not a fault.
 
-> **Note:** `modules/ssh-known-hosts.nix` was missing from `modules/default.nix`
-> until it was added alongside `tools/check_orphan_nix.py`. It had never been
-> imported, so the host-key path has not yet run against a real pinned key.
-> Verify the first pin actually takes effect:
+> **Note:** `modules/ssh-known-hosts.nix` was missing from `modules/default.nix` until it was added alongside `tools/check_orphan_nix.py`. It had never been imported, so the host-key path has not yet run against a real pinned key. Verify the first pin actually takes effect:
 >
 > ```bash
 > nix eval .#nixosConfigurations.enterprise-d.config.programs.ssh.knownHosts --json
@@ -571,8 +418,7 @@ expected, not a fault.
 
 ### Generate SSH Login Credentials
 
-`tools/enroll.py` generates a per-machine SSH keypair, encrypts it as an agenix
-secret, and wires everything up:
+`tools/enroll.py` generates a per-machine SSH keypair, encrypts it as an agenix secret, and wires everything up:
 
 ```bash
 nix develop -c python3 tools/enroll.py <machine-name>
@@ -580,39 +426,23 @@ nix develop -c python3 tools/enroll.py <machine-name>
 
 The script:
 
-1. Adds the machine's age identity to `secrets/secrets.nix` (generated, or one
-   you provide)
-2. Generates an ed25519 SSH keypair, encrypts the private key with `age`, and
-   shreds the plaintext
-3. Creates `hosts/<machine>/secrets.nix` and adds its import to
-   `configuration.nix`
-4. Adds the machine to `lib/ssh-hosts.nix` with the login key under
-   `userPublicKeys.<user>`
+1. Adds the machine's age identity to `secrets/secrets.nix` (generated, or one you provide)
+2. Generates an ed25519 SSH keypair, encrypts the private key with `age`, and shreds the plaintext
+3. Creates `hosts/<machine>/secrets.nix` and adds its import to `configuration.nix`
+4. Adds the machine to `lib/ssh-hosts.nix` with the login key under `userPublicKeys.<user>`
 5. Re-keys all secrets so the machine is a recipient
 
-The private key is decrypted at runtime by agenix and deployed by home-manager.
-The public key recorded in `lib/ssh-hosts.nix` is added to that user's
-`openssh.authorizedKeys.keys` on every machine that declares them — no manual
-`authorized_keys` editing.
+The private key is decrypted at runtime by agenix and deployed by home-manager. The public key recorded in `lib/ssh-hosts.nix` is added to that user's `openssh.authorizedKeys.keys` on every machine that declares them — no manual `authorized_keys` editing.
 
-For machines already provisioned, the corresponding
-`thomasga/ssh-id-ed25519-<machine>.age` secret already exists; run the
-enrollment script and skip the key generation step if you only need to register a
-new machine's identity.
+For machines already provisioned, the corresponding `thomasga/ssh-id-ed25519-<machine>.age` secret already exists; run the enrollment script and skip the key generation step if you only need to register a new machine's identity.
 
-`tools/bootstrap_ssh_key.py` is the lower-level helper `enroll.py` uses to create
-and encrypt the keypair. Call it directly only when repairing a partially
-enrolled machine.
+`tools/bootstrap_ssh_key.py` is the lower-level helper `enroll.py` uses to create and encrypt the keypair. Call it directly only when repairing a partially enrolled machine.
 
 ### Collect And Pin The Host Key After Deploy
 
-The deployed machine generates its own SSH **host** keypair automatically when
-sshd starts. This is separate from the login keypair above; it is what remote
-machines use to verify they are talking to the correct host.
+The deployed machine generates its own SSH **host** keypair automatically when sshd starts. This is separate from the login keypair above; it is what remote machines use to verify they are talking to the correct host.
 
-NixOS generates `/etc/ssh/ssh_host_ed25519_key` and its `.pub` on first boot with
-sshd enabled. The private key stays on the machine unencrypted (standard SSH
-practice); only the public key belongs in the repo.
+NixOS generates `/etc/ssh/ssh_host_ed25519_key` and its `.pub` on first boot with sshd enabled. The private key stays on the machine unencrypted (standard SSH practice); only the public key belongs in the repo.
 
 After the machine boots for the first time:
 
@@ -634,12 +464,8 @@ After the machine boots for the first time:
    ssh-keygen -l -f /etc/ssh/ssh_host_ed25519_key.pub
    ```
 
-3. Paste the key portion into `lib/ssh-hosts.nix` as
-   `publicKey = "ssh-ed25519 AAAA..."` for that machine.
+3. Paste the key portion into `lib/ssh-hosts.nix` as `publicKey = "ssh-ed25519 AAAA..."` for that machine.
 
-Verify the fingerprint before committing. `ssh-keyscan` is a collection
-mechanism, not a trust oracle.
+Verify the fingerprint before committing. `ssh-keyscan` is a collection mechanism, not a trust oracle.
 
-Disk encryption (LUKS and TPM) is not agenix material and is not this doc's
-concern — see
-[docs/provisioning.md § Disk Encryption And TPM](provisioning.md#disk-encryption-and-tpm).
+Disk encryption (LUKS and TPM) is not agenix material and is not this doc's concern — see [docs/provisioning.md § Disk Encryption And TPM](provisioning.md#disk-encryption-and-tpm).

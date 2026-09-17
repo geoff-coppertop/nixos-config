@@ -11,10 +11,7 @@
 
 ## Ports
 
-Every port this host binds, in ascending order — the complete list for
-`enterprise-d`. Check it before assigning or moving a port here, and update it
-in the same commit ([docs/architecture.md § Placement
-Rule](../../docs/architecture.md#placement-rule)).
+Every port this host binds, in ascending order — the complete list for `enterprise-d`. Check it before assigning or moving a port here, and update it in the same commit ([docs/architecture.md § Placement Rule](../../docs/architecture.md#placement-rule)).
 
 | Port | Protocol | Purpose | Exposure |
 | --- | --- | --- | --- |
@@ -28,8 +25,7 @@ Rule](../../docs/architecture.md#placement-rule)).
 | 27036 | udp | Steam peer discovery, `custom.gaming` | LAN (firewall open) |
 | 27036, 27037 | tcp | Steam Remote Play, `custom.gaming` | LAN (firewall open) |
 
-`custom.backups` and `custom.networkDrives` bind nothing — both are
-outbound-only (restic over SMB to the NAS).
+`custom.backups` and `custom.networkDrives` bind nothing — both are outbound-only (restic over SMB to the NAS).
 
 ## Installation
 
@@ -38,11 +34,7 @@ outbound-only (restic over SMB to the NAS).
 After the system boots:
 
 1. **Enroll TPM2 for LUKS auto-unlock** (see [TPM Auto-Unlock](#tpm-auto-unlock))
-2. **Enroll Secure Boot keys in firmware** (see [Secure Boot](#secure-boot)) —
-   `custom.secureBoot.enable = true` is set from first boot, but nothing
-   enrolls the keys into the firmware for you; skipping this leaves the
-   machine booting unsigned indefinitely with no error, just the UEFI stub's
-   `Secure Boot is not active!` warning on every boot
+2. **Enroll Secure Boot keys in firmware** (see [Secure Boot](#secure-boot)) — `custom.secureBoot.enable = true` is set from first boot, but nothing enrolls the keys into the firmware for you; skipping this leaves the machine booting unsigned indefinitely with no error, just the UEFI stub's `Secure Boot is not active!` warning on every boot
 3. **Collect the SSH host public key** and add it to `lib/ssh-hosts.nix` (see [docs/secrets.md](../../docs/secrets.md#collect-and-pin-the-host-key-after-deploy))
 4. **Generate and install your SSH login credentials** (see [docs/secrets.md](../../docs/secrets.md#generate-ssh-login-credentials))
 5. **Test hibernation** (see [Verification](#verification))
@@ -77,41 +69,17 @@ A non-empty result confirms TPM2 enrollment is active.
 
 ## Secure Boot
 
-`custom.secureBoot.enable = true` (`modules/secure-boot.nix`) turns on
-lanzaboote with `pkiBundle = "/etc/secureboot"`, but enrolling the keys into
-firmware is a separate, manual step — see
-[docs/provisioning.md § Step 6 — Enroll Secure Boot](../../docs/provisioning.md#step-6--enroll-secure-boot)
-for the generic procedure and the `sbctl --config` requirement (this repo
-doesn't enable lanzaboote's `autoGenerateKeys`/`autoEnrollKeys`, so `sbctl`
-has no config file telling it where the keys live and defaults to the wrong
-directory unless told otherwise).
+`custom.secureBoot.enable = true` (`modules/secure-boot.nix`) turns on lanzaboote with `pkiBundle = "/etc/secureboot"`, but enrolling the keys into firmware is a separate, manual step — see [docs/provisioning.md § Step 6 — Enroll Secure Boot](../../docs/provisioning.md#step-6--enroll-secure-boot) for the generic procedure and the `sbctl --config` requirement (this repo doesn't enable lanzaboote's `autoGenerateKeys`/`autoEnrollKeys`, so `sbctl` has no config file telling it where the keys live and defaults to the wrong directory unless told otherwise).
 
-Framework laptops need vendor-specific steps at two points, confirmed from
-lanzaboote's own `docs/getting-started/enable-secure-boot.md` (pinned rev,
-`flake.nix`):
+Framework laptops need vendor-specific steps at two points, confirmed from lanzaboote's own `docs/getting-started/enable-secure-boot.md` (pinned rev, `flake.nix`):
 
-- **Entering Setup Mode** (before key enrollment): reboot to firmware setup →
-  "Administer Secure Boot" → for each of "PK Options", "KEK Options", "DB
-  Options", select it, then delete every item inside individually. Do **not**
-  use "Erase all Secure Boot Settings" — Framework firmware is reported buggy
-  with that option; the per-item delete is the documented workaround.
-- **Enrolling with `--firmware-builtin`**: run
-  `sudo sbctl --config /tmp/sbctl.conf enroll-keys --microsoft
-  --firmware-builtin` — the `--firmware-builtin` flag keeps the
-  vendor-pre-provisioned keys, which Framework firmware updates depend on.
-  Omitting it is not a hard failure, but drops keys a later firmware update
-  may need.
-- **After enrolling and rebooting**: "Administer Secure Boot" → enable
-  "Enforce Secure Boot" — on Framework firmware this is a separate toggle from
-  leaving Setup Mode.
+- **Entering Setup Mode** (before key enrollment): reboot to firmware setup → "Administer Secure Boot" → for each of "PK Options", "KEK Options", "DB Options", select it, then delete every item inside individually. Do **not** use "Erase all Secure Boot Settings" — Framework firmware is reported buggy with that option; the per-item delete is the documented workaround.
+- **Enrolling with `--firmware-builtin`**: run `sudo sbctl --config /tmp/sbctl.conf enroll-keys --microsoft --firmware-builtin` — the `--firmware-builtin` flag keeps the vendor-pre-provisioned keys, which Framework firmware updates depend on. Omitting it is not a hard failure, but drops keys a later firmware update may need.
+- **After enrolling and rebooting**: "Administer Secure Boot" → enable "Enforce Secure Boot" — on Framework firmware this is a separate toggle from leaving Setup Mode.
 
 ### Diagnosing "Secure Boot is not active" at boot
 
-The UEFI boot stub prints `Secure Boot is not active!` (lanzaboote's own
-`rust/uefi/stub/src/thin.rs`, pinned rev) whenever the firmware's live
-`SecureBoot` EFI variable is false at boot — this is read directly from
-firmware, not from anything this repo's Nix config controls, so it's always
-accurate. Check current state:
+The UEFI boot stub prints `Secure Boot is not active!` (lanzaboote's own `rust/uefi/stub/src/thin.rs`, pinned rev) whenever the firmware's live `SecureBoot` EFI variable is false at boot — this is read directly from firmware, not from anything this repo's Nix config controls, so it's always accurate. Check current state:
 
 ```bash
 # Firmware-level state: disabled / enabled (setup) / enabled (user)
@@ -127,94 +95,25 @@ printf 'keydir: /etc/secureboot/keys\nguid: /etc/secureboot/GUID\n' | sudo tee /
 sudo sbctl --config /tmp/sbctl.conf status
 ```
 
-`enabled (user)` from `bootctl status` and `Installed: sbctl is installed` /
-`Setup Mode: Disabled` / `Secure Boot: Enabled` from `sbctl status` together
-mean enrollment is complete and firmware is enforcing it. Anything else means
-enrollment was never finished (most likely: the firmware toggle was flipped
-on without ever running `sbctl enroll-keys`, or Setup Mode was never
-re-entered/exited correctly) — re-run
-[docs/provisioning.md § Step 6](../../docs/provisioning.md#step-6--enroll-secure-boot)
-from the point that's missing; there is no firmware auto-repair path.
+`enabled (user)` from `bootctl status` and `Installed: sbctl is installed` / `Setup Mode: Disabled` / `Secure Boot: Enabled` from `sbctl status` together mean enrollment is complete and firmware is enforcing it. Anything else means enrollment was never finished (most likely: the firmware toggle was flipped on without ever running `sbctl enroll-keys`, or Setup Mode was never re-entered/exited correctly) — re-run [docs/provisioning.md § Step 6](../../docs/provisioning.md#step-6--enroll-secure-boot) from the point that's missing; there is no firmware auto-repair path.
 
 ## Boot Theme
 
-`boot.plymouth.theme = "framework-penguin"` (set in `configuration.nix`) uses
-[ygurin/framework-penguin](https://github.com/ygurin/framework-penguin), an
-animated ASCII-penguin throbber with a LUKS password-entry UI, packaged as a
-`fetchFromGitHub` derivation in
-`hosts/enterprise-d/framework-penguin-plymouth.nix` — upstream ships no NixOS
-packaging, only a "copy the theme dir into `/usr/share/plymouth/themes/`"
-shell recipe, which this derivation reproduces into `$out`.
+`boot.plymouth.theme = "framework-penguin"` (set in `configuration.nix`) uses [ygurin/framework-penguin](https://github.com/ygurin/framework-penguin), an animated ASCII-penguin throbber with a LUKS password-entry UI, packaged as a `fetchFromGitHub` derivation in `hosts/enterprise-d/framework-penguin-plymouth.nix` — upstream ships no NixOS packaging, only a "copy the theme dir into `/usr/share/plymouth/themes/`" shell recipe, which this derivation reproduces into `$out`.
 
-This is Framework-laptop-specific — not general desktop capability — so it
-lives under `hosts/enterprise-d/` rather than `profiles/desktop/`, per
-[docs/architecture.md § Placement Rule](../../docs/architecture.md#placement-rule).
+This is Framework-laptop-specific — not general desktop capability — so it lives under `hosts/enterprise-d/` rather than `profiles/desktop/`, per [docs/architecture.md § Placement Rule](../../docs/architecture.md#placement-rule).
 
-**Compatible with this host's lanzaboote Secure Boot setup with no extra
-signing steps.** Confirmed by reading both sources directly (nixpkgs
-`nixos/modules/system/boot/plymouth.nix` and the pinned `lanzaboote` rev's
-`nix/modules/lanzaboote.nix`), not assumed: Plymouth's theme files are wired
-into the initrd entirely through `boot.initrd.*` (the theme's contents end up
-under `/etc/plymouth/themes` inside `config.system.build.initrd`), with no
-assertion or special-casing tying it to a particular boot loader. Lanzaboote
-never rebuilds or reaches into that initrd — it consumes the already-built
-kernel and initrd paths from the standard NixOS `boot.bootspec` output (via
-`boot.loader.external`) and only signs the resulting unified kernel image.
-So the theme is already present in the initrd before lanzaboote ever touches
-it, the same as it would be under `systemd-boot` alone.
+**Compatible with this host's lanzaboote Secure Boot setup with no extra signing steps.** Confirmed by reading both sources directly (nixpkgs `nixos/modules/system/boot/plymouth.nix` and the pinned `lanzaboote` rev's `nix/modules/lanzaboote.nix`), not assumed: Plymouth's theme files are wired into the initrd entirely through `boot.initrd.*` (the theme's contents end up under `/etc/plymouth/themes` inside `config.system.build.initrd`), with no assertion or special-casing tying it to a particular boot loader. Lanzaboote never rebuilds or reaches into that initrd — it consumes the already-built kernel and initrd paths from the standard NixOS `boot.bootspec` output (via `boot.loader.external`) and only signs the resulting unified kernel image. So the theme is already present in the initrd before lanzaboote ever touches it, the same as it would be under `systemd-boot` alone.
 
-**`boot.plymouth.enable` alone does not make the splash visible.** The kernel
-and systemd print their boot log straight to the console by default, which
-draws over (and effectively replaces) whatever Plymouth is rendering.
-`configuration.nix` also sets `boot.consoleLogLevel = 3`,
-`boot.initrd.verbose = false`, and `boot.kernelParams = [ "quiet" "splash"
-"udev.log_priority=3" "rd.systemd.show_status=auto" ]` to keep that log
-output quiet — without these, boot looks unchanged (Framework logo →
-systemd-boot menu → plain text log → GDM) even though the theme is correctly
-installed and configured.
+**`boot.plymouth.enable` alone does not make the splash visible.** The kernel and systemd print their boot log straight to the console by default, which draws over (and effectively replaces) whatever Plymouth is rendering. `configuration.nix` also sets `boot.consoleLogLevel = 3`, `boot.initrd.verbose = false`, and `boot.kernelParams = [ "quiet" "splash" "udev.log_priority=3" "rd.systemd.show_status=auto" ]` to keep that log output quiet — without these, boot looks unchanged (Framework logo → systemd-boot menu → plain text log → GDM) even though the theme is correctly installed and configured.
 
-**Confirmed root cause of the black screen: a broken script path in the
-theme itself.** `plymouthd --debug` shows the actual failure —
-`Parser error : Error opening file
-/usr/share/plymouth/themes/framework-penguin/framework-penguin.script`.
-Upstream's `framework-penguin.plymouth` hardcodes `ImageDir=` and
-`ScriptFile=` as `/usr/share/plymouth/themes/framework-penguin/...`, which
-doesn't exist on NixOS — the `.plymouth` file itself loads fine (it's
-correctly relocated into the store and `/etc/plymouth/themes`), but the
-script it points to isn't there, so nothing gets drawn.
-`framework-penguin-plymouth.nix` now `substituteInPlace`s both paths to the
-real store path at build time, the same way nixpkgs' own themes reference
-themselves, so NixOS's own store-path relocation into
-`/etc/plymouth/themes` (root fs and initrd both) picks it up correctly.
-**Confirmed fixed on a real reboot** (not just the `x11.so`-renderer live
-test `plymouthd --debug` uses) — the penguin animation actually renders.
+**Confirmed root cause of the black screen: a broken script path in the theme itself.** `plymouthd --debug` shows the actual failure — `Parser error : Error opening file /usr/share/plymouth/themes/framework-penguin/framework-penguin.script`. Upstream's `framework-penguin.plymouth` hardcodes `ImageDir=` and `ScriptFile=` as `/usr/share/plymouth/themes/framework-penguin/...`, which doesn't exist on NixOS — the `.plymouth` file itself loads fine (it's correctly relocated into the store and `/etc/plymouth/themes`), but the script it points to isn't there, so nothing gets drawn. `framework-penguin-plymouth.nix` now `substituteInPlace`s both paths to the real store path at build time, the same way nixpkgs' own themes reference themselves, so NixOS's own store-path relocation into `/etc/plymouth/themes` (root fs and initrd both) picks it up correctly. **Confirmed fixed on a real reboot** (not just the `x11.so`-renderer live test `plymouthd --debug` uses) — the penguin animation actually renders.
 
-Upstream's `watermark.png` is a hardcoded Fedora wordmark — explicitly
-meant to be swapped ("Customizable distro logo" per upstream's own
-description) — so the derivation renders
-[nixos-artwork](https://github.com/NixOS/nixos-artwork)'s `logo/nixos.svg`
-(the NixOS wordmark, not just the snowflake icon alone) via `rsvg-convert`
-at the original asset's 149px width, replacing it.
+Upstream's `watermark.png` is a hardcoded Fedora wordmark — explicitly meant to be swapped ("Customizable distro logo" per upstream's own description) — so the derivation renders [nixos-artwork](https://github.com/NixOS/nixos-artwork)'s `logo/nixos.svg` (the NixOS wordmark, not just the snowflake icon alone) via `rsvg-convert` at the original asset's 149px width, replacing it.
 
-**Also needs early KMS.** Plymouth needs a framebuffer to draw into before
-the real root is mounted; without `amdgpu` loaded that early, the driver
-only comes up during normal module loading, well after Plymouth has already
-tried (silently — no error, just a black screen) to render. `hardware.nix`
-sets `boot.initrd.kernelModules = [ "amdgpu" ]` for this.
+**Also needs early KMS.** Plymouth needs a framebuffer to draw into before the real root is mounted; without `amdgpu` loaded that early, the driver only comes up during normal module loading, well after Plymouth has already tried (silently — no error, just a black screen) to render. `hardware.nix` sets `boot.initrd.kernelModules = [ "amdgpu" ]` for this.
 
-**`plymouth.use-simpledrm=0` was tried, then removed pending a bisect.**
-Applied preemptively before the script-path bug above was found, on the
-theory that `simple-framebuffer` (the EFI GOP device, which registers
-before `amdgpu` finishes its ~6s KMS/PSP/SMU init) was winning a race for
-Plymouth's attention and then not handing off cleanly when `amdgpu` took
-the real display over — that theory was never independently confirmed once
-the actual bug (above) was found and fixed. Removed to test whether it was
-ever actually load-bearing; if the splash still renders without it on a
-real reboot, it's gone for good. If a *black-screen-again* regression ever
-reappears after a `nixpkgs` bump touching Plymouth or `amdgpu`, this kernel
-param (real, compiled into this Plymouth build — confirmed via
-`grep -a -o use-simpledrm $(readlink -f $(command -v plymouthd))`) is the
-first thing to try again.
+**`plymouth.use-simpledrm=0` was tried, then removed pending a bisect.** Applied preemptively before the script-path bug above was found, on the theory that `simple-framebuffer` (the EFI GOP device, which registers before `amdgpu` finishes its ~6s KMS/PSP/SMU init) was winning a race for Plymouth's attention and then not handing off cleanly when `amdgpu` took the real display over — that theory was never independently confirmed once the actual bug (above) was found and fixed. Removed to test whether it was ever actually load-bearing; if the splash still renders without it on a real reboot, it's gone for good. If a *black-screen-again* regression ever reappears after a `nixpkgs` bump touching Plymouth or `amdgpu`, this kernel param (real, compiled into this Plymouth build — confirmed via `grep -a -o use-simpledrm $(readlink -f $(command -v plymouthd))`) is the first thing to try again.
 
 ## Philosophy
 
@@ -272,99 +171,33 @@ The greeter's own compositor cannot report idle — the GDM dconf profile sets `
 
 ### Why a self-owned RTC trigger instead of `suspend-then-hibernate`
 
-`suspend-then-hibernate` previously failed to reach hibernate reliably,
-roughly 43% of cycles in testing. The kernel boot parameter
-`rtc_cmos.use_acpi_alarm=1` (still set, see below) addresses a related but
-distinct AMD/EC timing issue — it switches RTC wakeup to ACPI alarms
-instead of HPET, avoiding an `rtc->aie_timer` mismatch in the `amd-pmc`
-driver's timer-based S0i3 wakeup handling — but it did not fix the failures
-seen here, because the actual cause is a separate, upstream bug inside
-systemd itself: a zero-timeout `POLLIN` race in `custom_timer_suspend()`
-(`src/sleep/sleep.c`, tracked as `systemd/systemd#38193`, open/unfixed),
-where the RTC/EC wake reaches the process before systemd's own poll on the
-timerfd reports readable, so systemd treats the wake as user-initiated and
-skips hibernate.
+`suspend-then-hibernate` previously failed to reach hibernate reliably, roughly 43% of cycles in testing. The kernel boot parameter `rtc_cmos.use_acpi_alarm=1` (still set, see below) addresses a related but distinct AMD/EC timing issue — it switches RTC wakeup to ACPI alarms instead of HPET, avoiding an `rtc->aie_timer` mismatch in the `amd-pmc` driver's timer-based S0i3 wakeup handling — but it did not fix the failures seen here, because the actual cause is a separate, upstream bug inside systemd itself: a zero-timeout `POLLIN` race in `custom_timer_suspend()` (`src/sleep/sleep.c`, tracked as `systemd/systemd#38193`, open/unfixed), where the RTC/EC wake reaches the process before systemd's own poll on the timerfd reports readable, so systemd treats the wake as user-initiated and skips hibernate.
 
-Since the race is in systemd's own internal timer logic, not at the
-RTC/EC hardware layer, the fix is to stop using `suspend-then-hibernate`
-entirely. `HandleLidSwitch` and `IdleAction` are both set to plain
-`suspend`, and a `/etc/systemd/system-sleep/hibernate-trigger` hook (an
-officially documented, stable systemd extension point — not a patch
-against, or override of, unit internals) arms `/sys/class/rtc/rtc0/wakealarm`
-directly on suspend and, on resume, makes its own non-racy decision based
-on wall-clock elapsed time: if elapsed time is close enough to the
-configured delay, the RTC alarm fired as scheduled and the hook triggers
-`systemctl hibernate`; otherwise a real user action woke the machine early
-and nothing further happens. This replaces both `suspend-then-hibernate`
-and the earlier, abandoned patched-`systemd` approach (PR#52) that
-regressed hibernate entirely; neither is used here. No wakeup sources are
-disabled — stock kernel/ACPI defaults decide what can wake the machine.
+Since the race is in systemd's own internal timer logic, not at the RTC/EC hardware layer, the fix is to stop using `suspend-then-hibernate` entirely. `HandleLidSwitch` and `IdleAction` are both set to plain `suspend`, and a `/etc/systemd/system-sleep/hibernate-trigger` hook (an officially documented, stable systemd extension point — not a patch against, or override of, unit internals) arms `/sys/class/rtc/rtc0/wakealarm` directly on suspend and, on resume, makes its own non-racy decision based on wall-clock elapsed time: if elapsed time is close enough to the configured delay, the RTC alarm fired as scheduled and the hook triggers `systemctl hibernate`; otherwise a real user action woke the machine early and nothing further happens. This replaces both `suspend-then-hibernate` and the earlier, abandoned patched-`systemd` approach (PR#52) that regressed hibernate entirely; neither is used here. No wakeup sources are disabled — stock kernel/ACPI defaults decide what can wake the machine.
 
-One trade-off: because the RTC alarm causes a real, brief S3 resume before
-the hook re-triggers hibernate, there can be a momentary screen/keyboard
-light flicker on the timer-driven hibernate path that `suspend-then-hibernate`
-didn't have, since that mechanism transitioned straight from suspend to
-hibernate inside one systemd sleep transaction.
+One trade-off: because the RTC alarm causes a real, brief S3 resume before the hook re-triggers hibernate, there can be a momentary screen/keyboard light flicker on the timer-driven hibernate path that `suspend-then-hibernate` didn't have, since that mechanism transitioned straight from suspend to hibernate inside one systemd sleep transaction.
 
 ### `hibernate-trigger` logging
 
-The `hibernate-trigger` system-sleep hook logs every cycle under that tag,
-since both `HandleLidSwitch` and `IdleAction` route through stock
-`systemd-suspend.service`. Check the outcome of any cycle with:
+The `hibernate-trigger` system-sleep hook logs every cycle under that tag, since both `HandleLidSwitch` and `IdleAction` route through stock `systemd-suspend.service`. Check the outcome of any cycle with:
 
 ```bash
 journalctl -t hibernate-trigger
 ```
 
-Each cycle logs the wakealarm arming time on suspend, and on resume, the
-elapsed time and whether hibernate was triggered. The pre-suspend side
-clears any leftover alarm, verifies the new arm succeeded, and records the
-outcome in the state file; a failed arm is logged loudly (`FAILED to arm
-wakealarm`) and the resume side then refuses the hibernate decision for
-that cycle — otherwise a much-later user wake would be misread as the
-timer firing and hibernate the machine mid-resume. If the hibernate itself
-fails, `hibernate-trigger-fallback` logs `hibernate FAILED, re-suspending`
-under the same tag and re-suspends, re-arming the RTC cycle — a failed
-hibernate retries every ~10 min from sleep instead of draining awake. If
-hibernate is ever skipped unexpectedly, or a spurious wake reappears, this
-is the first thing to check, alongside `journalctl -k -b -1` for the wake
-cause.
+Each cycle logs the wakealarm arming time on suspend, and on resume, the elapsed time and whether hibernate was triggered. The pre-suspend side clears any leftover alarm, verifies the new arm succeeded, and records the outcome in the state file; a failed arm is logged loudly (`FAILED to arm wakealarm`) and the resume side then refuses the hibernate decision for that cycle — otherwise a much-later user wake would be misread as the timer firing and hibernate the machine mid-resume. If the hibernate itself fails, `hibernate-trigger-fallback` logs `hibernate FAILED, re-suspending` under the same tag and re-suspends, re-arming the RTC cycle — a failed hibernate retries every ~10 min from sleep instead of draining awake. If hibernate is ever skipped unexpectedly, or a spurious wake reappears, this is the first thing to check, alongside `journalctl -k -b -1` for the wake cause.
 
 ### Hibernate preflight: `hibernate-trigger-diag`
 
-Before every RTC-triggered hibernate attempt, an `ExecStartPre` on
-`hibernate-trigger-hibernate.service` checks whether the kernel currently
-supports hibernation at all (`grep disk /sys/power/state` — this reflects
-`hibernation_available()` in `kernel/power/hibernate.c`, which is false if
-`nohibernate` is set, kernel lockdown is active, a CXL device is present, or
-any process holds a `memfd_secret()` mapping). If hibernation is
-unavailable, everything that decision depends on — `/sys/power/state`,
-`/sys/power/resume`, `swapon --show`, held inhibitors
-(`systemd-inhibit --list`), and lockdown status — is logged in one line
-under `hibernate-trigger-diag`:
+Before every RTC-triggered hibernate attempt, an `ExecStartPre` on `hibernate-trigger-hibernate.service` checks whether the kernel currently supports hibernation at all (`grep disk /sys/power/state` — this reflects `hibernation_available()` in `kernel/power/hibernate.c`, which is false if `nohibernate` is set, kernel lockdown is active, a CXL device is present, or any process holds a `memfd_secret()` mapping). If hibernation is unavailable, everything that decision depends on — `/sys/power/state`, `/sys/power/resume`, `swapon --show`, held inhibitors (`systemd-inhibit --list`), and lockdown status — is logged in one line under `hibernate-trigger-diag`:
 
 ```bash
 journalctl -t hibernate-trigger-diag
 ```
 
-One specific cause gets auto-remediated: a process holding a
-`memfd_secret()` mapping blocks hibernation system-wide, for every process,
-for as long as it runs (`secretmem_active()` in `mm/secretmem.c` is a
-global, not per-process, gate). Backgrounded Electron/Chromium apps have
-been observed doing this opportunistically (Bitwarden's V8 sandbox is the
-one seen here so far) with no user-visible symptom other than hibernate
-silently never succeeding. The preflight finds any such process via
-`/proc/*/maps`, closes it (`SIGTERM`, then `SIGKILL` after 2s if still
-alive), and retries. Whether or not that fixes it, a desktop notification
-fires either way ("Closed an app so the system could hibernate" or "Hibernate
-is blocked and couldn't be resolved automatically"), pointing at
-`journalctl -t hibernate-trigger-diag` for detail — so a hibernate-blocking
-issue is discovered within the hour it happens, not weeks of silent
-retry-loop failures later.
+One specific cause gets auto-remediated: a process holding a `memfd_secret()` mapping blocks hibernation system-wide, for every process, for as long as it runs (`secretmem_active()` in `mm/secretmem.c` is a global, not per-process, gate). Backgrounded Electron/Chromium apps have been observed doing this opportunistically (Bitwarden's V8 sandbox is the one seen here so far) with no user-visible symptom other than hibernate silently never succeeding. The preflight finds any such process via `/proc/*/maps`, closes it (`SIGTERM`, then `SIGKILL` after 2s if still alive), and retries. Whether or not that fixes it, a desktop notification fires either way ("Closed an app so the system could hibernate" or "Hibernate is blocked and couldn't be resolved automatically"), pointing at `journalctl -t hibernate-trigger-diag` for detail — so a hibernate-blocking issue is discovered within the hour it happens, not weeks of silent retry-loop failures later.
 
-This preflight never fails the service itself — every branch exits 0 — so a
-preflight bug can't get in the way of the actual hibernate attempt or its
-existing `hibernate-trigger-fallback` retry path.
+This preflight never fails the service itself — every branch exits 0 — so a preflight bug can't get in the way of the actual hibernate attempt or its existing `hibernate-trigger-fallback` retry path.
 
 ### DE independence
 
@@ -399,23 +232,11 @@ A system-sleep hook to enforce this from inside `systemd-hibernate.service` was 
 
 ## Known Gotchas
 
-These were all confirmed on the running machine and are the reason the config
-looks the way it does. Changing them back reintroduces a real failure.
+These were all confirmed on the running machine and are the reason the config looks the way it does. Changing them back reintroduces a real failure.
 
-- **`suspend-then-hibernate` doesn't reach hibernate reliably here.** A
-  self-owned RTC wakealarm + `system-sleep` hook replaces it instead — see
-  [§ Why a self-owned RTC trigger instead of `suspend-then-hibernate`](#why-a-self-owned-rtc-trigger-instead-of-suspend-then-hibernate).
-- **Manual `systemctl hibernate` from an active session resumes with a
-  briefly broken display.** Known-broken with no clean fix; use the natural
-  idle path or a `loginctl lock-session` delay instead — see
-  [§ Manual hibernate from an active session is known-broken](#manual-hibernate-from-an-active-session-is-known-broken).
-- **Bare `sbctl` commands silently target the wrong key directory.** This
-  repo's lanzaboote config doesn't enable `autoGenerateKeys`/`autoEnrollKeys`,
-  so lanzaboote never writes `/etc/sbctl/sbctl.conf`, and `sbctl` falls back to
-  its own default (`/var/lib/sbctl`) instead of this host's real key location
-  (`/etc/secureboot`). Every `sbctl` invocation needs
-  `--config <file with keydir/guid pointing at /etc/secureboot>` — see
-  [§ Secure Boot](#secure-boot).
+- **`suspend-then-hibernate` doesn't reach hibernate reliably here.** A self-owned RTC wakealarm + `system-sleep` hook replaces it instead — see [§ Why a self-owned RTC trigger instead of `suspend-then-hibernate`](#why-a-self-owned-rtc-trigger-instead-of-suspend-then-hibernate).
+- **Manual `systemctl hibernate` from an active session resumes with a briefly broken display.** Known-broken with no clean fix; use the natural idle path or a `loginctl lock-session` delay instead — see [§ Manual hibernate from an active session is known-broken](#manual-hibernate-from-an-active-session-is-known-broken).
+- **Bare `sbctl` commands silently target the wrong key directory.** This repo's lanzaboote config doesn't enable `autoGenerateKeys`/`autoEnrollKeys`, so lanzaboote never writes `/etc/sbctl/sbctl.conf`, and `sbctl` falls back to its own default (`/var/lib/sbctl`) instead of this host's real key location (`/etc/secureboot`). Every `sbctl` invocation needs `--config <file with keydir/guid pointing at /etc/secureboot>` — see [§ Secure Boot](#secure-boot).
 
 ## Verification
 

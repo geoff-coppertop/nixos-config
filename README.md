@@ -1,8 +1,6 @@
 # NixOS Config
 
-This repo is the source of truth for machine setup, user setup, secrets wiring,
-and update policy across four machines. Everything is declarative and committed;
-nothing is configured by hand after install.
+This repo is the source of truth for machine setup, user setup, secrets wiring, and update policy across four machines. Everything is declarative and committed; nothing is configured by hand after install.
 
 ## Machines
 
@@ -13,14 +11,11 @@ nothing is configured by hand after install.
 | `excelsior` | HP EliteDesk 800 G2 Mini game server | `x86_64-linux` | `hosts/excelsior/configuration.nix` | [README](hosts/excelsior/README.md) |
 | `reliant` | Gigabyte GB-BXi5-4200 "Brix" mini PC, homelab server | `x86_64-linux` | `hosts/reliant/configuration.nix` | [README](hosts/reliant/README.md) |
 
-Naming convention and the rest of the layout are in
-[docs/architecture.md](docs/architecture.md).
+Naming convention and the rest of the layout are in [docs/architecture.md](docs/architecture.md).
 
 ## Quick Start
 
-Requires Nix 2.18+ with `experimental-features = nix-command flakes`. Enter the
-dev shell (`nix develop`) and see [docs/operations.md](docs/operations.md) for
-everything else — lint, build, rebuild, updates.
+Requires Nix 2.18+ with `experimental-features = nix-command flakes`. Enter the dev shell (`nix develop`) and see [docs/operations.md](docs/operations.md) for everything else — lint, build, rebuild, updates.
 
 ## Documentation
 
@@ -54,12 +49,7 @@ docs/         the documentation above
 
 ## Contributing
 
-- One file per concern. Do not add an unrelated setting to a catch-all file just
-  because it is already imported — see
-  [docs/architecture.md](docs/architecture.md#one-file-per-concern).
-- Nix must pass `alejandra`, `statix`, and `deadnix`; Markdown must pass
-  `markdownlint`. Run `nix develop -c pre-commit run --all-files` before pushing.
-- Never create files under `secrets/` by hand. Use
-  `nix run .#secret-edit -- <file>`.
-- CI runs the same lint and eval checks plus a native build of all three hosts.
-  See [docs/operations.md](docs/operations.md#lint-format-and-ci).
+- One file per concern. Do not add an unrelated setting to a catch-all file just because it is already imported — see [docs/architecture.md](docs/architecture.md#one-file-per-concern).
+- Nix must pass `alejandra`, `statix`, and `deadnix`; Markdown must pass `markdownlint`. Run `nix develop -c pre-commit run --all-files` before pushing.
+- Never create files under `secrets/` by hand. Use `nix run .#secret-edit -- <file>`.
+- CI runs the same lint and eval checks plus a native build of all three hosts. See [docs/operations.md](docs/operations.md#lint-format-and-ci).

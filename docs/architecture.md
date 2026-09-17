@@ -1,14 +1,10 @@
 # Repository Architecture
 
-How this repo is layered, where a given piece of configuration belongs, and what
-the shared vocabulary (`custom.*`, `mkNixosSystem`) means.
+How this repo is layered, where a given piece of configuration belongs, and what the shared vocabulary (`custom.*`, `mkNixosSystem`) means.
 
 ## Layers
 
-The configuration is a DAG of imports. Deciding which layer to edit is the main
-architectural decision. Every arrow below is an *import*, not containment —
-`modules/`, `profiles/`, and `users/` are all top-level directories alongside
-`hosts/`, which is why each node is written as a full path from the repo root:
+The configuration is a DAG of imports. Deciding which layer to edit is the main architectural decision. Every arrow below is an *import*, not containment — `modules/`, `profiles/`, and `users/` are all top-level directories alongside `hosts/`, which is why each node is written as a full path from the repo root:
 
 ```text
 flake.nix
@@ -25,15 +21,9 @@ flake.nix
 The repo is split by responsibility:
 
 - `hosts/<machine>/` owns machine-specific hardware, power, and disk layout.
-- `profiles/` owns preset bundles a host opts into by name — the baseline OS
-  settings, network discovery, the agenix identity path, the desktop baseline,
-  the dev toolchain. Profiles set config; they declare no options.
-- `modules/` owns the `custom.*` feature modules — users, Wi-Fi, backups,
-  btrfs, secure boot. Modules declare options; every host imports all of them
-  via `modules/default.nix`, and each contributes nothing until its option is
-  set.
-- `users/<name>/` owns personal applications, dotfiles, shell behavior, and
-  workflow tooling through home-manager.
+- `profiles/` owns preset bundles a host opts into by name — the baseline OS settings, network discovery, the agenix identity path, the desktop baseline, the dev toolchain. Profiles set config; they declare no options.
+- `modules/` owns the `custom.*` feature modules — users, Wi-Fi, backups, btrfs, secure boot. Modules declare options; every host imports all of them via `modules/default.nix`, and each contributes nothing until its option is set.
+- `users/<name>/` owns personal applications, dotfiles, shell behavior, and workflow tooling through home-manager.
 - `secrets/` owns agenix-encrypted material that is safe to commit.
 
 **Module or profile? One mechanical test: does the file declare `options`?**
@@ -43,43 +33,20 @@ The repo is split by responsibility:
 | `modules/` | yes | by every host, whole | none until its option is set |
 | `profiles/` | no | per host, by name | immediate |
 
-There is deliberately no `profiles/default.nix` aggregating every profile the
-way `modules/default.nix` aggregates every module. Importing all modules is
-safe because each module contributes nothing to a host that has not set its
-options — enforced by the `modules-inert` flake check
-(`lib/module-inertness.nix`), which applies every module to a probe host with
-no `custom.*` set and fails any whose `config` isn't inert. Importing all
-profiles would not be safe: they apply config on import, so an aggregator would
-apply every profile to whichever host imported it, and adding a profile would
-change that host without anyone choosing to. "Profile" is NixOS's own term for
-a preset bundle of settings; see `nixpkgs/nixos/modules/profiles/`. "Role" is
-not a NixOS concept and this repo no longer uses it.
+There is deliberately no `profiles/default.nix` aggregating every profile the way `modules/default.nix` aggregates every module. Importing all modules is safe because each module contributes nothing to a host that has not set its options — enforced by the `modules-inert` flake check (`lib/module-inertness.nix`), which applies every module to a probe host with no `custom.*` set and fails any whose `config` isn't inert. Importing all profiles would not be safe: they apply config on import, so an aggregator would apply every profile to whichever host imported it, and adding a profile would change that host without anyone choosing to. "Profile" is NixOS's own term for a preset bundle of settings; see `nixpkgs/nixos/modules/profiles/`. "Role" is not a NixOS concept and this repo no longer uses it.
 
 ## Placement Rule
 
-This is the canonical statement. Every other doc links here rather than
-restating it.
+This is the canonical statement. Every other doc links here rather than restating it.
 
-- If it affects machine operation, put it in the system layer:
-  `hosts/<machine>/` for machine-specific behavior, `profiles/` for a preset a
-  host opts into by name, or `modules/` for a reusable feature behind a
-  `custom.*` option.
-- If it affects a person's workflow, put it in that user's home-manager config
-  under `users/<name>/`, in a profile such as `users/<name>/desktop.nix`
-  (full GUI) or `users/<name>/headless.nix` (CLI-only).
-- If several users may want it, create a reusable opt-in user module under
-  `users/common/` and import it from the relevant profile instead of forcing it
-  globally.
-- If it binds a TCP or UDP port, read the port table in the README of every host
-  that will run it (`hosts/<machine>/README.md`) before picking the number —
-  never take the upstream default on trust — and add the port to each of those
-  tables in the same commit. A port only collides with another claim on the same
-  machine, so the host's own table is the complete list that matters.
+- If it affects machine operation, put it in the system layer: `hosts/<machine>/` for machine-specific behavior, `profiles/` for a preset a host opts into by name, or `modules/` for a reusable feature behind a `custom.*` option.
+- If it affects a person's workflow, put it in that user's home-manager config under `users/<name>/`, in a profile such as `users/<name>/desktop.nix` (full GUI) or `users/<name>/headless.nix` (CLI-only).
+- If several users may want it, create a reusable opt-in user module under `users/common/` and import it from the relevant profile instead of forcing it globally.
+- If it binds a TCP or UDP port, read the port table in the README of every host that will run it (`hosts/<machine>/README.md`) before picking the number — never take the upstream default on trust — and add the port to each of those tables in the same commit. A port only collides with another claim on the same machine, so the host's own table is the complete list that matters.
 
 ## One File Per Concern
 
-Favor a new file over adding an unrelated setting to an existing catch-all file,
-anywhere in the tree — `profiles/`, `modules/`, `users/`, `hosts/`.
+Favor a new file over adding an unrelated setting to an existing catch-all file, anywhere in the tree — `profiles/`, `modules/`, `users/`, `hosts/`.
 
 The worked example is networking. Three separate files, three separate concerns:
 
@@ -89,49 +56,27 @@ The worked example is networking. Three separate files, three separate concerns:
 | `modules/wifi.nix` | NetworkManager profiles and Wi-Fi credentials, behind `custom.wifi.enable` |
 | `profiles/common/networking.nix` | Network discovery (avahi/mDNS) |
 
-When adding a setting, ask whether it fits an existing file's concern or needs a
-new one. Do not default to the nearest catch-all just because it is already
-imported.
+When adding a setting, ask whether it fits an existing file's concern or needs a new one. Do not default to the nearest catch-all just because it is already imported.
 
 ## The Aggregator Pattern
 
 Adding a new file is always three steps, in this order, everywhere in the tree:
 
-1. Create the file — `modules/<feature>.nix`, `profiles/common/<concern>.nix`,
-   `users/common/<app>.nix`.
+1. Create the file — `modules/<feature>.nix`, `profiles/common/<concern>.nix`, `users/common/<app>.nix`.
 2. Add one import line to the sibling `default.nix`.
-3. Opt in where it applies — `custom.<feature>.enable = true;` in a host
-   configuration (for a module), or an import in a host or user profile such as
-   `hosts/<host>/configuration.nix` or `users/thomasga/desktop.nix` (for a
-   profile — profiles have no aggregator; see above).
+3. Opt in where it applies — `custom.<feature>.enable = true;` in a host configuration (for a module), or an import in a host or user profile such as `hosts/<host>/configuration.nix` or `users/thomasga/desktop.nix` (for a profile — profiles have no aggregator; see above).
 
-**Step 2 is the one that fails silently.** A `.nix` file no `default.nix`
-imports is never evaluated, so it raises no error — it simply does nothing.
-`nix flake check` never sees it, and `deadnix` reports unused *bindings*, not
-unimported *files*. `profiles/common/ssh-known-hosts.nix` (then
-`modules/ssh-known-hosts.nix`) sat unimported from the commit that added it,
-which meant SSH host-key pinning quietly did nothing.
+**Step 2 is the one that fails silently.** A `.nix` file no `default.nix` imports is never evaluated, so it raises no error — it simply does nothing. `nix flake check` never sees it, and `deadnix` reports unused *bindings*, not unimported *files*. `profiles/common/ssh-known-hosts.nix` (then `modules/ssh-known-hosts.nix`) sat unimported from the commit that added it, which meant SSH host-key pinning quietly did nothing.
 
-`tools/check_orphan_nix.py` now enforces step 2. It runs as a pre-commit hook
-and as a flake check, walking import edges out from `flake.nix` and failing on
-anything it cannot reach. If a file is deliberately not imported, add it to
-`ALLOWED_ORPHANS` in that script with a comment explaining why.
+`tools/check_orphan_nix.py` now enforces step 2. It runs as a pre-commit hook and as a flake check, walking import edges out from `flake.nix` and failing on anything it cannot reach. If a file is deliberately not imported, add it to `ALLOWED_ORPHANS` in that script with a comment explaining why.
 
-`tools/test_check_orphan_nix.py` is that checker's own negative test — a check
-that cannot fail is worth nothing. It runs the checker against small fixture
-trees under a tempdir rather than this repo, so it cannot leave a stray file
-staged here, and it also runs as both a pre-commit hook and a flake check
-(`orphanNixSelfTest`) rather than something run once by hand and forgotten.
+`tools/test_check_orphan_nix.py` is that checker's own negative test — a check that cannot fail is worth nothing. It runs the checker against small fixture trees under a tempdir rather than this repo, so it cannot leave a stray file staged here, and it also runs as both a pre-commit hook and a flake check (`orphanNixSelfTest`) rather than something run once by hand and forgotten.
 
-This check covers reachability, not whether a module's config is gated —
-`lib/module-inertness.nix` (§ Layers, above) is what catches an ungated
-module.
+This check covers reachability, not whether a module's config is gated — `lib/module-inertness.nix` (§ Layers, above) is what catches an ungated module.
 
 ## Local Files As Build Inputs
 
-A `.nix` file in this repo that references a local asset — an avatar, a
-wallpaper, a static udev rule file — must not hand the bare path literal
-straight to a derivation. Use `lib/local-file.nix`:
+A `.nix` file in this repo that references a local asset — an avatar, a wallpaper, a static udev rule file — must not hand the bare path literal straight to a derivation. Use `lib/local-file.nix`:
 
 ```nix
 localFile = import ../../lib/local-file.nix;
@@ -141,36 +86,17 @@ localFile = import ../../lib/local-file.nix;
 
 ### Why
 
-Nix copies this flake's whole local source (`self`) into the store as **one**
-content-addressed unit before evaluation begins. A bare relative path literal
-written inside that tree — `./files/face.png` — resolves to a *subpath* of that
-single copy, not to an independently-hashed copy of just that file. So the
-moment the literal is coerced to a string or store path, the resulting value
-carries the whole-repo hash:
+Nix copies this flake's whole local source (`self`) into the store as **one** content-addressed unit before evaluation begins. A bare relative path literal written inside that tree — `./files/face.png` — resolves to a *subpath* of that single copy, not to an independently-hashed copy of just that file. So the moment the literal is coerced to a string or store path, the resulting value carries the whole-repo hash:
 
 - `toString ./file`
 - `${./file}` interpolated into a derivation builder script
 - `.source = ./file;` in home-manager or `environment.etc`
 
-Every one of those embeds a value that changes whenever **any** tracked file
-anywhere in the repo changes, including files with no logical relationship to
-it. `builtins.path` instead NAR-hashes the given path's own content,
-independent of where it sits during evaluation, which is all
-`lib/local-file.nix` does.
+Every one of those embeds a value that changes whenever **any** tracked file anywhere in the repo changes, including files with no logical relationship to it. `builtins.path` instead NAR-hashes the given path's own content, independent of where it sits during evaluation, which is all `lib/local-file.nix` does.
 
-This is not cosmetic. It silently defeats `tools/ci_changed_hosts.py`, which
-decides what CI builds by comparing each host's toplevel `drvPath` across two
-commits: a host whose closure embeds one of these references shows as changed
-on a commit that touched only some other host. That was empirically confirmed
-with `nix-diff`; `enterprise-d` was rebuilt by a PR that touched only another
-host's `hosts/*`, via `users/thomasga/account.nix`'s `avatar`.
+This is not cosmetic. It silently defeats `tools/ci_changed_hosts.py`, which decides what CI builds by comparing each host's toplevel `drvPath` across two commits: a host whose closure embeds one of these references shows as changed on a commit that touched only some other host. That was empirically confirmed with `nix-diff`; `enterprise-d` was rebuilt by a PR that touched only another host's `hosts/*`, via `users/thomasga/account.nix`'s `avatar`.
 
-One shape that looks identical but is **not** affected:
-`age.secrets.<name>.file = ../../secrets/x.age;`. In the same real CI run,
-`holodeck-01` and `excelsior` — which each carry such references — both
-reported `drvPath unchanged`. Leave them alone; the reason has not been pinned
-down, and reshaping what agenix receives as `file` risks breaking decryption
-for no measured gain.
+One shape that looks identical but is **not** affected: `age.secrets.<name>.file = ../../secrets/x.age;`. In the same real CI run, `holodeck-01` and `excelsior` — which each carry such references — both reported `drvPath unchanged`. Leave them alone; the reason has not been pinned down, and reshaping what agenix receives as `file` risks breaking decryption for no measured gain.
 
 ### Decision rule
 
@@ -181,26 +107,16 @@ Two branches, and the first is almost always the right one:
 | The content is used only by this repo — avatars, wallpapers, static rule files. The common case. | `lib/local-file.nix` |
 | The content is genuinely shared with a project outside this repo | A real separate repo, pinned as a `flake = false` input, `dotfiles`-style |
 
-The second branch is rare and is **not** a workaround for the hashing problem
-above — `lib/local-file.nix` already solves that, in-tree, with no new
-repository to maintain. The only thing that justifies a separate input is an
-actual external consumer. The existing precedent is the `dotfiles` input,
-whose fish/git configuration is consumed both here and by a separate
-devcontainer-features project. Do not spin up a repository every time an asset
-needs to reach a derivation.
+The second branch is rare and is **not** a workaround for the hashing problem above — `lib/local-file.nix` already solves that, in-tree, with no new repository to maintain. The only thing that justifies a separate input is an actual external consumer. The existing precedent is the `dotfiles` input, whose fish/git configuration is consumed both here and by a separate devcontainer-features project. Do not spin up a repository every time an asset needs to reach a derivation.
 
 ## Machine Naming
 
-Machine names are drawn from ships, stations, and notable locations in Star
-Trek, Star Wars, and Battlestar Galactica:
+Machine names are drawn from ships, stations, and notable locations in Star Trek, Star Wars, and Battlestar Galactica:
 
-- Prefer single-word names; use multiple words only when the canonical name
-  genuinely requires it
-- Hyphenate multi-word names (e.g. `enterprise-d`, because the D is part of the
-  official ship designation NCC-1701-D)
+- Prefer single-word names; use multiple words only when the canonical name genuinely requires it
+- Hyphenate multi-word names (e.g. `enterprise-d`, because the D is part of the official ship designation NCC-1701-D)
 - No character names
-- Physical machines: named after specific vessels or stations (e.g.
-  `enterprise-d`, `galactica`, `reliant`)
+- Physical machines: named after specific vessels or stations (e.g. `enterprise-d`, `galactica`, `reliant`)
 - WSL instances: `holodeck-<NN>` (e.g. `holodeck-01`, `holodeck-02`)
 
 The machines currently in this repo are listed in the [root README](../README.md#machines).
@@ -229,20 +145,11 @@ The machines currently in this repo are listed in the [root README](../README.md
 
 ## Documenting an Upstream Workaround
 
-When the config deviates from the obvious shape because of an upstream bug, the
-deviation gets a one-line bullet in the `## Known Gotchas` section of the owning
-host README (or, for a cross-host concern, the owning domain doc). The bullet
-names the option or setting and states the consequence in one sentence, then
-links to the fuller explanation — the relevant `docs/*.md` subsection and/or the
-code comment that cites the actual upstream issue. The issue link itself lives
-in that code comment, next to the line it justifies, so it is visible to anyone
-reading the code without the doc.
+When the config deviates from the obvious shape because of an upstream bug, the deviation gets a one-line bullet in the `## Known Gotchas` section of the owning host README (or, for a cross-host concern, the owning domain doc). The bullet names the option or setting and states the consequence in one sentence, then links to the fuller explanation — the relevant `docs/*.md` subsection and/or the code comment that cites the actual upstream issue. The issue link itself lives in that code comment, next to the line it justifies, so it is visible to anyone reading the code without the doc.
 
 ## Known Workarounds
 
-Index of every doc that carries a `## Known Gotchas` section. Links only, by
-design: the text stays in one place and this list exists so the set of active
-workarounds can be found and revisited without re-deriving where they live.
+Index of every doc that carries a `## Known Gotchas` section. Links only, by design: the text stays in one place and this list exists so the set of active workarounds can be found and revisited without re-deriving where they live.
 
 - [`hosts/reliant/README.md` § Known Gotchas](../hosts/reliant/README.md#known-gotchas)
 - [`hosts/excelsior/README.md` § Known Gotchas](../hosts/excelsior/README.md#known-gotchas)
@@ -253,15 +160,11 @@ workarounds can be found and revisited without re-deriving where they live.
 
 ## Custom Options
 
-Modules expose behavior through `custom.*` options rather than direct NixOS
-options, so a host configuration reads as a list of intents.
+Modules expose behavior through `custom.*` options rather than direct NixOS options, so a host configuration reads as a list of intents.
 
-Every `custom.*` option is declared under `modules/` — that is the module/profile
-test from § Layers applied consistently, with no exceptions today.
+Every `custom.*` option is declared under `modules/` — that is the module/profile test from § Layers applied consistently, with no exceptions today.
 
-Which ports an enabled option actually makes a host bind is recorded per host,
-in that host's own `hosts/<machine>/README.md` port table — the catalogue here
-says what an option does, the host README says what it binds there.
+Which ports an enabled option actually makes a host bind is recorded per host, in that host's own `hosts/<machine>/README.md` port table — the catalogue here says what an option does, the host README says what it binds there.
 
 ### System policy
 
@@ -302,11 +205,7 @@ says what an option does, the host README says what it binds there.
 
 ### Homelab services
 
-`custom.traefik` and the appliance modules (`home-assistant`, `mqtt`, `matter`,
-`zigbee`, `zwave`, `adsb`, `bambuddy`) are enabled only on `reliant`. `custom.dns` runs on
-**both** `reliant` and `excelsior` as two independent instances — AdGuard Home
-has no native clustering, so redundancy means two separate resolvers, not
-shared config. See [docs/homelab-network.md](homelab-network.md).
+`custom.traefik` and the appliance modules (`home-assistant`, `mqtt`, `matter`, `zigbee`, `zwave`, `adsb`, `bambuddy`) are enabled only on `reliant`. `custom.dns` runs on **both** `reliant` and `excelsior` as two independent instances — AdGuard Home has no native clustering, so redundancy means two separate resolvers, not shared config. See [docs/homelab-network.md](homelab-network.md).
 
 | Option | What it does |
 | --- | --- |
@@ -326,12 +225,7 @@ shared config. See [docs/homelab-network.md](homelab-network.md).
 
 ### Game server
 
-Enabled on `excelsior`. Not "homelab services" in the Traefik/appliance sense
-above — standalone game servers. The two are deliberately different shapes:
-DCS is a Windows program under Wine and only exists as an OCI image, while
-Factorio is a single Linux binary with a first-class `services.factorio` module
-in nixpkgs, so `custom.factorioServer` is a thin wrapper over that rather than
-another container.
+Enabled on `excelsior`. Not "homelab services" in the Traefik/appliance sense above — standalone game servers. The two are deliberately different shapes: DCS is a Windows program under Wine and only exists as an OCI image, while Factorio is a single Linux binary with a first-class `services.factorio` module in nixpkgs, so `custom.factorioServer` is a thin wrapper over that rather than another container.
 
 | Option | What it does |
 | --- | --- |
@@ -356,8 +250,7 @@ another container.
 
 ## Where home-manager Attaches
 
-`lib/nixos-system.nix` defines `mkNixosSystem`, which wires in `home-manager`,
-`agenix`, `allowUnfree`, and shared settings for every host.
+`lib/nixos-system.nix` defines `mkNixosSystem`, which wires in `home-manager`, `agenix`, `allowUnfree`, and shared settings for every host.
 
 The per-user attachment lives in `hosts/<machine>/default.nix`:
 
@@ -365,20 +258,10 @@ The per-user attachment lives in `hosts/<machine>/default.nix`:
 home-manager.users.thomasga.imports = [./home/thomasga.nix];
 ```
 
-`flake.nix` itself carries only cross-cutting overrides (for example
-`enterprise-d`'s Firefox `configPath`). Do not add per-user module imports there.
+`flake.nix` itself carries only cross-cutting overrides (for example `enterprise-d`'s Firefox `configPath`). Do not add per-user module imports there.
 
-Each user–machine pair also gets a standalone `homeConfigurations."<user>@<machine>"`
-output, built by `mkHomeConfig` in `flake.nix`, so a user can apply their own
-environment without `sudo`. See
-[docs/operations.md](operations.md#user-environment-updates-self-serve-no-sudo).
+Each user–machine pair also gets a standalone `homeConfigurations."<user>@<machine>"` output, built by `mkHomeConfig` in `flake.nix`, so a user can apply their own environment without `sudo`. See [docs/operations.md](operations.md#user-environment-updates-self-serve-no-sudo).
 
-The procedure to bring a new machine into existence — the files to create and
-the `mkNixosSystem` registration — is
-[docs/provisioning.md § Step 1](provisioning.md#step-1--define-the-machine-in-the-repo),
-not here. This doc is reference, not a runbook.
+The procedure to bring a new machine into existence — the files to create and the `mkNixosSystem` registration — is [docs/provisioning.md § Step 1](provisioning.md#step-1--define-the-machine-in-the-repo), not here. This doc is reference, not a runbook.
 
-The current package/kernel baseline is set by the `nixpkgs` input in
-`flake.nix`. Changing it — including moving to a different branch — uses the
-same mechanism as a routine flake update; see
-[docs/operations.md § Monthly flake input update](operations.md#monthly-flake-input-update).
+The current package/kernel baseline is set by the `nixpkgs` input in `flake.nix`. Changing it — including moving to a different branch — uses the same mechanism as a routine flake update; see [docs/operations.md § Monthly flake input update](operations.md#monthly-flake-input-update).
