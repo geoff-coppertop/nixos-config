@@ -39,10 +39,8 @@
     else cfg.nas;
 
   # The local mount point for one NAS target. Named after the *share*, not
-  # after which module slot (host-wide vs. per-entry override) or which job
-  # uses it — a host's mix of jobs against a share can change over time, but
-  # what a given share is called does not, so this is the one naming scheme
-  # that stays accurate no matter how the entries using it change. Explicit
+  # after which module slot or job uses it — a host's mix of jobs against a
+  # share can change over time, but the share's name doesn't. Explicit
   # `mountPoint` always wins when set.
   effectiveMountPoint = nas:
     if nas.mountPoint != null
@@ -180,14 +178,11 @@
         Nice = 19;
         IOSchedulingClass = "best-effort";
         IOSchedulingPriority = 7;
-        # The unit runs as root and systemd sets no $HOME for it, so restic's
-        # own cache-directory autodetection fails outright ("neither
-        # $XDG_CACHE_HOME nor $HOME are defined") before it ever reaches the
-        # repository. Let systemd own the directory instead: it creates
-        # /var/cache/nas-backup-<name> with the right ownership and mode, and
-        # applies its normal cache lifecycle to it. One directory per entry,
-        # because each entry is a separate restic repository and they must not
-        # share a cache.
+        # The unit runs as root with no $HOME, so restic's cache-directory
+        # autodetection fails outright before it reaches the repository. Let
+        # systemd own the directory instead: /var/cache/nas-backup-<name>,
+        # one per entry since each is a separate restic repository and they
+        # must not share a cache.
         CacheDirectory = serviceName userName;
       };
 
@@ -215,10 +210,10 @@
 
         mkdir -p "$repo"
 
-        # The repository lives on a mounted filesystem, so its `config` file is
-        # the authoritative "already initialised" marker. Never probe with
-        # `restic snapshots` — that also fails on a stale lock or a transient
-        # NAS error, and initialising over a real repository is fatal.
+        # The repository's `config` file is the authoritative "already
+        # initialised" marker. Never probe with `restic snapshots` — that
+        # also fails on a stale lock or transient NAS error, and
+        # initialising over a real repository is fatal.
         if [ ! -e "$repo/config" ]; then
           if init_output=$(restic --repo "$repo" init 2>&1); then
             echo "$init_output"
@@ -236,16 +231,14 @@
         fi
 
         # A systemd `StateDirectory=`/`CacheDirectory=` belonging to a
-        # DynamicUser service is not a directory: systemd creates
-        # /var/lib/private/<name> and leaves /var/lib/<name> as a symlink to
-        # it. restic does not dereference a symlink handed to it as a
-        # top-level backup path — it records the symlink node and never walks
-        # the target — so such an entry produced 0 B snapshots containing only
-        # the bare path components. Canonicalise every configured path here,
-        # at runtime on the host being backed up: the path does not exist on
-        # whatever machine evaluates this configuration, so this cannot be
-        # done at eval time. `readlink -f` is a no-op for an ordinary
-        # directory, so non-symlink entries are unaffected.
+        # DynamicUser service is a symlink: /var/lib/<name> points at
+        # /var/lib/private/<name>. restic does not dereference a symlink
+        # handed to it as a top-level backup path — it records the symlink
+        # node and never walks the target — so such an entry produced 0 B
+        # snapshots. Canonicalise every configured path here, at runtime on
+        # the host being backed up (the path doesn't exist on whatever
+        # machine evaluates this config, so eval time won't do). `readlink
+        # -f` is a no-op for an ordinary directory.
         ${shellArray "configured_paths" userCfg.paths}
         declare -a resolved_paths=()
 
@@ -260,10 +253,8 @@
         done
 
         # Exclude patterns are written against the *configured* path, but
-        # restic matches an absolute pattern against the path as it appears in
-        # the snapshot — which is now the resolved one. Keep the configured
-        # form (it is still correct for every non-symlink path, and for a
-        # pattern already written against the resolved path) and additionally
+        # restic matches against the resolved path in the snapshot. Keep the
+        # configured form (still correct for non-symlink paths) and also
         # emit a prefix-rewritten form for each path that resolved elsewhere.
         ${shellArray "exclude_patterns" userCfg.excludePatterns}
         declare -a exclude_args=()
@@ -287,13 +278,11 @@
 
         # --retry-lock: the units are `wantedBy = multi-user.target`, so a
         # `nixos-rebuild switch` starts a backup even while the timer-driven
-        # one is still running. Without it the second invocation fails
-        # immediately on the first run's lock; with it, it waits and then
-        # proceeds. This does NOT recover a lock left behind by a process that
-        # is already gone — restic decides staleness from the recorded
-        # host+PID being dead, and a PID recycled across a reboot looks alive
-        # to that check, so such a lock has to be cleared by hand. See
-        # docs/backups.md § Known Gotchas.
+        # one is still running; without it the second invocation fails
+        # immediately on the first run's lock. This does NOT recover a lock
+        # left by a process that's already gone — a PID recycled across a
+        # reboot looks alive to restic's staleness check, so that has to be
+        # cleared by hand. See docs/backups.md § Known Gotchas.
         restic --repo "$repo" backup --retry-lock 5m "''${resolved_paths[@]}" "''${exclude_args[@]}"
         restic --repo "$repo" forget \
           --retry-lock 5m \
@@ -397,14 +386,13 @@ in {
             default = null;
             description = ''
               Optional per-entry NAS target, same shape as the host-wide
-              `custom.backups.nas` block. Leave it `null` (the default) and the
-              entry uses the host-wide mount. Set it when this one job needs a
-              different NAS account, share or host than the rest of the
-              machine — for example a personal home-directory backup going to
-              the person's own share while the appliance jobs on the same host
-              use a shared service account. An entry with an override gets its
-              own mount — named `/mnt/nas-<share, lowercased>` by default, same
-              derivation as the host-wide block — and its own restic
+              `custom.backups.nas` block. Leave `null` (the default) to use
+              the host-wide mount. Set it when this one job needs a
+              different NAS account, share, or host than the rest of the
+              machine — e.g. a personal home-directory backup on the
+              person's own share while appliance jobs on the same host use a
+              shared service account. An override gets its own mount (named
+              `/mnt/nas-<share, lowercased>` by default) and its own restic
               repository underneath it.
             '';
           };
@@ -427,9 +415,8 @@ in {
     environment.systemPackages = [pkgs.restic];
 
     # The host-wide mount, plus one extra mount per entry that overrides it.
-    # mkMerge rather than `//` so an override that collides with the host-wide
-    # mount point, or with another override's, is a loud conflict instead of a
-    # silently dropped definition.
+    # mkMerge rather than `//` so a colliding mount point is a loud conflict
+    # instead of a silently dropped definition.
     fileSystems = mkMerge ([{${effectiveMountPoint cfg.nas} = mkNasFileSystem cfg.nas;}] ++ overrideFileSystems);
 
     systemd.services = mapAttrs' mkBackupService enabledUsers;
