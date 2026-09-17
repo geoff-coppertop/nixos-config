@@ -74,10 +74,10 @@ in {
     };
 
     srs = {
-      # Not bundled with the DCS image at all — Aterfax/DCS-World-Dedicated-Server-Docker
-      # issue #74 tracks that as an unimplemented feature request. This runs the
-      # separate purpose-built jaycadi/dcs-srs-server image as its own container
-      # instead of relying on a manual Windows .exe install inside the DCS desktop.
+      # Not bundled with the DCS image — Aterfax/DCS-World-Dedicated-Server-Docker
+      # issue #74 tracks that as unimplemented. Runs the separate
+      # jaycadi/dcs-srs-server image as its own container instead of a
+      # manual Windows .exe install inside the DCS desktop.
       enable = mkEnableOption "run a DCS-SRS (SimpleRadio) voice server container, separate from the DCS server image";
 
       image = mkOption {
@@ -209,7 +209,7 @@ in {
               # and its origin-checked API can't be reverse-proxied anyway —
               # see docs/homelab-network.md). desktopBindAddress is
               # independently overridable: webtop is a noVNC session, so
-              # cross-host proxying it doesn't hit that same limitation.
+              # cross-host proxying it doesn't hit that limitation.
               "${cfg.desktopBindAddress}:${toString cfg.desktopPort}:3000/tcp"
               "${cfg.webGuiBindAddress}:${toString cfg.webGuiPort}:8088/tcp"
             ]
@@ -268,17 +268,14 @@ in {
     (mkIf cfg.control.enable (let
       # is-active is a read-only D-Bus query — no sudo needed. start/stop
       # change system state, so those run through the sudoers rule below
-      # instead of as this (unprivileged) service's own user.
+      # instead of as this unprivileged service's own user.
       #
       # `systemctl is-active` exits non-zero whenever the unit isn't
-      # active — i.e. almost always, since this is an on-demand server.
-      # webhook only echoes a command's stdout back to the client when it
-      # exits 0 (confirmed live: without the `|| true` here, /hooks/dcs-status
-      # returned a bare 500 instead of the status text for every state
-      # except "active", which made the control page's Start/Stop
-      # permanently show "Unknown" and stay disabled in exactly the state
-      # you need them most — server stopped). The text on stdout is what
-      # we actually want; the process exit code is not.
+      # active — almost always, since this is an on-demand server. webhook
+      # only echoes stdout back when the command exits 0, so without
+      # `|| true` here /hooks/dcs-status returned a bare 500 for every
+      # state except "active", making Start/Stop permanently show
+      # "Unknown" in exactly the state you need them most (stopped).
       statusScript = pkgs.writeShellScript "dcs-control-status" ''
         ${systemctlBin} is-active podman-dcs-server.service || true
       '';
@@ -290,15 +287,14 @@ in {
       '';
 
       # Mission uploads are privilege-separated the same way start/stop are:
-      # the webhook's own (unprivileged, firewall-restricted-only) user never
-      # writes into the DCS install directly. It stages the upload under its
-      # own home, then hands off to a fixed, zero-argument sudo command that
-      # does the real placement -- so the only thing sudoers has to trust is
-      # "run this exact script", not an arbitrary filename passed on a
-      # command line (which sudoers can't safely pattern-match). All
-      # filename sanitization happens *inside* the privileged script, which
-      # treats the staged name file as untrusted input regardless of what
-      # the unprivileged step already did to it.
+      # the webhook's unprivileged user never writes into the DCS install
+      # directly. It stages the upload under its own home, then hands off
+      # to a fixed, zero-argument sudo command that does the real
+      # placement, so sudoers only has to trust "run this exact script",
+      # not an arbitrary filename on a command line. All filename
+      # sanitization happens *inside* the privileged script, treating the
+      # staged name as untrusted input regardless of what the unprivileged
+      # step already did to it.
       uploadStageDir = "/var/lib/dcs-control/uploads";
       uploadStageFile = "${uploadStageDir}/pending.miz";
       uploadNameFile = "${uploadStageDir}/pending.name";
@@ -515,17 +511,13 @@ in {
               const dotEl = document.getElementById('dot');
               const PENDING = {inflightStart: false, inflightStop: false};
 
-              // systemd reports the container "active" as soon as the
-              // podman process launches — well before DCS itself has
-              // finished booting inside Wine (see hosts/excelsior/README.md
-              // § First-Time Service Setup: "Mission list is empty, server
-              // not started." can persist for a while after this). There's
-              // no real readiness signal available here (that would mean
-              // parsing DCS's own log or probing the game port), so this is
-              // a fixed, approximate grace period during which "active" is
-              // shown as "warming" instead of a plain ready-looking green
-              // — better than claiming readiness we can't actually confirm.
-              // Adjust WARMUP_MS if it's consistently too short/long.
+              // systemd reports the container "active" as soon as podman
+              // launches, well before DCS finishes booting inside Wine
+              // (see hosts/excelsior/README.md § First-Time Service Setup).
+              // No real readiness signal is available (would mean parsing
+              // DCS's log or probing the game port), so this is a fixed
+              // grace period showing "warming" instead of a falsely-ready
+              // green. Adjust WARMUP_MS if it's consistently off.
               const WARMUP_MS = 90000;
               let warmingUntil = 0;
 
@@ -537,9 +529,9 @@ in {
                 dotEl.className = 'dot ' + displayState;
                 const transitional = state === 'activating' || state === 'deactivating' || warming;
                 dotEl.classList.toggle('spin', transitional);
-                // Only "inactive"/"failed" can start; only "active" can stop
-                // (warming up still counts as active — stopping mid-boot is
-                // valid, starting an already-running container is not).
+                // Only "inactive"/"failed" can start; only "active" can
+                // stop (warming still counts as active — stopping mid-boot
+                // is valid, starting an already-running container isn't).
                 startBtn.disabled = PENDING.inflightStart || !(state === 'inactive' || state === 'failed');
                 stopBtn.disabled = PENDING.inflightStop || state !== 'active';
                 startBtn.textContent = PENDING.inflightStart ? 'Starting…' : 'Start';
@@ -547,17 +539,13 @@ in {
               }
 
               // Two independent triggers call refresh(): the 5s poll timer
-              // and the explicit call right after a click's POST resolves.
-              // A stale response can land after a newer one (e.g. the
-              // periodic poll started just before a click, but resolves
-              // after the click's own post-action refresh) — seq guards
-              // against applying it. Clearing a PENDING flag on any
-              // "not transitional" read was worse: a periodic poll that
-              // happens to land between the click and systemd actually
-              // starting the transition would read the still-old
-              // "inactive" state and immediately clear inflightStart,
-              // flipping the button back to enabled mid-action. Each
-              // flag now only clears on its actual terminal outcome.
+              // and the explicit call after a click's POST resolves. A
+              // stale response can land after a newer one — seq guards
+              // against applying it. Each PENDING flag only clears on its
+              // actual terminal outcome (not any "not transitional" read):
+              // a poll landing between a click and systemd starting the
+              // transition would otherwise read the still-old state and
+              // flip the button back to enabled mid-action.
               let seq = 0;
               async function refresh() {
                 const mySeq = ++seq;
@@ -638,9 +626,8 @@ in {
       };
       users.groups.dcs-control = {};
 
-      # Minimal-privilege grant for a small number of automated actions:
-      # this user, these exact command lines — nothing broader.
-      # installMissionScript takes zero arguments (see its definition
+      # Minimal-privilege grant: this user, these exact command lines,
+      # nothing broader. installMissionScript takes zero arguments (see
       # above) specifically so this sudoers entry never has to trust a
       # user-controlled filename on a command line.
       security.sudo.extraRules = [
