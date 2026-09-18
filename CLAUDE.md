@@ -217,3 +217,7 @@ These must hold without reading any doc first.
 - **Don't justify security or permission tradeoffs by appealing to "it's a
   single-user machine."** Don't propose loosening permissions (e.g.
   world-writable device rules) on that basis.
+- **Keep the doc-to-code ratio proportionate — state a fact once, where it's
+  owned, and point to it everywhere else.** Restating the same gotcha across
+  a doc comment, an inline comment, and a README is the failure mode, not
+  thoroughness.
