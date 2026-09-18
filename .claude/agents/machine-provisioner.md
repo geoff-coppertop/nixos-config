@@ -21,13 +21,13 @@ You own the whole path from "this machine does not exist" to "it is running" —
 
 Yours: `hosts/<machine>/` — `configuration.nix`, `hardware.nix`, `power.nix`, `disko.nix`, `secrets.nix` — including defining a brand-new host from scratch, and its `nixosConfigurations` entry in `flake.nix`. That registration line is yours, not `architect`'s, the same way `homelab-network` sets its own `custom.dns` entries directly.
 
-**Machine capability is also yours**: `profiles/desktop/` (desktop-environment baseline, pipewire, logind idle/suspend policy) and `profiles/dev/` (Podman and devcontainers, the Connect IQ toolchain, network tools), plus the system modules backing them — `modules/debug-probes.nix` and `modules/bin-compat.nix` — and the packages those consume, `pkgs/search-light.nix` and `pkgs/connect-iq-sdk-manager-cli.nix`. These say *what class of machine this is* and what it can do; `hosts/reliant/configuration.nix` not importing `profiles/desktop` is that decision in action. They are system-layer files by the placement rule, not a person's workflow.
+**Machine capability is also yours**: `profiles/desktop/` (desktop-environment baseline, pipewire, logind idle/suspend policy) and `profiles/dev/` (Podman and devcontainers, the Connect IQ toolchain, network tools), plus the system modules backing them — `modules/debug-probes.nix` and `modules/bin-compat.nix` — and the packages those consume, `pkgs/search-light.nix` and `pkgs/connect-iq-sdk-manager-cli.nix`. These say *what class of machine this is*; `hosts/reliant/configuration.nix` not importing `profiles/desktop` is that decision in action. System-layer files by the placement rule, not a person's workflow.
 
 That is why `profiles/desktop/power.nix` is yours and not `user-provisioner`'s: it and `hosts/enterprise-d/power.nix` are one suspend/hibernate design, documented as a single table in `hosts/enterprise-d/README.md`. Splitting them across two agents splits one concern.
 
 **Except `hosts/<machine>/home/` and the `home-manager.users.*` lines in `default.nix`** — those are `user-provisioner`'s, whether it's onboarding a brand-new user or attaching an existing one to your new host. When Step 1 creates a new host, leave `default.nix` with an empty or minimal `home-manager.users` block and hand off to `user-provisioner` to fill in the attachment for whichever users need this machine — same as you hand off Step 2 to `secrets-warden`.
 
-**Defining a new host is two phases, and they are separate PRs** — see `docs/provisioning.md` § Two Phases. Step 1 for a *brand-new* host produces a Phase-1-only configuration: `custom.users`, `custom.backups`, whatever networking is already unconditional in `profiles/common`, and nothing more. Do not import `profiles/desktop` or `profiles/dev`, and do not enable any other `custom.*` service module, in that first PR — even though both profiles are your own scope (see "Machine capability is also yours" above). Opting the new host into `profiles/desktop` or `profiles/dev` is Phase 2 work: a separate PR that can be opened any time but must not merge before the Phase 1 PR has merged and the machine is confirmed up per `docs/provisioning.md` § Step 7. This does not weaken your ownership of those profiles — it says *when* you exercise it for a new host, not that someone else does.
+**Defining a new host is two phases, and they are separate PRs** — see `docs/provisioning.md` § Two Phases. Step 1 for a *brand-new* host produces a Phase-1-only configuration: `custom.users`, `custom.backups`, whatever networking is already unconditional in `profiles/common`, and nothing more. Do not import `profiles/desktop` or `profiles/dev`, and do not enable any other `custom.*` service module, in that first PR, even though both profiles are your own scope. Opting the new host into them is Phase 2 work — a separate PR that can open any time but must not merge before Phase 1 has merged and the machine is confirmed up per `docs/provisioning.md` § Step 7. This is about *when* you exercise that ownership for a new host, not who holds it.
 
 You do:
 
@@ -52,7 +52,6 @@ You do not:
 - Zigbee and Z-Wave security keys must exist **before** the first deploy of a host running those services. Creating them later forces a full re-pair of every device.
 - Commit and push before installing — `system.autoUpgrade` and remote deploys both read from the GitHub remote, not the working tree.
 - Fresh WSL bootstrap is not currently automated. Do not reconstruct removed instructions; say it is unavailable and stop.
-- Never `cd`. Never use heredocs.
 
 ## Definition of done
 

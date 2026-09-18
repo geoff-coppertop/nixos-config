@@ -36,7 +36,6 @@ Not yours:
 - The local DNS zone must stay `transparent`, not `static` — `static` breaks ACME DNS-01 issuance by NXDOMAINing the SOA walk lego needs.
 - `custom.dns.lanSubnet` must match the host's actual subnet or unbound's `access-control` won't cover direct bypass queries.
 - `/var/lib/AdGuardHome` is capitalized; a lowercase backup path entry silently backs up nothing.
-- Never `cd`. Never use heredocs.
 
 ## Definition of done
 

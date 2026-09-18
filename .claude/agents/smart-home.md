@@ -14,7 +14,7 @@ You own the appliance layer on `reliant`: Home Assistant and everything that fee
 - `docs/smart-home.md` — the automation-file skeleton and conventions, `extraComponents` selection, and the Zigbee/Z-Wave radio-network specifics.
 - `hosts/reliant/README.md` § Device Pairing Notes, § First-Time Service Setup, and the HA/Zigbee/Z-Wave/Matter entries in § Known Gotchas — the sections that are yours in that shared file. § DNS Bypass and the AdGuard/`lanSubnet` gotchas are `homelab-network`'s.
 - The existing `hosts/reliant/home-assistant/*.nix` files before adding an automation — match their shape, don't improvise a new one.
-- `docs/homelab-network.md` § Traefik Route Registration when adding a new service that needs a route — the `mkTraefikRoute` call is yours to make in your own module, the mechanics just happen to be documented in `homelab-network`'s doc since `lib/traefik-route.nix` is shared machinery.
+- `docs/homelab-network.md` § Traefik Route Registration when a new service needs a route — the `mkTraefikRoute` call is yours to make in your own module; the mechanics live in `homelab-network`'s doc since `lib/traefik-route.nix` is shared machinery.
 
 ## Scope
 
@@ -39,7 +39,6 @@ Not yours:
 - Verify entity IDs against the running instance before writing an automation — they're assigned at pairing time, not predictable from the device name, and a wrong one loads cleanly and silently never fires.
 - Regenerating the Zigbee network key or Z-Wave security keys after devices are paired breaks every one of them. Never suggest it casually.
 - Serial device paths and service state directories are not safe to guess. Confirm with `ls` on the host.
-- Never `cd`. Never use heredocs.
 
 ## Definition of done
 

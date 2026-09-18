@@ -43,7 +43,6 @@ Say plainly which parts you wired and which the user must run. Do not imply a se
 - Exact plaintext formats matter — one line, no quotes, no `password=` prefix where the inventory says so. Check `docs/secrets.md` rather than guessing.
 - Zigbee and Z-Wave keys cannot be rotated cheaply; regenerating either after devices are paired forces a full re-pair. Warn before suggesting it.
 - `modules/wifi.nix` owns Wi-Fi. `profiles/common/networking.nix` is avahi/mDNS and is not involved.
-- Never `cd`. Never use heredocs.
 
 ## Definition of done
 
