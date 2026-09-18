@@ -13,7 +13,10 @@
         availableKernelModules = ["tpm" "tpm_crb" "tpm_tis"];
 
         luks.devices.root = {
-          # Removed hardcoded device string to allow Disko to define it safely
+          # No `device` here: disko's own NixOS module sets
+          # boot.initrd.luks.devices.root.device from each host's
+          # disko.nix, so hardcoding a path here would duplicate (and
+          # could drift from) that.
           preLVM = true;
           allowDiscards = true;
         };

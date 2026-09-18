@@ -111,12 +111,14 @@ in {
       networking.firewall.allowedTCPPorts = [5335];
       networking.firewall.allowedUDPPorts = [53 5335];
 
-      # The Pi has no RTC/battery-backed clock, so the kernel clock starts
-      # wrong on every boot until timesyncd's first NTP sync. With DNSSEC
-      # validation on, unbound starting first served every lookup as
-      # "DNSKEY rrset is not secure" — real signatures failing against a
-      # clock that hadn't caught up. Not circular: the box resolves NTP via
-      # DHCP-provided nameservers at boot, not through unbound.
+      # Observed on defiant (Raspberry Pi, since retired): with no
+      # RTC/battery-backed clock, the kernel clock started wrong on every
+      # boot until timesyncd's first NTP sync, and DNSSEC validation on an
+      # unbound that started first served every lookup as "DNSKEY rrset is
+      # not secure" — real signatures failing against a clock that hadn't
+      # caught up. Not circular: the box resolves NTP via DHCP-provided
+      # nameservers at boot, not through unbound. Kept as a cheap defensive
+      # ordering rule on current (RTC-backed) hardware too.
       #
       # systemd-time-wait-sync blocks on the kernel's "clock synchronized"
       # flag, set by timesyncd after its first sync; it isn't pulled in by

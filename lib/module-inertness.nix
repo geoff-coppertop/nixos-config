@@ -1,6 +1,6 @@
 # Asserts the invariant that makes modules/default.nix safe to import wholesale:
 # a module must contribute nothing to a host that has not set its custom.*
-# option. Without this, an ungated module lands on all three hosts the moment
+# option. Without this, an ungated module lands on every host the moment
 # it is added to modules/default.nix, and nothing notices.
 #
 # This evaluates rather than greps. Each module is applied to a probe host that

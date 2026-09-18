@@ -17,7 +17,6 @@ in {
     # Native Framework 2nd Gen fingerprint scanner support
     services.fprintd.enable = true;
 
-    # PAM configuration for fingerprint authentication
     security.pam.services = {
       # mkForce is required here to override GDM's default 'false' assignment
       login.fprintAuth = mkForce true;
