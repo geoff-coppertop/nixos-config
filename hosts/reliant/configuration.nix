@@ -102,19 +102,19 @@ in {
         # Not part of default_config — same "config-flow-only" gap as "hue"
         # above, see docs/smart-home.md § Choosing extraComponents.
         "broadlink"
-        # NOT "linkplay" -- its dependency wouldn't reach a clean discovered
-        # card (unconditional getMetaInfo probe fails against these Wiim Pro
-        # units); the community "wiim" integration already handles this
-        # hardware -- see docs/smart-home.md § Discovery-flow
-        # ModuleNotFoundErrors and hosts/reliant/README.md § Known Gotchas.
         "ssdp"
-        # cast/ipp/ecobee/zha: real devices on the LAN trigger discovery for
-        # each. See docs/smart-home.md § Discovery-flow ModuleNotFoundErrors
-        # for why each dependency is added (or, for linkplay above, isn't).
+        # cast/ipp/ecobee/zha/linkplay: real devices on the LAN trigger
+        # discovery for each -- without the package here, HA's loader raises
+        # an unhandled ModuleNotFoundError every boot. linkplay's own config
+        # flow still can't complete against these Wiim Pro units (the
+        # community "wiim" integration handles the actual control) but that's
+        # a config-flow-internal failure, not this crash -- see
+        # docs/smart-home.md § Wiim.
         "cast"
         "ipp"
         "ecobee"
         "zha"
+        "linkplay"
         # mobile_app: required for the iOS/Android companion app to connect —
         # without it the app's error dialog reads "The mobile_app component is
         # not loaded" (Shared.HomeAssistantAPI.APIError, code 6).
@@ -678,24 +678,12 @@ in {
     # hosts/defiant/configuration.nix and hosts/enterprise-d/configuration.nix.
     hosts.${nas.ip} = [nas.host];
 
-    # Home Assistant's Sonos integration subscribes each speaker directly to
-    # HA's own HTTP server (port 8123) for UPnP event callbacks -- LAN-local
-    # traffic that never goes through Traefik, so modules/home-assistant.nix
-    # deliberately doesn't open 8123 itself (everything else reaches HA only
-    # via Traefik -> 127.0.0.1 — see modules/home-assistant.nix for why
-    # there's no `openFirewall` there any more), which leaves the Sonos
-    # callback path unreachable without this rule. Confirmed live on defiant
-    #
-    # unbound (modules/dns.nix) has its own access-control option to scope
-    # its LAN-bypass port to a subnet; HA's http integration has no
-    # equivalent allowlist for its main listener, so the restriction has to
-    # happen at the firewall instead of blanket-opening 8123 via
-    # allowedTCPPorts. 192.168.20.0/24 is the same homelab VLAN defiant used
-    # (this host and defiant share it) -- narrower than custom.dns.lanSubnet's
-    # widened 192.168.0.0/16 above, since Sonos doesn't need cross-VLAN reach
-    # the way the DNS bypass does.
+    # Port 1400 is soco's embedded UPnP event listener -- the real Sonos
+    # NOTIFY callback port, not 8123 (this rule's old comment was wrong).
+    # 192.168.20.0/24 matches custom.dns.lanSubnet's underlying VLAN.
     firewall.extraCommands = ''
       iptables -I nixos-fw -p tcp -s 192.168.20.0/24 --dport 8123 -j ACCEPT
+      iptables -I nixos-fw -p tcp -s 192.168.20.0/24 --dport 1400 -j ACCEPT
     '';
   };
 

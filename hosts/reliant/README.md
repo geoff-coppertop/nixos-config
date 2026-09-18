@@ -112,6 +112,7 @@ Rule](../../docs/architecture.md#placement-rule)).
 | 53 | tcp+udp | AdGuard Home resolver, `custom.dns` | Bound `0.0.0.0`; UDP 53 opened to the LAN by `modules/dns.nix` (TCP 53 deliberately not opened) |
 | 80, 443 | tcp | Traefik entry points (`web`/`websecure`), `custom.traefik` | LAN/WAN (firewall open) — every proxied service is reached through 443 here, never its own port |
 | 322, 990, 2024–2026, 3000, 3002, 6000, 8883, 50000–50029 | tcp | Bambuddy virtual printer — bind/detect, RTSPS camera, FTPS, A1/P1S protocol, file tunnel, MQTT, FTP passive range (sized by `virtualPrinter.count`, 3 here). Hardcoded upstream in `bind_server.py`, started by the app whenever `custom.bambuddy` runs | Firewall closed (`virtualPrinter.openFirewall` off). Its 3000 is the same 3000 AdGuard holds below and neither side is configurable — `modules/bambuddy.nix` asserts on the pair; see § Bambuddy |
+| 1400 | tcp | `soco`'s embedded UPnP listener — receives Sonos NOTIFY callbacks, not HA's frontend | Opened to `192.168.20.0/24` by `firewall.extraCommands`; see Known Gotchas |
 | 1883 | tcp | Mosquitto MQTT broker, `custom.mqtt` | 127.0.0.1 only |
 | 3000 | tcp | AdGuard Home admin UI, `custom.dns` (upstream default) | Bound `0.0.0.0`, `openFirewall = false`; reached through Traefik at `dns1.coppertop.ca` |
 | 3001 | tcp | zwave-js websocket, `custom.zwave.port` — overridden here because the module default (3000) is AdGuard's admin UI | Firewall closed; Home Assistant connects over localhost |
@@ -125,7 +126,7 @@ Rule](../../docs/architecture.md#placement-rule)).
 | 8080 | tcp | nginx serving dump1090's skyaware UI and `aircraft.json`, `custom.adsb` (hardcoded) | 127.0.0.1 only; Traefik at `adsb.coppertop.ca` |
 | 8082 | tcp | Zigbee2MQTT frontend, `custom.zigbee` (hardcoded in `modules/zigbee.nix`) | Firewall closed; Traefik at `zigbee.coppertop.ca` |
 | 8083 | tcp | Homepage dashboard, `custom.homepage` — moved off its upstream default (8082, Zigbee2MQTT's) after a live collision, see Known Gotchas | 127.0.0.1 only; Traefik at the apex, `coppertop.ca` |
-| 8123 | tcp | Home Assistant frontend, `custom.home-assistant` (HA's own default; the module's Traefik route hardcodes it) | Opened to `192.168.20.0/24` only by `firewall.extraCommands`, for Sonos UPnP callbacks; everything else goes through Traefik at `home.coppertop.ca` |
+| 8123 | tcp | Home Assistant frontend, `custom.home-assistant` (HA's own default; the module's Traefik route hardcodes it) | Opened to `192.168.20.0/24` only by `firewall.extraCommands`; everything else goes through Traefik at `home.coppertop.ca` |
 | 9091 | tcp | Authelia, `custom.authelia.port` (upstream default) | 127.0.0.1 only; Traefik at `auth.coppertop.ca`, and the `authelia@file` forward-auth middleware's own callback target |
 | 17170 | tcp | lldap web UI/GraphQL API, `custom.lldap.httpPort` (upstream default) | 127.0.0.1 only; Traefik at `ad.coppertop.ca` |
 | 30001–30005, 30104 | tcp | dump1090's raw/Beast/SBS feed listeners, `custom.adsb` (it runs dump1090 with `--net`, so these are dump1090's own defaults) | Bound `0.0.0.0`, firewall closed |
@@ -320,24 +321,18 @@ slicing sidecar as a podman container. Host-specific notes:
   [docs/smart-home.md § Matter](../../docs/smart-home.md#matter-pinned-paa-root-certs-not-live-dcl-fetch).
   Tracked upstream at
   [nixpkgs#377136](https://github.com/NixOS/nixpkgs/issues/377136).
-- **Core HA's `linkplay` integration never sets up against the Wiim Pro
-  units** — its `getMetaInfo` discovery call gets the literal string
-  `"Failed"` back instead of JSON, so the config flow dies silently before
-  anything reaches the UI. Replaced with the community `wiim` integration,
-  packaged declaratively via `services.home-assistant.customComponents`
-  instead of `extraComponents` — see
-  [docs/smart-home.md § Wiim](../../docs/smart-home.md#wiim-community-integration-not-core-linkplay).
-  Tracked upstream at
-  [home-assistant/core#145132](https://github.com/home-assistant/core/issues/145132).
+- **Core HA's `linkplay` integration can't drive the Wiim Pro units** — even
+  though the discovery bug (`getMetaInfo` returning `"Failed"`) is already
+  fixed at this flake's pinned nixpkgs revision, it just aborts discovery
+  cleanly instead of setting up an entry. Replaced with the community `wiim`
+  integration, packaged declaratively via
+  `services.home-assistant.customComponents` instead of `extraComponents` —
+  see [docs/smart-home.md § Wiim](../../docs/smart-home.md#wiim-community-integration-not-core-linkplay).
 - **`journalctl` recurringly logged `homeassistant.components.{linkplay,cast,
-  ecobee,ipp,zha}: No module named '...'` every few minutes.** `cast`, `ipp`,
-  `ecobee`, and `zha` are now fixed via `extraComponents`; `linkplay` is a
-  verified exception (its discovery step crashes on a hardware probe before
-  a dependency would even help — the community `wiim` integration is the
-  real fix, see the entry above). Full reasoning, including why a missing
-  dependency isn't the same as "integration running", in
+  ecobee,ipp,zha}: No module named '...'` every few minutes, each an
+  unhandled exception (not a caught/logged warning).** Fixed via
+  `extraComponents` for all five. Full reasoning in
   [docs/smart-home.md § Discovery-flow `ModuleNotFoundError`s](../../docs/smart-home.md#discovery-flow-modulenotfounderrors-cast-ecobee-ipp-linkplay-zha).
-  for the full per-component reasoning.
 - **iOS companion app failed to connect with "The mobile_app component is not
   loaded."** `"mobile_app"` was already in `extraComponents`, which installs
   the package but doesn't cause HA to load it, and `mobile_app` has no "Add
@@ -399,6 +394,9 @@ slicing sidecar as a podman container. Host-specific notes:
   (`EADDRINUSE`) on the first deploy with both enabled on this host. Moved to
   8083 in `modules/homepage.nix` — same class of conflict as
   `zwave-js`/AdGuard (3000, above) and `bambuddy`/AdGuard (3000, § Bambuddy).
+- **Sonos "Subscription to `<ip>` failed" every boot (#170)**: the firewall
+  only opened 8123, but Sonos NOTIFY callbacks go to `soco`'s own embedded
+  listener on port 1400. Fixed by opening 1400 too.
 
 ## Backups
 
