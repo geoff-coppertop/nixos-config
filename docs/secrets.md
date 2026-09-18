@@ -408,13 +408,7 @@ Two consumers read it:
 - `profiles/common/ssh-known-hosts.nix` turns non-null `publicKey` values into `programs.ssh.knownHosts`, so clients do not prompt on first connect.
 - `modules/users.nix` collects, for each user, every `userPublicKeys.<user>` entry across all machines into that user's `openssh.authorizedKeys.keys`. Once a user is enrolled on a machine, they can log in from it to every other machine that declares them.
 
-No machine currently has `publicKey` pinned — all three are `null`, pending the out-of-band verification below. Until one is pinned, `programs.ssh.knownHosts` evaluates to an empty set and clients still prompt on first connect. That is expected, not a fault.
-
-> **Note:** `modules/ssh-known-hosts.nix` was missing from `modules/default.nix` until it was added alongside `tools/check_orphan_nix.py`. It had never been imported, so the host-key path has not yet run against a real pinned key. Verify the first pin actually takes effect:
->
-> ```bash
-> nix eval .#nixosConfigurations.enterprise-d.config.programs.ssh.knownHosts --json
-> ```
+`excelsior` and `reliant` have `publicKey` pinned; `enterprise-d` and `holodeck-01` are still `null`, pending the out-of-band verification below. For a host with `publicKey` still `null`, `programs.ssh.knownHosts` just omits that entry and clients prompt on first connect to it — expected, not a fault.
 
 ### Generate SSH Login Credentials
 
