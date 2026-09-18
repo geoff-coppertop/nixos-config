@@ -29,10 +29,9 @@ in {
       hardware.graphics.enable = true;
     }
 
-    # Self-register a Traefik route when this host itself runs Traefik.
-    # Jellyfin has its own accounts, so no auth middleware is added here.
-    # When a different host proxies it cross-host instead, that host defines
-    # the route by hand (see docs/homelab-network.md § Second DNS Instance).
+    # Jellyfin has its own accounts, so no auth middleware is added here. A
+    # different host proxying it cross-host instead defines the route by
+    # hand (see docs/homelab-network.md § Second DNS Instance).
     (mkIf config.custom.traefik.enable {
       services.traefik.dynamicConfigOptions.http = mkTraefikRoute {
         name = "jellyfin";

@@ -182,10 +182,9 @@ in {
       networking.firewall.allowedTCPPorts = mkIf cfg.openFirewall [cfg.webPort];
     }
 
-    # Self-register a Traefik route when this host itself runs Traefik. The
-    # host adds any auth middleware (ARM's own auth is weak). When a
-    # different host proxies it cross-host instead, that host defines the
-    # route by hand.
+    # ARM's own auth is weak; the host adds any auth middleware. A
+    # different host proxying it cross-host defines the route by hand
+    # instead.
     (mkIf config.custom.traefik.enable {
       services.traefik.dynamicConfigOptions.http = mkTraefikRoute {
         name = "arm";

@@ -5,11 +5,9 @@
 }: let
   inherit (lib) mkEnableOption mkIf mkMerge;
   cfg = config.custom.homepage;
-  # Module default (8082, confirmed against nixpkgs source — not 3000)
-  # collides with custom.zigbee's Zigbee2MQTT frontend, also hardcoded 8082 —
-  # confirmed live on reliant (EADDRINUSE, both enabled on the same host).
-  # Check the port table in hosts/<machine>/README.md for the host that will
-  # run this before picking a port here again.
+  # Module default (8082) collides with custom.zigbee's Zigbee2MQTT frontend,
+  # also hardcoded 8082 — EADDRINUSE on reliant with both enabled. Check the
+  # port table in hosts/<machine>/README.md before picking a port here again.
   port = 8083;
 in {
   options.custom.homepage.enable =

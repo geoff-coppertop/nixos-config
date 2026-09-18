@@ -21,11 +21,10 @@ in {
           # allow_anonymous only permits connecting — the ACL plugin
           # NixOS's mosquitto module always loads per listener still
           # defaults to deny-all on topics when its acl file is empty
-          # (which it is unless this is set). Confirmed live: zigbee2mqtt
-          # and Home Assistant's own MQTT client both connected
-          # successfully, but zigbee2mqtt's Home Assistant discovery
-          # messages were silently dropped — not even retained on the
-          # broker — because nothing granted topic access at all.
+          # (which it is unless this is set). Without it, zigbee2mqtt and
+          # HA's MQTT client both connected fine, but zigbee2mqtt's HA
+          # discovery messages were silently dropped — not even
+          # retained — since nothing granted topic access at all.
           acl = ["topic readwrite #"];
         }
       ];
