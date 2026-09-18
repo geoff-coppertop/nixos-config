@@ -360,6 +360,10 @@ even though the UI lists "Hue" as an option regardless. Note that some
 integrations are distinct platforms needing their own entry — `google_translate`
 is separate from the core `tts` component, for instance.
 
+`bmw_connected_drive` (vehicle sensors and `device_tracker`) is the same
+config-flow-only shape as `hue`/`broadlink` above: no agenix secret,
+credentials entered via Add Integration.
+
 Some components additionally need an explicit YAML block in
 `modules/home-assistant.nix`'s `services.home-assistant.config`, the same as
 `sun`/`mobile_app` there: NixOS's home-assistant module has its own fixed

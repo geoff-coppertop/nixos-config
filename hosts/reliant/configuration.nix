@@ -102,6 +102,9 @@ in {
         # Not part of default_config — same "config-flow-only" gap as "hue"
         # above, see docs/smart-home.md § Choosing extraComponents.
         "broadlink"
+        # bmw_connected_drive: vehicle sensors/device_tracker, same
+        # config-flow-only handling as "hue"/"broadlink" above.
+        "bmw_connected_drive"
         # NOT "linkplay" -- its dependency wouldn't reach a clean discovered
         # card (unconditional getMetaInfo probe fails against these Wiim Pro
         # units); the community "wiim" integration already handles this
