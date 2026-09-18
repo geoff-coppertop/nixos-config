@@ -188,25 +188,31 @@
                 # both an `air_quality` word-value entity (good/moderate/
                 # poor) and a numeric `pm25` entity; read the latter so this
                 # card shows an actual PM2.5 concentration per room rather
-                # than a qualitative word.
+                # than a qualitative word. Entity IDs carry a `starkvind_`
+                # prefix from pairing and aren't all derivable from the room
+                # name (e.g. the upstairs living room's is `upper_living_room`,
+                # not `upstairs_living_room`) — confirmed against the live
+                # registry with `nix run .#check-ha-entities -- reliant`
+                # rather than guessed; re-verify the same way if these are
+                # ever re-paired.
                 {
-                  entity = "sensor.dining_room_pm25";
+                  entity = "sensor.starkvind_dining_room_pm25";
                   name = "Dining room";
                 }
                 {
-                  entity = "sensor.master_bedroom_pm25";
+                  entity = "sensor.starkvind_master_bedroom_pm25";
                   name = "Master bedroom";
                 }
                 {
-                  entity = "sensor.upstairs_living_room_pm25";
+                  entity = "sensor.starkvind_upper_living_room_pm25";
                   name = "Upstairs living room";
                 }
                 {
-                  entity = "sensor.basement_living_room_pm25";
+                  entity = "sensor.starkvind_basement_living_room_pm25";
                   name = "Basement living room";
                 }
                 {
-                  entity = "sensor.geoff_s_office_pm25";
+                  entity = "sensor.starkvind_geoff_s_office_pm25";
                   name = "Geoff's Office";
                 }
                 {
