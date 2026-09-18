@@ -183,18 +183,13 @@
                   type = "section";
                   label = "Indoor";
                 }
-                # IKEA STARKVIND air purifiers, paired via Zigbee2MQTT/HA UI
-                # (not declared anywhere in this repo). Each device exposes
-                # both an `air_quality` word-value entity (good/moderate/
-                # poor) and a numeric `pm25` entity; read the latter so this
-                # card shows an actual PM2.5 concentration per room rather
-                # than a qualitative word. Entity IDs carry a `starkvind_`
-                # prefix from pairing and aren't all derivable from the room
-                # name (e.g. the upstairs living room's is `upper_living_room`,
-                # not `upstairs_living_room`) — confirmed against the live
-                # registry with `nix run .#check-ha-entities -- reliant`
-                # rather than guessed; re-verify the same way if these are
-                # ever re-paired.
+                # IKEA STARKVIND air purifiers (Zigbee2MQTT/HA UI, not
+                # declared here). Reads each device's numeric `pm25` entity,
+                # not its `air_quality` word-value one. Entity IDs carry a
+                # `starkvind_` prefix and aren't all room-name-derivable
+                # (upstairs living room's is `upper_living_room`) — verified
+                # against `nix run .#check-ha-entities -- reliant`;
+                # re-verify the same way if these are ever re-paired.
                 {
                   entity = "sensor.starkvind_dining_room_pm25";
                   name = "Dining room";
@@ -219,11 +214,8 @@
                   type = "section";
                   label = "Outdoor";
                 }
-                # outdoor-aqi.nix's REST sensor — AQICN directly, not HA's
-                # config_flow-only "waqi" integration (see that file). Reads
-                # the station's raw PM2.5 concentration (µg/m³), not
-                # AQICN's composite AQI index, so this row is directly
-                # comparable to the indoor PM2.5 rows above.
+                # outdoor-aqi.nix's REST sensor — PM2.5, µg/m³ (see that
+                # file for why AQICN and not HA's "waqi" integration).
                 {
                   entity = "sensor.outdoor_aqi";
                   name = "PM2.5";

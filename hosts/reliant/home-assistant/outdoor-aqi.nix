@@ -7,16 +7,10 @@
 # sidesteps both: fully declarative, and the token stays in agenix instead
 # of living only in HA's UI-only integration storage.
 #
-# Reads data.iaqi.pm25.v (the station's raw PM2.5 concentration, µg/m³),
-# not data.aqi (AQICN's composite index derived from whichever pollutant is
-# currently dominant) — so this is directly comparable to the indoor
-# STARKVIND pm25 readings on the same Air Quality card, rather than two
-# different kinds of number under one card. AQICN stations don't all report
-# every pollutant; the .get() chain below falls back to "unavailable"
-# instead of raising if this station's feed ever lacks iaqi.pm25 (confirmed
-# against AQICN's documented feed/ response shape, which nests each
-# pollutant's reading under data.iaqi.<pollutant>.v and omits pollutants a
-# station doesn't measure, rather than a guess).
+# Reads data.iaqi.pm25.v (raw PM2.5, µg/m³) rather than data.aqi (AQICN's
+# composite index) so this is comparable to the indoor STARKVIND pm25
+# rows on the same card. .get() falls back to "unavailable" since not
+# every AQICN station reports every pollutant.
 #
 # geo coordinates come from zone.home (already used for presence elsewhere
 # under hosts/reliant/home-assistant/), not a hardcoded lat/lon or the
