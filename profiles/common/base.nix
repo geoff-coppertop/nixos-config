@@ -7,13 +7,11 @@
   inherit (lib) optionalAttrs;
   keepGenerations = toString config.custom.nix.gc.keepGenerations;
 in {
-  # Backups are not optional. Every real host imports profiles/common (the
-  # module-inertness probe in flake.nix deliberately does not — it imports
-  # ./modules directly with no custom.* set, so this must live here rather
-  # than in modules/backups.nix or lib/nixos-system.nix, both of which the
-  # probe also passes through). A host that never configures custom.backups
-  # fails to evaluate instead of silently shipping unprotected — the gap
-  # that let excelsior go live without backups in the first place.
+  # Backups are not optional. Lives here, not in modules/backups.nix or
+  # lib/nixos-system.nix, because the module-inertness probe in flake.nix
+  # deliberately skips profiles/common — importing ./modules directly with
+  # no custom.* set — so a host that never configures custom.backups fails
+  # to evaluate instead of silently shipping unprotected.
   assertions = [
     {
       assertion = config.custom.backups.enable;
@@ -26,11 +24,10 @@ in {
       experimental-features = ["nix-command" "flakes"];
 
       # Remote deploys (nixos-rebuild --target-host) push locally-built
-      # store paths over SSH as the login user. The nix daemon only
-      # accepts unsigned paths from trusted-users (default: root only) —
-      # without this, deploying to any host over SSH as a non-root user
-      # fails with "lacks a signature by a trusted key". Confirmed live
-      # deploying to reliant as thomasga.
+      # store paths over SSH as the login user. The nix daemon only accepts
+      # unsigned paths from trusted-users (default: root only) — without
+      # this, deploying over SSH as a non-root user fails with "lacks a
+      # signature by a trusted key".
       trusted-users = ["root" "@wheel"];
     };
 
@@ -107,11 +104,10 @@ in {
   environment.systemPackages = with pkgs; [
     pciutils
     usbutils
-    # Confirmed live: SSHing into a headless host from a Ghostty terminal
-    # (TERM=xterm-ghostty) breaks terminfo-dependent commands like `clear`
-    # ("unknown terminal type") since the remote machine has no matching
-    # terminfo entry. ghostty.terminfo is a dedicated package output for
-    # exactly this — installing the terminfo without the GUI app itself.
+    # SSHing into a headless host from a Ghostty terminal (TERM=xterm-ghostty)
+    # breaks terminfo-dependent commands like `clear` ("unknown terminal
+    # type") since the remote machine has no matching terminfo entry.
+    # ghostty.terminfo installs just the terminfo, not the GUI app.
     ghostty.terminfo
   ];
 

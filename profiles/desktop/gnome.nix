@@ -55,35 +55,31 @@ in {
 
     programs.dconf = {
       enable = true;
-      # GDM runs its own GNOME Shell session in the background while the user is
-      # logged in. On resume from hibernate, GDM's Mutter has the same
-      # accumulated-idle-time problem as the user session: CLOCK_MONOTONIC stops
-      # during hibernate, so on resume GDM's idle time equals the pre-hibernate
-      # idle duration. If that exceeds idle-delay (default 300 s), Mutter
+      # GDM runs its own GNOME Shell session in the background while the user
+      # is logged in. On resume from hibernate, GDM's Mutter has the same
+      # accumulated-idle-time problem as the user session: CLOCK_MONOTONIC
+      # stops during hibernate, so GDM's idle time equals the pre-hibernate
+      # idle duration on resume. Past idle-delay (default 300s), Mutter
       # immediately fires DPMS-off and the login screen goes dark.
+      # idle-delay=0 ("never idle" in GNOME's schema) disables that tracking.
       #
-      # idle-delay=0 means "never idle" in GNOME's schema — it disables idle
-      # tracking in GDM's session so the screen can never blank due to
-      # accumulated idle time on resume.
+      # Side effect: the greeter session then never sets logind IdleHint,
+      # which would block IdleAction forever — the greeter-idle-hint timer
+      # in profiles/desktop/power.nix compensates by marking any active
+      # greeter-class session idle at the system level.
       #
-      # Side effect: the greeter session then never sets logind IdleHint, which
-      # would block IdleAction (login-screen auto-suspend) forever. The
-      # greeter-idle-hint timer in profiles/desktop/power.nix compensates by
-      # marking any active greeter-class session idle at the system level.
+      # idle-activation-enabled=false and lock-enabled=false prevent GDM's
+      # screen shield from activating on logind's PrepareForSleep(false).
       #
-      # idle-activation-enabled=false and lock-enabled=false prevent GDM's screen
-      # shield from activating when logind sends PrepareForSleep(false) on resume.
+      # Safety: dconf reads user-db:user before system-db:*, so the user's
+      # own idle-delay=240 (home-manager, gnome.nix) always takes precedence
+      # over this system-db value.
       #
-      # Safety: dconf reads user-db:user before system-db:*, so user-level dconf
-      # settings (set via home-manager) always take precedence over this system-db
-      # entry. The user's idle-delay=240 in gnome.nix cannot be overridden by this
-      # GDM system-db value.
-      #
-      # Keyring note: pam_gnome_keyring.so cannot unlock a password-protected
-      # keyring during fingerprint auth because no password token is available.
-      # On a new machine, open Passwords & Keys (seahorse) and set the login
-      # keyring password to empty so it auto-unlocks at session start.
-      # Acceptable because the disk is protected by LUKS full-disk encryption.
+      # Keyring note: pam_gnome_keyring.so can't unlock a password-protected
+      # keyring during fingerprint auth (no password token available). On a
+      # new machine, set the login keyring password to empty in Passwords &
+      # Keys (seahorse) so it auto-unlocks at session start — acceptable
+      # since the disk has LUKS full-disk encryption.
       profiles.gdm.databases =
         [
           {
