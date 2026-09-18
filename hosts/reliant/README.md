@@ -329,6 +329,15 @@ slicing sidecar as a podman container. Host-specific notes:
   [docs/smart-home.md § Wiim](../../docs/smart-home.md#wiim-community-integration-not-core-linkplay).
   Tracked upstream at
   [home-assistant/core#145132](https://github.com/home-assistant/core/issues/145132).
+- **`journalctl` recurringly logged `homeassistant.components.{linkplay,cast,
+  ecobee,ipp,zha}: No module named '...'` every few minutes.** `cast`, `ipp`,
+  `ecobee`, and `zha` are now fixed via `extraComponents`; `linkplay` is a
+  verified exception (its discovery step crashes on a hardware probe before
+  a dependency would even help — the community `wiim` integration is the
+  real fix, see the entry above). Full reasoning, including why a missing
+  dependency isn't the same as "integration running", in
+  [docs/smart-home.md § Discovery-flow `ModuleNotFoundError`s](../../docs/smart-home.md#discovery-flow-modulenotfounderrors-cast-ecobee-ipp-linkplay-zha).
+  for the full per-component reasoning.
 - **iOS companion app failed to connect with "The mobile_app component is not
   loaded."** `"mobile_app"` was already in `extraComponents`, which installs
   the package but doesn't cause HA to load it, and `mobile_app` has no "Add

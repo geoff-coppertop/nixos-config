@@ -102,16 +102,19 @@ in {
         # Not part of default_config — same "config-flow-only" gap as "hue"
         # above, see docs/smart-home.md § Choosing extraComponents.
         "broadlink"
-        # NOT "linkplay": core HA's linkplay integration fails to set up
-        # against these Wiim Pro units specifically — confirmed live,
-        # getMetaInfo returns the literal string "Failed" instead of JSON
-        # (home-assistant/core#145132 and related open issues), which
-        # aborts the SSDP-discovery config flow before it ever reaches the
-        # UI. The community "wiim" integration
-        # (services.home-assistant.customComponents, in the services block
-        # above) already fixed this exact getMetaInfo handling — see
-        # hosts/reliant/README.md § Known Gotchas.
+        # NOT "linkplay" -- its dependency wouldn't reach a clean discovered
+        # card (unconditional getMetaInfo probe fails against these Wiim Pro
+        # units); the community "wiim" integration already handles this
+        # hardware -- see docs/smart-home.md § Discovery-flow
+        # ModuleNotFoundErrors and hosts/reliant/README.md § Known Gotchas.
         "ssdp"
+        # cast/ipp/ecobee/zha: real devices on the LAN trigger discovery for
+        # each. See docs/smart-home.md § Discovery-flow ModuleNotFoundErrors
+        # for why each dependency is added (or, for linkplay above, isn't).
+        "cast"
+        "ipp"
+        "ecobee"
+        "zha"
         # mobile_app: required for the iOS/Android companion app to connect —
         # without it the app's error dialog reads "The mobile_app component is
         # not loaded" (Shared.HomeAssistantAPI.APIError, code 6).

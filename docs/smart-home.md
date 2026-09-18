@@ -378,7 +378,17 @@ are always added together.
 ### Wiim: community integration, not core `linkplay`
 
 Core HA's `linkplay` integration fails to complete setup against Wiim Pro
-units — confirmed live on `reliant`: its SSDP-discovery validation call,
+units, and `"linkplay"` is deliberately absent from `extraComponents` (see
+`hosts/reliant/configuration.nix`'s `# NOT "linkplay"` comment) as a result —
+which means the recurring journal line is `homeassistant.components.linkplay:
+No module named 'linkplay'`, a plain missing-dependency `ModuleNotFoundError`
+from zeroconf/SSDP discovery finding the Wiim speaker on the LAN and trying to
+offer core `linkplay`'s config flow for it, before ever reaching the
+`getMetaInfo` failure below. Adding `python-linkplay` to `extraComponents`
+would only trade this error for the `getMetaInfo` one — it would not make
+core `linkplay` work against this hardware — so it's left out on purpose;
+this log line is expected, benign noise, not a packaging gap to close.
+Confirmed live on `reliant`: its SSDP-discovery validation call,
 `getMetaInfo`, gets back the literal string `"Failed"` instead of JSON, which
 `json.loads()` can't parse (`Expecting value: line 1 column 1 (char 0)`). That
 exception aborts the config flow before it ever creates an integration entry
@@ -500,6 +510,41 @@ run a build once, let it fail on the hash mismatch, and copy the real
 `sha256-...` value from the error into `hash`, the same recovery step
 `docs/smart-home.md` § Matter's re-pin instructions use for the same class
 of problem.
+
+### Discovery-flow `ModuleNotFoundError`s: `cast`, `ecobee`, `ipp`, `linkplay`, `zha`
+
+Zeroconf/SSDP discovery kept finding five real devices on the LAN (a Wiim
+speaker, a Chromecast, the ecobee thermostats, a network printer, the Zigbee
+coordinator) and offering their core integration's config flow, which then
+crashed with `ModuleNotFoundError` because the dependency wasn't in
+`extraComponents`. A missing dependency only blocks the flow from
+*initializing* — it has no bearing on whether the integration gets
+configured, since that needs a household member to complete the flow
+(cloud credentials, confirming a coordinator claim). So all four below get
+the dependency added; only `linkplay` is a genuine exception.
+
+- **`cast`** (`pychromecast`) / **`ipp`** (`pyipp`) — real new capabilities,
+  wanted. Added to `extraComponents`.
+- **`ecobee`** (`python-ecobee-api` — differs from the journal's `pyecobee`)
+  — added. Nobody will complete its config flow (HomeKit already controls
+  both thermostats via `ecobee-climate.nix`; ecobee also closed developer-key
+  signups), so the discovered card just gets Ignore'd.
+- **`zha`** — added. Checked HA core's own `zha/config_flow.py` (2026.8.2):
+  the coordinator's serial port only opens on confirming the flow, not on
+  discovery/rendering the card. So there's no port conflict with the
+  already-adopted Zigbee2MQTT (`custom.zigbee`) from adding the dependency —
+  the conflict is avoided by never confirming, same as `ecobee`.
+- **`linkplay`** stays out. Checked `linkplay/config_flow.py`: unlike `zha`,
+  its zeroconf step probes the device (`getMetaInfo`) unconditionally before
+  any card exists. That probe genuinely fails against these Wiim Pro units
+  (`home-assistant/core#145132`) — confirmed live — so the dependency would
+  just trade one crash for another. The community `wiim` integration (§ Wiim
+  above) already handles this hardware correctly.
+
+Resolution for `ecobee`/`zha`: **Settings → Devices & Services → find the
+discovered card → Ignore.** One-time, survives reboots. `linkplay` has
+nothing to Ignore — the flow aborts before a card exists — so its journal
+line is expected noise until upstream fixes `getMetaInfo` handling.
 
 ### Geoff's Office AV: CEC handles volume, not power
 
