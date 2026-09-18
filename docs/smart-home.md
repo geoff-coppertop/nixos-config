@@ -68,10 +68,10 @@ eval-time assertion failure ("no longer has any effect; please remove it").
 
 Deleting the line is a pure no-op here: it was already `false`, and `false`
 never added a firewall rule in the first place. The intended posture — HA's
-frontend port (8123) closed to everything except a narrow LAN carve-out for
-Sonos UPnP callbacks, with all other access going through Traefik — is
-unchanged and is carried entirely by `hosts/reliant/configuration.nix`'s
-`networking.firewall.extraCommands` iptables rule and the Traefik route
+frontend port (8123) closed to everything except a narrow LAN carve-out,
+with all other access going through Traefik — is unchanged and is carried
+entirely by `hosts/reliant/configuration.nix`'s
+`networking.firewall.extraCommands` iptables rule(s) and the Traefik route
 registration in this module, both of which already hardcode `8123`. Since
 nixpkgs can no longer discover the port at eval time, that hardcoding is now
 load-bearing rather than incidental: if HA's frontend port is ever changed
@@ -377,30 +377,23 @@ are always added together.
 
 ### Wiim: community integration, not core `linkplay`
 
-Core HA's `linkplay` integration fails to complete setup against Wiim Pro
-units, and `"linkplay"` is deliberately absent from `extraComponents` (see
-`hosts/reliant/configuration.nix`'s `# NOT "linkplay"` comment) as a result —
-which means the recurring journal line is `homeassistant.components.linkplay:
-No module named 'linkplay'`, a plain missing-dependency `ModuleNotFoundError`
-from zeroconf/SSDP discovery finding the Wiim speaker on the LAN and trying to
-offer core `linkplay`'s config flow for it, before ever reaching the
-`getMetaInfo` failure below. Adding `python-linkplay` to `extraComponents`
-would only trade this error for the `getMetaInfo` one — it would not make
-core `linkplay` work against this hardware — so it's left out on purpose;
-this log line is expected, benign noise, not a packaging gap to close.
-Confirmed live on `reliant`: its SSDP-discovery validation call,
-`getMetaInfo`, gets back the literal string `"Failed"` instead of JSON, which
-`json.loads()` can't parse (`Expecting value: line 1 column 1 (char 0)`). That
-exception aborts the config flow before it ever creates an integration entry
-or a discovered-device card, so nothing shows up in the UI at all — not a
-missing-dependency gap `extraComponents` can close, and not specific to this
-repo's packaging. Other `httpapi.asp` commands work fine against the same
-device (`getStatusEx` returns full, valid JSON), so it's specifically
-`getMetaInfo` the firmware doesn't answer correctly. Tracked upstream at
-[home-assistant/core#145132](https://github.com/home-assistant/core/issues/145132)
-and related open issues (#123088, #132922, #125770, #125328); no fix has
-landed in `home-assistant/core` as of the nixpkgs revision this flake
-currently pins.
+Core HA's `linkplay` integration still can't drive the Wiim Pro units
+usefully (see below), but `"linkplay"` is in `extraComponents`: without it,
+zeroconf/SSDP discovery finding the Wiim speaker on the LAN triggered an
+unhandled `ModuleNotFoundError` from HA's loader every boot (confirmed live
+— a full traceback in `journalctl`, not a caught error).
+
+`getMetaInfo` returning the literal string `"Failed"` instead of JSON
+(`home-assistant/core#145132`) was a real bug, but it's already fixed at
+this flake's pinned nixpkgs revision (`ffb3c9b7`, `python-linkplay` 0.2.14,
+`home-assistant` 2026.8.2): `LinkPlayPlayer.update_status` catches exactly
+this case and returns empty metainfo instead of raising (verified against
+both packages' source at that revision), so `linkplay/config_flow.py`'s
+zeroconf step reaches its `manufacturer == MANUFACTURER_WIIM` check and
+aborts cleanly (`not_linkplay_device`) with no exception at all. So adding
+the dependency doesn't trade one crash for another here — confirmed live
+on `reliant`: no `ModuleNotFoundError` or any other `linkplay`-related
+exception in `journalctl` after redeploying with it added.
 
 The community-maintained `wiim` integration
 ([github.com/mjcumming/wiim](https://github.com/mjcumming/wiim)) already
@@ -516,12 +509,15 @@ of problem.
 Zeroconf/SSDP discovery kept finding five real devices on the LAN (a Wiim
 speaker, a Chromecast, the ecobee thermostats, a network printer, the Zigbee
 coordinator) and offering their core integration's config flow, which then
-crashed with `ModuleNotFoundError` because the dependency wasn't in
+crashed with an unhandled `ModuleNotFoundError` — a full traceback in
+`journalctl`, not a caught warning — because the dependency wasn't in
 `extraComponents`. A missing dependency only blocks the flow from
-*initializing* — it has no bearing on whether the integration gets
-configured, since that needs a household member to complete the flow
-(cloud credentials, confirming a coordinator claim). So all four below get
-the dependency added; only `linkplay` is a genuine exception.
+*initializing*; it has no bearing on whether the integration gets configured
+or on whatever the flow does once it can actually run (cloud credentials,
+confirming a coordinator claim, or its own unrelated failure). All five get
+the dependency added, `linkplay` included — its own past failure mode
+(`getMetaInfo` returning "Failed") is already fixed at this flake's pinned
+nixpkgs revision, see § Wiim below.
 
 - **`cast`** (`pychromecast`) / **`ipp`** (`pyipp`) — real new capabilities,
   wanted. Added to `extraComponents`.
@@ -534,17 +530,16 @@ the dependency added; only `linkplay` is a genuine exception.
   discovery/rendering the card. So there's no port conflict with the
   already-adopted Zigbee2MQTT (`custom.zigbee`) from adding the dependency —
   the conflict is avoided by never confirming, same as `ecobee`.
-- **`linkplay`** stays out. Checked `linkplay/config_flow.py`: unlike `zha`,
-  its zeroconf step probes the device (`getMetaInfo`) unconditionally before
-  any card exists. That probe genuinely fails against these Wiim Pro units
-  (`home-assistant/core#145132`) — confirmed live — so the dependency would
-  just trade one crash for another. The community `wiim` integration (§ Wiim
-  above) already handles this hardware correctly.
+- **`linkplay`** — added. Its zeroconf step probes the device (`getMetaInfo`)
+  unconditionally; against these Wiim Pro units that used to raise
+  (`home-assistant/core#145132`), but both sides of the fix are already in
+  this flake's pinned nixpkgs revision (§ Wiim below), so the probe now
+  aborts cleanly instead of raising. Core `linkplay` still won't drive the
+  device (the community `wiim` integration is the real fix for control),
+  but nothing here should reach the journal as an exception.
 
 Resolution for `ecobee`/`zha`: **Settings → Devices & Services → find the
-discovered card → Ignore.** One-time, survives reboots. `linkplay` has
-nothing to Ignore — the flow aborts before a card exists — so its journal
-line is expected noise until upstream fixes `getMetaInfo` handling.
+discovered card → Ignore.** One-time, survives reboots.
 
 ### Geoff's Office AV: CEC handles volume, not power
 

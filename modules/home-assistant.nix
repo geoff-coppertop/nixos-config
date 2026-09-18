@@ -146,13 +146,17 @@ in {
         # docs/smart-home.md § HTTP config). Defining it at all, true or
         # false, is now an eval-time assertion failure
         # (mkRemovedOptionModule). The desired posture — frontend port 8123
-        # closed except to the Sonos UPnP-callback VLAN — is unchanged and
-        # keeps working exactly as before, because it was already achieved
-        # by NOT opening the port here: hosts/reliant/configuration.nix's
-        # networking.firewall.extraCommands carries the one narrow iptables
-        # rule, and everything else reaches HA only via Traefik.
+        # closed except to one narrow LAN carve-out — is unchanged and keeps
+        # working exactly as before, because it was already achieved by NOT
+        # opening the port here: hosts/reliant/configuration.nix's
+        # networking.firewall.extraCommands carries the narrow iptables
+        # rule(s), and everything else reaches HA only via Traefik.
         configWritable = true;
         inherit (cfg) extraComponents;
+        # Compiled acceleration libs aiohttp_fast_zlib wants -- without them
+        # it falls back to plain zlib with a "performance will be degraded"
+        # warning every boot.
+        extraPackages = python3Packages: with python3Packages; [isal zlib-ng];
         config =
           {
             # sun: confirmed live — sun.sun doesn't exist at all without this.
