@@ -19,24 +19,23 @@
       dockerCompat = true;
       # Enable DNS resolution between containers on the default network.
       defaultNetwork.settings.dns_enabled = true;
-      # Podman 5.0 made pasta the rootless default.  Pasta clones the host's
+      # Podman 5.0 made pasta the rootless default. Pasta clones the host's
       # primary outbound interface into the container netns, which fails on
-      # dual-homed hosts (here wifi + USB-C ethernet on the same /24): NM only
-      # installs the kernel prefix route on one interface, the container sees
-      # the other in isolation, and ends up with no reachable gateway.  Ship
+      # dual-homed hosts (wifi + USB-C ethernet on the same /24): NM only
+      # installs the kernel prefix route on one interface, so the container
+      # sees the other in isolation with no reachable gateway. Ship
       # slirp4netns so the network.default_rootless_network_cmd switch below
-      # has a binary to call -- slirp4netns NATs through a private subnet and
+      # has a binary to call — it NATs through a private subnet instead and
       # is host-config-agnostic.
       extraPackages = [pkgs.slirp4netns];
     };
 
     containers = {
-      # localhost must be first so Podman resolves locally-built images (tagged
-      # localhost/<name>) before querying external registries.  Without it, the
-      # devcontainer updateRemoteUserUID build step triggers Podman's interactive
-      # short-name disambiguation prompt: it passes the bare image name (no
-      # localhost/ prefix) in its FROM, which doesn't match any local image
-      # exactly and falls through to short-name resolution.
+      # localhost must be first so Podman resolves locally-built images
+      # (tagged localhost/<name>) before querying external registries.
+      # Without it, the devcontainer updateRemoteUserUID build step triggers
+      # Podman's interactive short-name disambiguation prompt, since its
+      # FROM passes a bare image name matching no local image exactly.
       registries.settings.unqualified-search-registries = ["localhost" "docker.io" "quay.io"];
 
       containersConf.settings = {

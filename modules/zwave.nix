@@ -21,11 +21,10 @@ in {
       default = 3000;
       description = ''
         Port for the zwave-js WebSocket server (services.zwave-js.port
-        upstream default). Confirmed live: AdGuardHome's own admin UI
-        already claims 3000 on reliant, so zwave-js deterministically
-        crash-looped on EADDRINUSE every restart, ~15s in (once its
-        driver finished initializing and tried to bind) — override this
-        per-host to whatever's actually free.
+        upstream default). AdGuardHome's own admin UI already claims 3000
+        on reliant, so zwave-js deterministically crash-loops on
+        EADDRINUSE every restart, ~15s in — override per-host to whatever's
+        actually free.
       '';
     };
 
@@ -35,15 +34,14 @@ in {
       description = ''
         Path to a JSON file providing securityKeys (S0_Legacy,
         S2_Unauthenticated, S2_Authenticated, S2_AccessControl — each a
-        32-hex-char/16-byte string). Upstream services.zwave-js.secretsConfigFile
-        has no default and must always be set. Confirmed live: contrary
-        to this option's original assumption, zwave-js-server does NOT
-        generate these itself on first run — it hard-fails
-        ("securityKeys.S0_Legacy key is missing") and crash-loops forever
-        against an empty/placeholder file. Override to an agenix-managed
-        path providing real generated keys; the default only exists so
-        the service has somewhere non-empty to point at before that's
-        set up.
+        32-hex-char/16-byte string). Upstream
+        services.zwave-js.secretsConfigFile has no default and must always
+        be set. zwave-js-server does NOT generate these itself on first
+        run — it hard-fails ("securityKeys.S0_Legacy key is missing") and
+        crash-loops against an empty/placeholder file. Override to an
+        agenix-managed path providing real generated keys; the default
+        only exists so the service has somewhere non-empty to point at
+        before that's set up.
       '';
     };
   };
@@ -63,10 +61,10 @@ in {
 
     # systemd's LoadCredential (which secretsConfigFile is passed through as)
     # requires the source file to already exist at unit start — it will not
-    # create one. Confirmed live: first boot failed with EXIT_CREDENTIALS
-    # (243) because nothing had ever created this file. Pre-seed an empty
-    # placeholder so the service has something to load before the real
-    # agenix-managed secretsConfigFile is wired up.
+    # create one. First boot failed with EXIT_CREDENTIALS (243) because
+    # nothing had ever created this file. Pre-seed an empty placeholder so
+    # the service has something to load before the real agenix-managed
+    # secretsConfigFile is wired up.
     #
     # Only applies to the module's own default path: once secretsConfigFile
     # is overridden to an agenix path (/run/agenix/...), agenix's own

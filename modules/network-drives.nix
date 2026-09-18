@@ -21,14 +21,14 @@
   enabledUsers = filterAttrs (_: u: u.enable) cfg.users;
 
   # One declarative CIFS mount per enabled user. systemd automount keeps it
-  # lazy and resilient: the share mounts on first access, never blocks boot or
-  # the rebuild switch, and unmounts when idle. DE-independent and keyring-free
-  # — no gio/GVfs, no gnome-keyring — mirroring roles/common/backups.nix, so it
-  # works the same under GNOME, KDE, COSMIC, or a bare Wayland compositor.
+  # lazy and resilient: the share mounts on first access, never blocks boot
+  # or the rebuild switch, and unmounts when idle. DE-independent and
+  # keyring-free (no gio/GVfs, no gnome-keyring), so it works the same
+  # under GNOME, KDE, COSMIC, or a bare Wayland compositor.
   #
-  # The default mountPoint is outside /home on purpose: an in-home mountpoint
-  # would be pulled into the restic /home backup (custom.backups) and the whole
-  # NAS share backed up to the NAS itself.
+  # The default mountPoint is outside /home on purpose: an in-home
+  # mountpoint would be pulled into the restic /home backup (custom.backups)
+  # and the whole NAS share backed up to the NAS itself.
   mkMount = username: userCfg:
     nameValuePair userCfg.mountPoint {
       device = "//${cfg.nas.host}/${userCfg.share}";
@@ -55,18 +55,16 @@
     };
 
   # Add the mountpoint to both the GTK bookmarks file (GTK file dialogs /
-  # Nautilus) and Dolphin's Places sidebar, so the share appears in the file
-  # manager regardless of the active desktop. Idempotent; each block only
-  # touches its own entry and leaves the rest of the file to the file manager.
+  # Nautilus) and Dolphin's Places sidebar, so the share appears regardless
+  # of the active desktop. Idempotent; each block only touches its own
+  # entry and leaves the rest of the file to the file manager.
   #
-  # No lib.hm.dag.entryAfter ["writeBoundary"] wrapper here: this value is
-  # constructed by a NixOS (system-level) module, not a home-manager module, so
-  # `lib` at this point is plain nixpkgs lib without home-manager's `.hm`
-  # extension — `lib.hm` only exists inside home-manager's own module
-  # evaluation. home-manager's dagOf type accepts a bare string as an
-  # "anywhere" entry, which is fine here: the script only greps/appends to
-  # files home-manager itself doesn't manage (GTK bookmarks, KDE places), so it
-  # doesn't need to run strictly after home-manager's own file writes.
+  # No lib.hm.dag.entryAfter ["writeBoundary"] wrapper: this value is built
+  # by a NixOS (system-level) module, not a home-manager module, so `lib`
+  # here is plain nixpkgs lib without home-manager's `.hm` extension. A bare
+  # string is fine anyway — the script only touches files home-manager
+  # itself doesn't manage (GTK bookmarks, KDE places), so it doesn't need
+  # to run strictly after home-manager's own file writes.
   mkBookmarkActivation = userCfg: ''
     gtkFile="$HOME/.config/gtk-3.0/bookmarks"
     ${pkgs.coreutils}/bin/mkdir -p "$(${pkgs.coreutils}/bin/dirname "$gtkFile")"

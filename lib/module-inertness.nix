@@ -8,13 +8,13 @@
 # config — optionalAttrs, mkMerge, and a condition spanning several options all
 # resolve for real, where a textual search for `mkIf` would pass them.
 #
-# It asks what each module contributes, not what the merged option tree ended up
-# with. Walking the merged tree is the more direct question, but answering it
-# means forcing every nixpkgs option's definitions, and a minimal host cannot
-# survive that: lanzaboote alone defaults publicKeyFile to
-# "${cfg.pkiBundle}/keys/db/db.key", which is a coercion error while pkiBundle
-# is null. builtins.tryEval does not help — it catches throw and assert, not
-# type errors. Per-module has better diagnostics anyway: it names the file.
+# It asks what each module contributes, not what the merged option tree ended
+# up with. Walking the merged tree is the more direct question, but answering
+# it means forcing every nixpkgs option's definitions, and a minimal host
+# can't survive that: lanzaboote alone defaults publicKeyFile to
+# "${cfg.pkiBundle}/keys/db/db.key", a coercion error while pkiBundle is
+# null. builtins.tryEval doesn't help — it catches throw and assert, not
+# type errors. Per-module also has better diagnostics: it names the file.
 {
   pkgs,
   probe,

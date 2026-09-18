@@ -142,14 +142,14 @@ in {
             };
 
             volumes = [
-              # /home/arm itself, not just its subdirectories: the image bakes
-              # it in at uid:gid 1000:1000, and ARM's own entrypoint only
-              # fixes up the subdirectories below, not this directory's own
-              # group — confirmed live ("does not have permissions to
-              # /home/arm using ${uid}:${gid}... Folder permissions-->
-              # ${uid}:1000"). Mounting it host-owned skips that check
-              # entirely. See automatic-ripping-machine/automatic-ripping-machine
-              # wiki § Docker Troubleshooting.
+              # /home/arm itself, not just its subdirectories: the image
+              # bakes it in at uid:gid 1000:1000, and ARM's own entrypoint
+              # only fixes up the subdirectories below, not this directory's
+              # own group ("does not have permissions to /home/arm using
+              # ${uid}:${gid}... Folder permissions--> ${uid}:1000").
+              # Mounting it host-owned skips that check entirely. See
+              # automatic-ripping-machine/automatic-ripping-machine wiki
+              # § Docker Troubleshooting.
               "${cfg.stateDir}/home:/home/arm"
               "${cfg.stateDir}/config:/etc/arm/config"
               "${cfg.stateDir}/logs:/home/arm/logs"
