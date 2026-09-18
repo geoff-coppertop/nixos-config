@@ -2,9 +2,9 @@
 
 This host is the homelab server. It replaced `defiant` (Raspberry Pi 4, retired) via a single combined migration PR that landed `custom.dns`/`custom.traefik` (owned by `homelab-network`, see [docs/homelab-network.md](../../docs/homelab-network.md)) and the appliance layer — Home Assistant, MQTT, Matter, Zigbee, Z-Wave, ADS-B (owned by `smart-home`, see [docs/smart-home.md](../../docs/smart-home.md)). `defiant` has since been fully retired and removed from the flake.
 
-**Live and confirmed working**: the Zigbee and Z-Wave USB radios are physically moved here and paired devices respond, with no re-pair needed; the ADS-B receiver is reading real traffic; all four backup jobs run clean; Home Assistant's config was restored from `defiant`'s restic snapshot and is controlling real devices; `dns1.coppertop.ca`/`zigbee.coppertop.ca` resolve and serve valid `*.coppertop.ca` certs through this host's own Traefik. The LAN's DHCP-advertised DNS server is this host's own IP (`192.168.20.15`) in Unifi — `reliant` is the DNS primary.
+The LAN's DHCP-advertised DNS server is this host's own IP (`192.168.20.15`) in Unifi — `reliant` is the DNS primary.
 
-**Still open**: AdGuard's filter/allow/deny-list configuration wasn't part of the Home Assistant restore and hasn't been migrated — `reliant`'s AdGuard is a fresh instance; Z-Wave device-level control (beyond the driver being healthy) not yet spot-checked. Bambuddy and its slicing sidecar are newly added and have not been run on this hardware yet — see § Bambuddy below.
+**Still open**: AdGuard's filter/allow/deny-list configuration wasn't part of the Home Assistant restore and hasn't been migrated — `reliant`'s AdGuard is a fresh instance; Z-Wave device-level control (beyond the driver being healthy) not yet spot-checked.
 
 ## Services
 
@@ -68,7 +68,7 @@ Provisioning steps are the generic `disko` flow in [docs/provisioning.md § Prov
 
 ## Bambuddy (3D Printing)
 
-`custom.bambuddy` runs Bambuddy natively (`pkgs/bambuddy.nix` — the upstream image is not used; see the header comment there for why) plus the OrcaSlicer slicing sidecar as a podman container. Host-specific notes:
+`custom.bambuddy` runs Bambuddy natively (`pkgs/bambuddy.nix` — the upstream image is not used; see the header comment there for why) plus the OrcaSlicer slicing sidecar as a podman container. Newly added and not yet run against real hardware here. Host-specific notes:
 
 - Reached at `bambuddy.coppertop.ca` through this host's Traefik. The app itself binds `127.0.0.1:8000` only, the same posture as every other service here.
 - **Each printer needs LAN Only Mode + Developer Mode enabled**, on the printer: Settings → Network → LAN Only Mode, then Developer Mode (it only appears after LAN Only Mode is on). Note the Access Code, IP, and serial — those three are what the first-run wizard asks for. Without Developer Mode the printer is read-only monitoring at best. Also enable **"Store sent files on external storage"** in the slicer, or Bambuddy has no 3MF to archive.
@@ -174,10 +174,4 @@ Note the `authelia/ldap-bind-password` secret is consumed by **two** hosts' wort
 
 ## Provisioning
 
-See [docs/provisioning.md](../../docs/provisioning.md) (the generic `disko` flow, Steps 1–7) for the full enroll → install → first-boot process. Host-specific notes:
-
-- Step 1 (Phase 1 PR) is done: `hosts/reliant/` is defined and registered in `flake.nix` as `nixosConfigurations."reliant"`.
-- Step 2 (enrollment) is done: `tools/enroll.py reliant` generated the age identity and SSH login key. `hosts/reliant/secrets.nix` was pre-created with an empty `age.secrets` block by the Phase 1 PR, so enroll.py's own auto-wiring was skipped (it only writes that file when it doesn't already exist) — the `thomasga/ssh-id-ed25519-reliant` entry was added by hand after the fact. This PR's own secrets were a separate hand-off, now done — see § Secrets above.
-- The LUKS passphrase prompt in `install.py` is vestigial for this host — disko has no LUKS here, the value is unused.
-- The machine has been physically installed and first-booted. The SSH host key is pinned in `lib/ssh-hosts.nix`, and the reserved LAN IP (`192.168.20.15`) is confirmed against its Unifi DHCP reservation.
-- `home-manager.users.thomasga` is now attached in `hosts/reliant/default.nix` (`./home/thomasga.nix`, mirroring `excelsior`'s headless profile and naming `ssh-id-ed25519-reliant` as its SSH identity secret), and `flake.nix` has the matching `homeConfigurations."thomasga@reliant"` entry — this closes out the hand-off noted above.
+See [docs/provisioning.md](../../docs/provisioning.md) (the generic `disko` flow, Steps 1–7) for the full enroll → install → first-boot process. Already done for this host: definition, enrollment, install, first boot, SSH host key pinning, and the `thomasga` home-manager attachment.

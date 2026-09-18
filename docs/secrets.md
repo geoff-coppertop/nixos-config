@@ -193,7 +193,7 @@ A new host taking over that hardware or responsibility is simply added as an ext
 
 | Secret | Contents | Host recipients |
 | --- | --- | --- |
-| `traefik/cloudflare-api-token.age` | `CLOUDFLARE_DNS_API_TOKEN=<Cloudflare Zone:DNS:Edit token>` (confirmed against the real secret; this is lego's actual env var name for the cloudflare provider) | `reliant` |
+| `traefik/cloudflare-api-token.age` | `CLOUDFLARE_DNS_API_TOKEN=<Cloudflare Zone:DNS:Edit token>` — lego's actual env var name for the cloudflare provider | `reliant` |
 | `location/coordinates.age` | `LOCATION_LAT`, `LOCATION_LON`, `LOCATION_ELEVATION` — home coordinates, as `VAR=value` lines. Backs the ADS-B receiver and (on `reliant`) Home Assistant's core location — see [docs/smart-home.md § Core location](smart-home.md#core-location-latitudelongitudeelevation-unlike-http) | `reliant` |
 | `zigbee/network-key.age` | A bracketed byte array, e.g. `[12,34,...,255]` | `reliant` |
 | `zwave/secrets.age` | JSON with one `securityKeys` object | `reliant` |
