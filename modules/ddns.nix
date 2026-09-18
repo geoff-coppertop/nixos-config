@@ -15,11 +15,10 @@ in {
       description = ''
         Cloudflare zone apex to keep updated (a single A record). Every
         subdomain follows automatically through this zone's existing
-        `*.<domain> CNAME <domain>` wildcard record -- not managed by this
-        module, since a CNAME target needs no separate update of its own.
-        That wildcard record must already exist in Cloudflare (as a CNAME
-        to the apex, not as its own A record) for subdomains to resolve
-        publicly at all.
+        `*.<domain> CNAME <domain>` wildcard record — not managed by this
+        module, since a CNAME target needs no separate update. That
+        wildcard record must already exist in Cloudflare (a CNAME to the
+        apex, not its own A record) for subdomains to resolve publicly.
       '';
     };
 
@@ -28,12 +27,12 @@ in {
       description = ''
         Path to the agenix-managed env file already used by
         `custom.traefik.acme.environmentFile` for the same Cloudflare zone
-        (format `CLOUDFLARE_DNS_API_TOKEN=<token>` -- lego's actual env var
-        for the cloudflare provider, confirmed against the real secret on
-        reliant), e.g. `/run/agenix/traefik/cloudflare-api-token`. Reused
-        as-is rather than duplicated: ddclient needs the bare token, not an
-        env-var line, so this module strips the
-        `CLOUDFLARE_DNS_API_TOKEN=` prefix itself at service start.
+        (format `CLOUDFLARE_DNS_API_TOKEN=<token>` — lego's actual env var
+        for the cloudflare provider), e.g.
+        `/run/agenix/traefik/cloudflare-api-token`. Reused as-is rather
+        than duplicated: ddclient needs the bare token, not an env-var
+        line, so this module strips the `CLOUDFLARE_DNS_API_TOKEN=` prefix
+        itself at service start.
       '';
     };
 
@@ -48,7 +47,7 @@ in {
     assertions = [
       {
         assertion = config.custom.traefik.enable;
-        message = "custom.ddns reuses custom.traefik's Cloudflare API token file and runs as its 'traefik' system user to read it without a permission workaround -- enable custom.traefik first.";
+        message = "custom.ddns reuses custom.traefik's Cloudflare API token file and runs as its 'traefik' system user to read it without a permission workaround — enable custom.traefik first.";
       }
     ];
 
@@ -56,29 +55,26 @@ in {
       enable = true;
       protocol = "cloudflare";
       zone = cfg.domain;
-      # Only the apex needs a direct update -- this zone's *.<domain>
-      # wildcard is a CNAME to the apex (confirmed live in the Cloudflare
-      # dashboard), not its own A record, so it follows automatically.
-      # Listing it here too would make ddclient look for an A record named
-      # "*.<domain>" that doesn't exist and fail that entry every run (same
-      # class of failure as the usev6 note below).
+      # Only the apex needs a direct update — this zone's *.<domain>
+      # wildcard is a CNAME to the apex, not its own A record, so it
+      # follows automatically. Listing it here too would make ddclient
+      # look for an A record named "*.<domain>" that doesn't exist and
+      # fail that entry every run (same class of failure as usev6 below).
       domains = [cfg.domain];
-      # Literal "token", not a placeholder for the credential itself --
+      # Literal "token", not a placeholder for the credential itself —
       # ddclient's cloudflare protocol keys off this exact string to send
-      # `Authorization: Bearer <password>` instead of the legacy
-      # X-Auth-Email/X-Auth-Key Global-API-Key headers (confirmed against
-      # ddclient's own source, nic_cloudflare_update in ddclient.in).
+      # `Authorization: Bearer <password>` instead of legacy
+      # X-Auth-Email/X-Auth-Key Global-API-Key headers.
       username = "token";
       # Populated by the ExecStartPre below, inside this service's own
-      # RuntimeDirectory (/run/ddclient -- fixed by the ddclient module
-      # itself, not configurable, see nixpkgs' services.ddclient module).
+      # RuntimeDirectory (/run/ddclient — fixed by the ddclient module,
+      # not configurable).
       passwordFile = "/run/ddclient/token";
-      # This zone's public-facing record is tracked for IPv4 only. Leaving
-      # the module's default usev6 enabled would make every run also probe
-      # for an AAAA record that was never created for the apex --
-      # ddclient's cloudflare protocol only PATCHes a record that already
-      # exists, it never creates one -- logging a spurious failure every
-      # interval for a record this setup was never asked to manage.
+      # This zone's public-facing record is IPv4 only. Leaving the
+      # module's default usev6 enabled would make every run also probe for
+      # an AAAA record that was never created for the apex — ddclient's
+      # cloudflare protocol only PATCHes a record that already exists, it
+      # never creates one — logging a spurious failure every interval.
       usev6 = "";
       inherit (cfg) interval;
     };
