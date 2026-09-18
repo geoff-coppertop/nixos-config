@@ -72,7 +72,7 @@ in {
           # Without ext-idle-notify-v1, swayidle exits nonzero and Restart
           # would loop every 10s forever, quietly. Cap it so the unit lands
           # in a visible 'failed' state instead — the signal to check when
-          # trying a new DE (test plan section 7).
+          # trying a new DE.
           StartLimitIntervalSec = "5min";
           StartLimitBurst = 4;
         };
@@ -169,8 +169,7 @@ in {
       # Force suspend on battery after sustained idle, overriding application
       # inhibitors. An app holding a block-mode sleep inhibitor (e.g. a
       # browser "Playing video" inhibit) otherwise makes logind refuse the
-      # idle suspend forever, draining the battery. Policy: on battery,
-      # sustained idle wins even if it interrupts a background task.
+      # idle suspend forever, draining the battery.
       #
       # logind's own IdleAction fires at ~270s (IdleHint at 240 + IdleActionSec
       # 30) and handles the uninhibited case; this watchdog reaches its
@@ -245,8 +244,7 @@ in {
       # dconf profile deliberately sets idle-delay=0 to fix resume blanking
       # (profiles/desktop/gnome.nix), which disables the greeter compositor's
       # idle tracking entirely, so the session pins IdleHint=no and blocks
-      # logind's IdleAction forever. Nobody "uses" a login screen — an active
-      # greeter session is idle by definition. This timer marks it so within
+      # logind's IdleAction forever. This timer marks it idle within
       # ~30s of the greeter becoming active; IdleActionSec=30 then suspends
       # ~30s later (never earlier than HoldoffTimeoutSec=60 after
       # boot/resume). Applies on AC and battery alike — with no user logged

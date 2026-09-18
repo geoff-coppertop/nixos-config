@@ -246,7 +246,7 @@ in {
 
           server.address = "tcp://127.0.0.1:${toString cfg.port}/";
 
-          # Duo is out of scope for this pass — TOTP and WebAuthn only.
+          # No Duo integration — TOTP and WebAuthn only.
 
           # identity_validation.reset_password.jwt_secret is NOT set here:
           # secrets.jwtSecretFile above maps to
