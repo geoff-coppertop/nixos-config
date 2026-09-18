@@ -210,6 +210,8 @@ in {
         adsb = reliantIp;
         zigbee = reliantIp;
         bambuddy = reliantIp;
+        ad = reliantIp;
+        auth = reliantIp;
       };
     };
   };
