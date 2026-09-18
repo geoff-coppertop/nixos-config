@@ -107,7 +107,7 @@ Two branches, and the first is almost always the right one:
 | The content is used only by this repo — avatars, wallpapers, static rule files. The common case. | `lib/local-file.nix` |
 | The content is genuinely shared with a project outside this repo | A real separate repo, pinned as a `flake = false` input, `dotfiles`-style |
 
-The second branch is rare and is **not** a workaround for the hashing problem above — `lib/local-file.nix` already solves that in-tree. Only an actual external consumer justifies a separate input. The existing precedent is the `dotfiles` input, whose fish/git configuration is consumed both here and by a separate devcontainer-features project. Do not spin up a repository every time an asset needs to reach a derivation.
+The second branch is rare and is **not** a workaround for the hashing problem above — `lib/local-file.nix` already solves that in-tree. Only an actual external consumer justifies a separate input. The existing precedent is the `dotfiles` input, whose fish/git configuration is consumed both here and by a separate devcontainer-features project.
 
 ## Machine Naming
 

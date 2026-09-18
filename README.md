@@ -52,4 +52,4 @@ docs/         the documentation above
 - One file per concern. Do not add an unrelated setting to a catch-all file just because it is already imported — see [docs/architecture.md](docs/architecture.md#one-file-per-concern).
 - Nix must pass `alejandra`, `statix`, and `deadnix`; Markdown must pass `markdownlint`. Run `nix develop -c pre-commit run --all-files` before pushing.
 - Never create files under `secrets/` by hand. Use `nix run .#secret-edit -- <file>`.
-- CI runs the same lint and eval checks plus a native build of all three hosts. See [docs/operations.md](docs/operations.md#lint-format-and-ci).
+- CI runs the same lint and eval checks plus a native build of whichever hosts changed. See [docs/operations.md](docs/operations.md#lint-format-and-ci).
