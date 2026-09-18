@@ -183,39 +183,42 @@
                   type = "section";
                   label = "Indoor";
                 }
-                # Read from the ecobees' own SmartSensors, not the
-                # thermostats' climate entities — each physically-placed
-                # sensor reports air quality independently, so this lists
-                # rooms rather than the two HVAC zones above.
+                # IKEA STARKVIND air purifiers (Zigbee2MQTT/HA UI, not
+                # declared here). Reads each device's numeric `pm25` entity,
+                # not its `air_quality` word-value one. Entity IDs carry a
+                # `starkvind_` prefix and aren't all room-name-derivable
+                # (upstairs living room's is `upper_living_room`) — verified
+                # against `nix run .#check-ha-entities -- reliant`;
+                # re-verify the same way if these are ever re-paired.
                 {
-                  entity = "sensor.dining_room_air_quality";
+                  entity = "sensor.starkvind_dining_room_pm25";
                   name = "Dining room";
                 }
                 {
-                  entity = "sensor.master_bedroom_air_quality";
+                  entity = "sensor.starkvind_master_bedroom_pm25";
                   name = "Master bedroom";
                 }
                 {
-                  entity = "sensor.upstairs_living_room_air_quality";
+                  entity = "sensor.starkvind_upper_living_room_pm25";
                   name = "Upstairs living room";
                 }
                 {
-                  entity = "sensor.basement_living_room_air_quality";
+                  entity = "sensor.starkvind_basement_living_room_pm25";
                   name = "Basement living room";
                 }
                 {
-                  entity = "sensor.geoff_s_office_air_quality";
+                  entity = "sensor.starkvind_geoff_s_office_pm25";
                   name = "Geoff's Office";
                 }
                 {
                   type = "section";
                   label = "Outdoor";
                 }
-                # outdoor-aqi.nix's REST sensor — AQICN directly, not HA's
-                # config_flow-only "waqi" integration (see that file).
+                # outdoor-aqi.nix's REST sensor — PM2.5, µg/m³ (see that
+                # file for why AQICN and not HA's "waqi" integration).
                 {
                   entity = "sensor.outdoor_aqi";
-                  name = "AQI";
+                  name = "PM2.5";
                 }
               ];
             }
