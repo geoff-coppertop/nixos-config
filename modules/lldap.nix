@@ -12,7 +12,7 @@
     options = {
       id = mkOption {
         type = types.str;
-        description = "lldap username -- bootstrap.sh's mandatory 'id' field.";
+        description = "lldap username — bootstrap.sh's mandatory 'id' field.";
       };
       email = mkOption {
         type = types.str;
@@ -35,15 +35,13 @@
         default = null;
         description = ''
           Path to an agenix-managed file containing this user's password,
-          passed to bootstrap.sh as the real 'password_file' JSON field
-          (confirmed against lldap's own scripts/bootstrap.sh and
-          example_configs/bootstrap/bootstrap.md -- password IS settable
-          declaratively this way, not just at first-run). Leave null for a
-          real household account with no password set here yet -- bootstrap.sh
-          only touches the password when this is provided, so the account is
-          still created (email/groups/etc. reconciled) but has to get its
-          password set by hand through lldap's own UI or "forgot password"
-          flow.
+          passed to bootstrap.sh as its real 'password_file' JSON field —
+          password IS settable declaratively this way, not just at
+          first-run. Leave null for a real household account with no
+          password set here yet — bootstrap.sh only touches the password
+          when this is provided, so the account is still created
+          (email/groups/etc. reconciled) but needs its password set by hand
+          through lldap's own UI or "forgot password" flow.
         '';
       };
       groups = mkOption {
@@ -53,10 +51,10 @@
           Group names this user belongs to. Both regular groups declared in
           custom.lldap.bootstrap.groups and lldap's own built-in groups
           (lldap_admin, lldap_password_manager, lldap_strict_readonly) work
-          here -- bootstrap.sh never treats those three as redundant/deletable
-          even when they're not declared in any group config (confirmed
-          against the real script: it subtracts exactly those three names from
-          its own cleanup candidate list before deciding what to prune).
+          here — bootstrap.sh never treats those three as
+          redundant/deletable even when they're not declared in any group
+          config (it subtracts exactly those three names from its own
+          cleanup candidate list before deciding what to prune).
         '';
       };
     };
@@ -65,7 +63,7 @@
   groupSubmodule = types.submodule {
     options.name = mkOption {
       type = types.str;
-      description = "Group name -- bootstrap.sh's mandatory (and only) group field.";
+      description = "Group name — bootstrap.sh's mandatory (and only) group field.";
     };
   };
 
@@ -95,12 +93,11 @@
   # bootstrap.sh lives in the same upstream repo as lldap itself
   # (lldap/lldap, scripts/bootstrap.sh) but nixpkgs' services.lldap module
   # only packages the server/frontend/lldap_set_password binary, not this
-  # script -- confirmed against the real pkgs.lldap derivation. Pinned to the
-  # exact release tag pkgs.lldap.version already builds (not "main", which
-  # would silently drift the script out from under whatever lldap version is
-  # actually running) -- if nixpkgs ever bumps custom.lldap's version out from
-  # under this hash, fetchurl fails loudly at eval/build time rather than
-  # silently running a mismatched script; bump the hash then.
+  # script. Pinned to the exact release tag pkgs.lldap.version builds, not
+  # "main", which would silently drift the script out from under whatever
+  # lldap version is actually running — if nixpkgs bumps the version out
+  # from under this hash, fetchurl fails loudly rather than running a
+  # mismatched script; bump the hash then.
   bootstrapScript = pkgs.fetchurl {
     url = "https://raw.githubusercontent.com/lldap/lldap/v${pkgs.lldap.version}/scripts/bootstrap.sh";
     hash = "sha256-rVpOhrlsdW+lSaATOm05zTIyduUAxHHO7EUX2DouyLE=";
@@ -112,7 +109,7 @@ in {
     subdomain = mkOption {
       type = types.str;
       default = "ad";
-      description = "Subdomain for lldap's own admin UI. Never gets the authelia forward-auth middleware -- see docs/homelab-network.md § Self-Lockout Rule.";
+      description = "Subdomain for lldap's own admin UI. Never gets the authelia forward-auth middleware — see docs/homelab-network.md § Self-Lockout Rule.";
     };
 
     baseDn = mkOption {
@@ -146,7 +143,7 @@ in {
     ldapPort = mkOption {
       type = types.port;
       default = 3890;
-      description = "lldap's own LDAP protocol port (upstream default). Bound to 127.0.0.1 only -- Authelia is the only consumer, and it runs on this same host.";
+      description = "lldap's own LDAP protocol port (upstream default). Bound to 127.0.0.1 only — Authelia is the only consumer, and it runs on this same host.";
     };
 
     bootstrap = {
@@ -155,14 +152,14 @@ in {
         default = true;
         description = ''
           DO_CLEANUP for bootstrap.sh: prune any user/group/membership that
-          exists in lldap but isn't declared in custom.lldap.bootstrap.users/
-          groups. This is what makes the users/groups lists below the actual
-          source of truth rather than a one-time seed. Known non-blocking
-          upstream caveat: lldap/lldap#745 reports possible duplicate group
-          memberships across repeated bootstrap runs -- not confirmed present
-          in this repo's pinned lldap version; watch a few real reruns
-          (journalctl -u lldap-bootstrap) before assuming it's fine, rather
-          than designing around it preemptively.
+          exists in lldap but isn't declared in
+          custom.lldap.bootstrap.users/groups. This is what makes the
+          lists below the actual source of truth rather than a one-time
+          seed. Known non-blocking upstream caveat: lldap/lldap#745 reports
+          possible duplicate group memberships across repeated bootstrap
+          runs — not confirmed present here; watch a few real reruns
+          (journalctl -u lldap-bootstrap) rather than designing around it
+          preemptively.
         '';
       };
 
@@ -171,9 +168,9 @@ in {
         default = [];
         description = ''
           Declarative lldap users, reconciled by bootstrap.sh on every
-          lldap-bootstrap.service run. Real household accounts are a TODO --
-          see hosts/reliant/README.md § lldap -- only Authelia's own LDAP
-          bind service account is populated here for real.
+          lldap-bootstrap.service run. Real household accounts are a
+          TODO — see hosts/reliant/README.md § lldap — only Authelia's own
+          LDAP bind service account is populated here for real.
         '';
       };
 
@@ -189,11 +186,11 @@ in {
     {
       # Not DynamicUser (services.lldap's own default): agenix chowns
       # secrets to a named user during activation, before any systemd unit
-      # (and therefore before a DynamicUser's transient UID) exists --
-      # confirmed by a real switch failing with "chown: invalid user:
-      # lldap:0" against hosts/reliant/secrets.nix's `owner = "lldap"`
-      # entries. A static user makes that ownership deterministic, matching
-      # this repo's other agenix `owner = "<service>"` secrets.
+      # (and therefore before a DynamicUser's transient UID) exists — a
+      # real switch failed with "chown: invalid user: lldap:0" against
+      # hosts/reliant/secrets.nix's `owner = "lldap"` entries. A static
+      # user makes that ownership deterministic, matching this repo's other
+      # agenix `owner = "<service>"` secrets.
       users.groups.lldap = {};
       users.users.lldap = {
         isSystemUser = true;
@@ -210,9 +207,9 @@ in {
           ldap_base_dn = cfg.baseDn;
           ldap_user_dn = cfg.adminUsername;
           ldap_user_pass_file = cfg.adminPasswordFile;
-          # "always": this is a declarative config, not a one-time fix --
-          # without it, a UI-side password change (or drift) would silently
-          # stick until someone noticed the secret file no longer matched.
+          # "always": declarative config, not a one-time fix — without it,
+          # a UI-side password change or drift would silently stick until
+          # someone noticed the secret file no longer matched.
           force_ldap_user_pass_reset = "always";
           jwt_secret_file = cfg.jwtSecretFile;
         };
@@ -231,9 +228,8 @@ in {
         wantedBy = ["multi-user.target"];
         path = [pkgs.curl pkgs.jq pkgs.jo];
         # Re-run whenever the declared users/groups (or the pinned script
-        # itself) change, not just at boot -- systemd restarts a oneshot with
-        # RemainAfterExit whose restartTriggers changed on the next
-        # nixos-rebuild switch.
+        # itself) change, not just at boot — systemd restarts a oneshot
+        # with RemainAfterExit whose restartTriggers changed.
         restartTriggers = [userConfigsDir groupConfigsDir bootstrapScript];
         environment = {
           LLDAP_URL = "http://127.0.0.1:${toString cfg.httpPort}";
@@ -252,12 +248,10 @@ in {
       };
     }
 
-    # Self-register Traefik route for lldap's own admin UI. Deliberately no
-    # authelia forward-auth middleware here, ever -- see docs/homelab-network.md
-    # § Self-Lockout Rule: Authelia authenticates against lldap, so gating
-    # lldap's own login behind Authelia risks a total lockout the moment
-    # lldap itself is down, mid-bootstrap, or misconfigured. lldap's own
-    # built-in login is the only gate on this route.
+    # No authelia forward-auth middleware on this route, ever — see
+    # docs/homelab-network.md § Self-Lockout Rule: Authelia authenticates
+    # against lldap, so gating lldap's own login behind Authelia risks a
+    # total lockout if lldap is down, mid-bootstrap, or misconfigured.
     (mkIf config.custom.traefik.enable {
       services.traefik.dynamicConfigOptions.http = mkTraefikRoute {
         name = "lldap";

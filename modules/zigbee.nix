@@ -40,36 +40,29 @@ in {
       };
 
       # services.zigbee2mqtt.settings is serialized to YAML at Nix build
-      # time — there's no secrets-file mechanism in the upstream module (the
-      # "!secret" YAML tag zigbee2mqtt itself supports has nothing wiring a
-      # companion secrets.yaml here). Confirmed live: the ExecStartPre that
-      # copies the rendered configuration.yaml into place runs on every
-      # restart, so with no networkKeyFile it kept setting network_key to
-      # the literal string "GENERATE" over and over — zigbee-herdsman
-      # regenerated a fresh random key each time, mismatched what the
-      # coordinator already had committed, and crash-looped forever.
-      # Substituting the real key in at activation time, the same pattern
-      # modules/wifi.nix uses for secrets that can't reach a Nix
-      # build-time setting.
+      # time, and there's no secrets-file mechanism in the upstream module.
+      # The ExecStartPre that copies the rendered configuration.yaml runs
+      # on every restart, so with no networkKeyFile it kept resetting
+      # network_key to the literal "GENERATE" — zigbee-herdsman regenerated
+      # a fresh random key each time, mismatching the coordinator's
+      # committed key, and crash-looped forever. Substituting the real key
+      # in at activation time is the same pattern modules/wifi.nix uses for
+      # secrets that can't reach a Nix build-time setting.
       #
-      # This must be a serviceConfig.ExecStartPre entry, not preStart:
-      # confirmed live that NixOS's systemd module always prepends the
-      # preStart-generated script BEFORE the upstream module's own
-      # ExecStartPre (the cp of configuration.yaml into place) — so a
-      # preStart sed ran first and was immediately clobbered by the cp
-      # running second, leaving the literal "@NETWORK_KEY@" placeholder in
-      # place. mkAfter here sorts this entry after the upstream cp's
-      # default-priority ExecStartPre so the substitution actually sticks.
+      # Must be a serviceConfig.ExecStartPre entry, not preStart: NixOS's
+      # systemd module always prepends the preStart-generated script
+      # BEFORE the upstream module's own ExecStartPre (the cp of
+      # configuration.yaml into place), so a preStart sed ran first and was
+      # immediately clobbered by the cp running second. mkAfter sorts this
+      # entry after that default-priority ExecStartPre so the substitution
+      # actually sticks.
       #
       # The sed pattern matches the quotes too, not just the placeholder:
       # Nix's YAML generator quotes plain strings, so the rendered file has
-      # network_key: '@NETWORK_KEY@' (single quotes — confirmed live via
-      # the rendered store path, e.g.
-      # /nix/store/*-zigbee2mqtt.yaml:2:  network_key: '@NETWORK_KEY@').
-      # Replacing only the placeholder token left the quotes in place, so
-      # zigbee2mqtt parsed the result as a quoted string ('[1,2,...]') and
-      # rejected it — advanced.network_key must be an unquoted YAML flow
-      # sequence to parse as an array.
+      # network_key: '@NETWORK_KEY@' (single quotes). Replacing only the
+      # placeholder token left the quotes in place, so zigbee2mqtt parsed
+      # the result as a quoted string and rejected it —
+      # advanced.network_key must be an unquoted YAML flow sequence.
       systemd.services.zigbee2mqtt.serviceConfig.ExecStartPre =
         lib.mkIf (cfg.networkKeyFile != null)
         (lib.mkAfter [
@@ -88,7 +81,6 @@ in {
       users.groups.zigbee2mqtt = {};
     }
 
-    # Self-register Traefik route
     (mkIf config.custom.traefik.enable {
       services.traefik.dynamicConfigOptions.http = mkTraefikRoute {
         name = "zigbee";
