@@ -220,10 +220,13 @@
                   label = "Outdoor";
                 }
                 # outdoor-aqi.nix's REST sensor — AQICN directly, not HA's
-                # config_flow-only "waqi" integration (see that file).
+                # config_flow-only "waqi" integration (see that file). Reads
+                # the station's raw PM2.5 concentration (µg/m³), not
+                # AQICN's composite AQI index, so this row is directly
+                # comparable to the indoor PM2.5 rows above.
                 {
                   entity = "sensor.outdoor_aqi";
-                  name = "AQI";
+                  name = "PM2.5";
                 }
               ];
             }
