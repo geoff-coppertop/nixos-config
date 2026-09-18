@@ -79,24 +79,20 @@ in {
       inherit (cfg) interval;
     };
 
-    # ddclient's own passwordFile mechanism (nixpkgs' services.ddclient
-    # module) substitutes a secret file's whole content verbatim as the
-    # password value. custom.traefik.acme.environmentFile's only copy of
-    # this token is formatted as an EnvironmentFile= line
-    # (CLOUDFLARE_DNS_API_TOKEN=<token>), for acme's own environmentFile consumer --
-    # not the bare token ddclient wants. Rather than asking secrets-warden
-    # for a second, differently-formatted copy of the same credential, this
-    # runs ddclient as the existing "traefik" system user (already the owner
-    # of that file, mode 0400) and strips the prefix into a private runtime
-    # file at service start.
+    # ddclient's passwordFile mechanism substitutes a secret file's whole
+    # content verbatim as the password. custom.traefik.acme.environmentFile's
+    # only copy of this token is an EnvironmentFile= line
+    # (CLOUDFLARE_DNS_API_TOKEN=<token>), not the bare token ddclient wants.
+    # Rather than asking secrets-warden for a second, differently-formatted
+    # copy, this runs ddclient as the existing "traefik" system user
+    # (already the file's owner) and strips the prefix into a private
+    # runtime file at service start.
     #
-    # DynamicUser is turned off (rather than left on and granted the
-    # "traefik" group) because the token file it would need to read still
-    # has to land somewhere ddclient's own dynamic, per-invocation UID can
-    # read, and that UID isn't known ahead of time to hand it exclusive
-    # ownership -- fixing the service to the real "traefik" user avoids that
-    # entirely: the ExecStartPre below runs as "traefik" too, so the
-    # extracted token file it writes into this service's own RuntimeDirectory
+    # DynamicUser is turned off because the token file would need to land
+    # somewhere ddclient's own dynamic, per-invocation UID can read, and
+    # that UID isn't known ahead of time to hand it exclusive ownership.
+    # Fixing the service to the real "traefik" user avoids that: the
+    # ExecStartPre below also runs as "traefik", so the extracted token file
     # never needs to be more than owner-readable.
     systemd.services.ddclient.serviceConfig = {
       DynamicUser = lib.mkForce false;

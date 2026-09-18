@@ -54,13 +54,13 @@ in {
     subdomain = mkOption {
       type = types.str;
       default = "auth";
-      description = "Subdomain for Authelia's own login portal. Never gets its own forward-auth middleware -- see docs/homelab-network.md § Self-Lockout Rule.";
+      description = "Subdomain for Authelia's own login portal. Never gets its own forward-auth middleware — see docs/homelab-network.md § Self-Lockout Rule.";
     };
 
     port = mkOption {
       type = types.port;
       default = 9091;
-      description = "Authelia's own listen port (upstream default). Bound to 127.0.0.1 only -- reached through Traefik, and it's also where the forward-auth middleware itself calls back to.";
+      description = "Authelia's own listen port (upstream default). Bound to 127.0.0.1 only — reached through Traefik, and it's also where the forward-auth middleware itself calls back to.";
     };
 
     ldap = {
@@ -80,7 +80,7 @@ in {
 
       bindPasswordFile = mkOption {
         type = types.str;
-        description = "Path to an agenix-managed file holding the LDAP bind user's password -- must match custom.lldap.bootstrap.users' matching entry's passwordFile so lldap and Authelia agree on the same credential.";
+        description = "Path to an agenix-managed file holding the LDAP bind user's password — must match custom.lldap.bootstrap.users' matching entry's passwordFile so lldap and Authelia agree on the same credential.";
       };
     };
 
@@ -91,7 +91,7 @@ in {
 
     storageEncryptionKeyFile = mkOption {
       type = types.str;
-      description = "Path to an agenix-managed file for Authelia's storage.encryption_key (encrypts sensitive fields -- TOTP/WebAuthn secrets -- in its own SQLite database).";
+      description = "Path to an agenix-managed file for Authelia's storage.encryption_key (encrypts sensitive fields — TOTP/WebAuthn secrets — in its own SQLite database).";
     };
 
     protectedSubdomains = mkOption {
@@ -202,15 +202,15 @@ in {
       assertions = [
         {
           assertion = !(builtins.elem config.custom.lldap.subdomain cfg.protectedSubdomains);
-          message = "custom.authelia.protectedSubdomains must not include custom.lldap.subdomain -- gating lldap's own admin UI behind Authelia (which authenticates against lldap) risks a total lockout. See docs/homelab-network.md § Self-Lockout Rule.";
+          message = "custom.authelia.protectedSubdomains must not include custom.lldap.subdomain — gating lldap's own admin UI behind Authelia (which authenticates against lldap) risks a total lockout. See docs/homelab-network.md § Self-Lockout Rule.";
         }
         {
           assertion = !(builtins.elem cfg.subdomain cfg.protectedSubdomains);
-          message = "custom.authelia.protectedSubdomains must not include custom.authelia.subdomain itself -- Authelia's own portal must stay reachable on its own login, not behind its own forward-auth. See docs/homelab-network.md § Self-Lockout Rule.";
+          message = "custom.authelia.protectedSubdomains must not include custom.authelia.subdomain itself — Authelia's own portal must stay reachable on its own login, not behind its own forward-auth. See docs/homelab-network.md § Self-Lockout Rule.";
         }
         {
           assertion = !cfg.oidc.homeAssistant.enable || cfg.oidc.enable;
-          message = "custom.authelia.oidc.homeAssistant.enable requires custom.authelia.oidc.enable -- Home Assistant's OIDC client registration only makes sense once this Authelia instance actually runs as an OIDC provider.";
+          message = "custom.authelia.oidc.homeAssistant.enable requires custom.authelia.oidc.enable — Home Assistant's OIDC client registration only makes sense once this Authelia instance actually runs as an OIDC provider.";
         }
       ];
 

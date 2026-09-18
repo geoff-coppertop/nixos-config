@@ -235,7 +235,6 @@ in {
       systemd.services.home-assistant.serviceConfig.EnvironmentFile = [cfg.oidc.clientSecretFile];
     })
 
-    # Self-register Traefik route
     (mkIf config.custom.traefik.enable {
       services.traefik.dynamicConfigOptions.http = mkTraefikRoute {
         name = "homeassistant";
