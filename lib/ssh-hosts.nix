@@ -1,8 +1,9 @@
 {
+  # Every hostName below is the mDNS name (avahi publish is enabled in
+  # profiles/common/networking.nix) — the bare hostname has no DNS record
+  # and never resolves.
   enterprise-d = {
     aliases = ["enterprise-d"];
-    # mDNS name (avahi publish is enabled in profiles/common/networking.nix);
-    # the bare `enterprise-d` has no DNS record and never resolved.
     hostName = "enterprise-d.local";
     publicKey = null;
     user = "thomasga";
@@ -12,9 +13,8 @@
   };
   holodeck-01 = {
     aliases = ["holodeck-01"];
-    # mDNS name. holodeck-01 is a WSL instance: this is the correct .local
-    # name, but WSL2's NAT means it may not be reachable from other hosts —
-    # it's normally rebuilt locally inside the distro rather than over SSH.
+    # WSL2's NAT means this may not be reachable from other hosts — it's
+    # normally rebuilt locally inside the distro rather than over SSH.
     hostName = "holodeck-01.local";
     publicKey = null;
     user = "thomasga";
@@ -24,9 +24,6 @@
   };
   excelsior = {
     aliases = ["excelsior" "excelsior.local"];
-    # mDNS name (avahi publish is enabled in profiles/common/networking.nix);
-    # the bare `excelsior` has no DNS record and never resolved — same bug as
-    # the other hosts, fixed the same way.
     hostName = "excelsior.local";
     publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHrIHWFlPQ9DIQGG5GrghyYAjmLMmPMQGzw+ML8uNpqr";
     user = "thomasga";
@@ -34,9 +31,6 @@
   };
   reliant = {
     aliases = ["reliant" "reliant.local"];
-    # mDNS name (avahi publish is enabled in profiles/common/networking.nix);
-    # the bare `reliant` has no DNS record and never resolved — same bug as
-    # the other hosts, fixed the same way.
     hostName = "reliant.local";
     publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHR5Y3Q0/1GiR9iqqJK5C4pUY7CfXgo4qb7HFruMZgdz";
     user = "thomasga";

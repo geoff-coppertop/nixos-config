@@ -86,10 +86,10 @@ in {
 
     users.users = mapAttrs mkUserConfig cfg;
 
-    # GDM reads avatars from AccountsService, not ~/.face.
-    # L+ symlinks the icon so it updates on rebuild.
-    # C seeds the user config only if it doesn't already exist so AccountsService
-    # can still write to it (e.g. if the user changes their avatar via Settings).
+    # GDM reads avatars from AccountsService, not ~/.face. L+ symlinks the
+    # icon so it updates on rebuild; C seeds the user config only if it
+    # doesn't already exist, so AccountsService can still write to it (e.g.
+    # if the user changes their avatar via Settings).
     systemd.tmpfiles.rules = tmpfileRules;
   };
 }
