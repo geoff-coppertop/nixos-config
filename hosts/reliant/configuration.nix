@@ -59,6 +59,8 @@ in {
       # block; this is what actually installs the integration's Python
       # package into HA's closure) -- see docs/smart-home.md § OIDC Login.
       (pkgs.callPackage ../../pkgs/home-assistant-oidc-auth.nix {})
+      # bambuddy: config_flow-only, so this installs it and nothing more.
+      (pkgs.callPackage ../../pkgs/home-assistant-bambuddy.nix {})
     ];
   };
 

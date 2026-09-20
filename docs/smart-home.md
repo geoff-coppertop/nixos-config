@@ -495,14 +495,20 @@ and `joserfc` both already exist as ordinary top-level nixpkgs
 `pywiim`, which nixpkgs didn't have at all — they resolve directly off
 `home-assistant.python3Packages` with no separate package file needed.
 
-**Known gap**: `pkgs/home-assistant-oidc-auth.nix`'s `fetchFromGitHub` hash
-is a `lib.fakeHash` placeholder, not a real one — no local Nix toolchain was
-available to compute the real NAR hash when this was written (same
-situation `home-assistant-wiim.nix` was originally in). Before deploying,
-run a build once, let it fail on the hash mismatch, and copy the real
-`sha256-...` value from the error into `hash`, the same recovery step
-`docs/smart-home.md` § Matter's re-pin instructions use for the same class
-of problem.
+List every `manifest.json` requirement in `dependencies`, even ones HA core
+already has: `manifestCheckPhase` checks this derivation, not the merged
+environment. `jinja2` and `aiohttp` each failed a build on that assumption.
+
+### Bambuddy
+
+Bambuddy publishes no HA Discovery messages, so
+`pkgs/home-assistant-bambuddy.nix` packages
+[`Spegeli/hacs_bambuddy`](https://github.com/Spegeli/hacs_bambuddy) — pinned
+to a tag, since upstream calls it "not intended for production use".
+
+`config_flow`-only: after a rebuild add it (`127.0.0.1`,
+`custom.bambuddy.port`, any non-empty API key), then **Configure > Add
+printer** per printer — printers are in the options flow, not the initial one.
 
 ### Discovery-flow `ModuleNotFoundError`s: `cast`, `ecobee`, `ipp`, `linkplay`, `zha`
 
