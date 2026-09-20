@@ -150,6 +150,11 @@ These must hold without reading any doc first.
   confirmed. A hand-guessed backrest `config.json` schema shipped a service
   that crash-looped on real hardware (`config version 0 is invalid`) — the
   real schema was one search away in the project's own source.
+- **Fix the underlying problem, don't just document it.** A comment flagging
+  a discrepancy, an unmanaged file, or a stale claim is not a fix — resolve
+  it (verify the fact, correct the claim, bring the state under management)
+  before landing anything. Only fall back to documenting when the fix
+  genuinely isn't yours to make.
 
 ### Shell and commands
 
