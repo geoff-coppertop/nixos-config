@@ -130,6 +130,7 @@ Start/Stop And Remote Control.
 | DCS-SRS | No manual step — separate `dcs-srs-server` container starts on its own |
 | AdGuard Home | Complete the setup wizard; set upstream DNS to `127.0.0.1:5335` (same as reliant) |
 | Factorio | No manual step — `services.factorio` generates a default save under `/var/lib/factorio/saves` on first start |
+| Automatic Ripping Machine | Create `raw/`, `transcode/`, and `completed/` directories on the NAS media share before the first disc rip — ARM does not create them itself and fails job setup with `No such file or directory` if they're missing: `ssh thomasga@excelsior.local sudo mkdir -p /mnt/media/raw /mnt/media/transcode /mnt/media/completed` (the CIFS mount's `uid=5000,gid=5000` options give them correct ownership automatically; a plain, non-`sudo` `mkdir` fails with `Permission denied` since `thomasga` isn't that uid) |
 
 After DCS login is saved, set `custom.dcsServer.autoStart = true;` and
 rebuild so the DCS server launches with the container.
