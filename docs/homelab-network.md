@@ -233,18 +233,29 @@ itself, protect anything; the router still has to add
 `dcs.coppertop.ca`/`dcs-control.coppertop.ca` (excelsior's DCS webtop
 desktop and start/stop control page — **not** the `dcs-control` `/hooks`
 webhook router, which is called machine-to-machine and would break if
-Authelia redirected it to a login page), and `bambuddy.coppertop.ca`. None
-of these have a login of their own. The Zigbee and Bambuddy routers are
-self-registered inside `modules/zigbee.nix` (owned by `smart-home`) and
-`modules/bambuddy.nix` — rather than edit those files, `reliant`'s own
-`configuration.nix` layers `middlewares = ["authelia@file"]` onto their
-existing router entries as a data overlay, the same freeform-deep-merge
-mechanism `dns2`'s manual router already relies on. This is the pattern for
-gating a cross-domain route without editing the owning module: add the
-router's name and `middlewares` key under
+Authelia redirected it to a login page), `bambuddy.coppertop.ca`, and
+`rip.coppertop.ca`/`library.coppertop.ca` (excelsior's Automatic Ripping
+Machine and tinyMediaManager admin UIs). Most of these have no login of
+their own; `rip` is the exception — ARM ships its own weak login,
+disableable via `arm.yaml`'s `DISABLE_LOGIN` setting on `excelsior` — but
+Authelia is the single SSO gate in front of it rather than relying on
+that. Whether tinyMediaManager has any login of its own is unresolved:
+this repo's own comments disagree (`modules/media-manager.nix` says
+"weak", `hosts/excelsior/media.nix` says "none") — see the comment above
+the `rip`/`library` routers in `hosts/reliant/configuration.nix`.
+The Zigbee and Bambuddy routers are self-registered inside
+`modules/zigbee.nix` (owned by `smart-home`) and `modules/bambuddy.nix` —
+rather than edit those files, `reliant`'s own `configuration.nix` layers
+`middlewares = ["authelia@file"]` onto their existing router entries as a
+data overlay, the same freeform-deep-merge mechanism `dns2`'s manual
+router already relies on. This is the pattern for gating a cross-domain
+route without editing the owning module: add the router's name and
+`middlewares` key under
 `services.traefik.dynamicConfigOptions.http.routers` in the host's own
 `configuration.nix`; the module system merges it with that router's
-`rule`/`service`/`tls` defined elsewhere.
+`rule`/`service`/`tls` defined elsewhere. `rip`/`library` are manually
+defined routers (the `dns2` shape), so they just carry the `middlewares`
+key directly rather than needing the overlay pattern.
 
 `home.coppertop.ca` (Home Assistant) is deliberately **not** on this list.
 Forward-auth is the wrong mechanism for a service that already has its own
