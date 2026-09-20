@@ -19,6 +19,26 @@
 
   deviceOptions = map (d: "--device=${d}:${d}") ([cfg.opticalDrive] ++ cfg.extraDevices);
 
+  yamlFormat = pkgs.formats.yaml {};
+
+  # ARM's loader (arm/config/config.py) reads this file, merges it *over* the
+  # full defaults shipped inside the image at ${INSTALLPATH}/setup/arm.yaml,
+  # and then rewrites the merged result back here. Two consequences this
+  # module relies on:
+  #   * Only the keys pinned here need to be present — every other key keeps
+  #     ARM's own upstream default, so there is nothing to vendor or re-state.
+  #   * INSTALLPATH is the one key the loader dereferences before the merge
+  #     (cur_cfg["INSTALLPATH"], no .get), so it must always be written out.
+  # `settings` is applied last so a host can override even these.
+  armSettings =
+    {
+      INSTALLPATH = "/opt/arm/";
+      DISABLE_LOGIN = cfg.disableLogin;
+    }
+    // cfg.settings;
+
+  armConfigFile = yamlFormat.generate "arm.yaml" armSettings;
+
   # Host-side trigger: ARM normally starts rips from a udev rule inside a
   # privileged container. Running unprivileged, we instead exec its wrapper on
   # demand. Insert a disc, then run `arm-rip` (optionally `arm-rip sr1`).
@@ -113,6 +133,22 @@ in {
       description = "Address the published web port binds to. Override to \"0.0.0.0\" (or a specific host IP) with openFirewall = false to allow only specific hosts to reach it via your own firewall rule — e.g. a cross-host Traefik proxy.";
     };
 
+    disableLogin = mkOption {
+      type = types.bool;
+      default = false;
+      description = "Turn off ARM's own built-in login screen (its arm.yaml DISABLE_LOGIN key), leaving every page open to anyone who can reach webPort. Only set this true where something else already authenticates every request — e.g. a Traefik forward-auth middleware in front of it — since ARM then trusts whoever reaches it.";
+    };
+
+    settings = mkOption {
+      type = yamlFormat.type;
+      default = {};
+      example = {
+        HB_PRESET_DVD = "HQ 720p30 Surround";
+        MINLENGTH = "900";
+      };
+      description = "Keys written to ARM's arm.yaml, merged over the ones this module pins. ARM fills every key left unset here from the defaults shipped in its image, so list only what should be pinned. This file is rewritten from the Nix store on every activation and reboot: a key set here always wins over the same key changed through ARM's own Settings page, and a key *not* listed here is ARM's to manage until the next rebuild, which resets the file (ARM then re-expands its own defaults for it).";
+    };
+
     extraOptions = mkOption {
       type = types.listOf types.str;
       default = [];
@@ -177,7 +213,18 @@ in {
         "d ${cfg.stateDir}/logs 0775 ${uid} ${gid} -"
         "d ${cfg.stateDir}/db 0775 ${uid} ${gid} -"
         "d ${cfg.stateDir}/music 0775 ${uid} ${gid} -"
+
+        # arm.yaml is copied (C+, so re-copied over whatever is there) rather
+        # than symlinked into the store: the container only sees
+        # ${cfg.stateDir}/config, not /nix/store, so a store symlink would
+        # dangle inside it — and ARM rewrites this file in place on startup
+        # to expand its own defaults, which needs a real writable file.
+        "C+ ${cfg.stateDir}/config/arm.yaml 0664 ${uid} ${gid} - ${armConfigFile}"
       ];
+
+      # The config is read once at ARM's import time, so a changed arm.yaml
+      # only takes effect when the container restarts.
+      systemd.services."podman-${cfg.containerName}".restartTriggers = [armConfigFile];
 
       networking.firewall.allowedTCPPorts = mkIf cfg.openFirewall [cfg.webPort];
     }

@@ -87,6 +87,11 @@ in {
       mediaDir = "/mnt/media";
       uid = mediaUid;
       gid = mediaGid;
+
+      # rip.coppertop.ca is behind authelia@file (see the comment above), so
+      # ARM's own second login screen would only add a prompt on top of SSO.
+      # Nothing reaches this port except reliant's Traefik.
+      disableLogin = true;
     };
 
     # Organize existing rips (and fix ARM's output) into consistent,

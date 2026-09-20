@@ -54,8 +54,8 @@ onward (same as enterprise-d).
 | DCS webtop desktop | `https://dcs.coppertop.ca` (no auth yet — same source-IP-only posture as everything else here, pending a holistic Traefik auth pass) |
 | DCS start/stop control | `https://dcs-control.coppertop.ca` (no auth yet, same source-IP-only posture as DCS webtop desktop above) |
 | Jellyfin | `https://jellyfin.coppertop.ca` (proxied cross-host; its own accounts are the auth) |
-| Automatic Ripping Machine | `https://rip.coppertop.ca` (proxied cross-host, no auth of its own) |
-| tinyMediaManager | `https://library.coppertop.ca` (proxied cross-host, no auth of its own) |
+| Automatic Ripping Machine | `https://rip.coppertop.ca` (proxied cross-host, gated by Authelia forward-auth on reliant; ARM's own login screen is off — `custom.autoRip.disableLogin`) |
+| tinyMediaManager | `https://library.coppertop.ca` (proxied cross-host, gated by Authelia forward-auth on reliant) |
 | Factorio ("CGWANO") | in-game server browser (LAN broadcast), `excelsior.local:34197` on the LAN, or `factorio.coppertop.ca:34197` for remote friends once `custom.ddns` (see `docs/homelab-network.md` § Dynamic DNS) is applied on reliant and the router port-forwards UDP 34197 to this host — joining requires the in-game password (agenix secret, see Known Gotchas) |
 
 ### Ports
