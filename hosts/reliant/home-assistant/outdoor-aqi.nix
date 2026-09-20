@@ -7,6 +7,11 @@
 # sidesteps both: fully declarative, and the token stays in agenix instead
 # of living only in HA's UI-only integration storage.
 #
+# Reads data.iaqi.pm25.v (raw PM2.5, µg/m³) rather than data.aqi (AQICN's
+# composite index) so this is comparable to the indoor STARKVIND pm25
+# rows on the same card. .get() falls back to "unavailable" since not
+# every AQICN station reports every pollutant.
+#
 # geo coordinates come from zone.home (already used for presence elsewhere
 # under hosts/reliant/home-assistant/), not a hardcoded lat/lon or the
 # shared location/coordinates.age secret — one less thing to keep in sync if
@@ -39,9 +44,12 @@
       scan_interval = "01:00:00";
       sensor = [
         {
-          name = "Outdoor AQI";
+          name = "Outdoor PM2.5";
           unique_id = "outdoor_aqi";
-          value_template = "{{ value_json.data.aqi }}";
+          value_template = "{{ value_json.data.iaqi.get('pm25', {}).get('v', 'unavailable') }}";
+          unit_of_measurement = "µg/m³";
+          device_class = "pm25";
+          state_class = "measurement";
         }
       ];
     }
