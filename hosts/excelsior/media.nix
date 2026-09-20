@@ -70,12 +70,9 @@ in {
   };
 
   custom = {
-    # Jellyfin has its own real accounts, so no Traefik middleware. ARM has a
-    # weak login of its own (default-on, disableable via arm.yaml's
-    # DISABLE_LOGIN); tinyMediaManager has none by default (jlesage
-    # baseimage-gui's WEB_AUTHENTICATION is unset here) — reliant's Traefik
-    # gates both with authelia@file regardless, see docs/homelab-network.md §
-    # Authelia Forward-Auth. openFirewall stays false everywhere; the
+    # Jellyfin has its own real accounts, so no Traefik middleware. ARM and
+    # tinyMediaManager get authelia@file instead, see docs/homelab-network.md
+    # § Authelia Forward-Auth. openFirewall stays false everywhere; the
     # firewall rules below are the only thing that open these ports, and only
     # to reliant.
     jellyfin = {
