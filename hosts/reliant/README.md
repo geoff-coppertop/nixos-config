@@ -131,6 +131,12 @@ onward (same as `enterprise-d`/`excelsior`).
   volume for that same AV chain in Geoff's Office goes through CEC instead (Apple TV
   Settings → Remotes and Devices → Volume Control → Auto), not through this
   integration.
+- **Garage door contact sensor** — Zigbee tilt sensor, paired, feeding
+  `binary_sensor.garage_door_tilt_sensor_contact` in
+  `home-assistant/garage-door-open-alert.nix`. A separate device from the
+  ratgdo32 *controller*. Push notifications broadcast to every registered
+  mobile_app device dynamically (see `docs/smart-home.md` § Garage door open
+  alert) — no per-device config needed here.
 
 ## Bambuddy (3D Printing)
 

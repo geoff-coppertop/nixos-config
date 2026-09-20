@@ -485,6 +485,33 @@ replaced, this whole derivation has to be redone from scratch for the new
 unit's own address/command bytes — nothing here is portable to different
 hardware, even another Yamaha model, without reverse-engineering it again.
 
+### Garage door open alert: notification only
+
+`hosts/reliant/home-assistant/garage-door-open-alert.nix` warns (never
+closes) when the garage door's been open too long — 10 min overnight
+(21:00-06:00, regardless of presence), 20 min any time everyone's away
+(`zone.home` below 1). One sweep automation, not two, with overnight checked
+first so it wins the overlap; an `input_boolean` latches so each opening
+alerts once. Independent of the ratgdo32 controller (separate branch) — its
+own physical contact sensor.
+
+Each alert fires a `persistent_notification.create` and a `notify.send_message`
+targeted at every registered mobile_app device, not a hardcoded one. Confirmed
+against `home-assistant/core`: `mobile_app`'s notify platform
+(`homeassistant/components/mobile_app/notify.py`) creates one `NotifyEntity`
+per device rather than a legacy `notify.mobile_app_<device>` service, so the
+target is built by templating
+`integration_entities('mobile_app') | select('match', 'notify\.')`
+(`integration_entities` is defined in
+`homeassistant/helpers/template/extensions/config_entries.py`) rather than
+naming a phone — a device added or removed later needs no edit here. A static
+`group`-platform notify (`docs` for the `group` integration, § Notify action
+groups) was considered and rejected: it also requires hand-listing every
+service, which is exactly what this avoids.
+
+The door sensor is `binary_sensor.garage_door_tilt_sensor_contact`, a paired
+Zigbee tilt sensor (`hosts/reliant/README.md` § Device Pairing Notes).
+
 ## Radio Networks
 
 ### Zigbee
