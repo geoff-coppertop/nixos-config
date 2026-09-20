@@ -440,13 +440,10 @@ in {
       # dns1/dns2 (AdGuard admin UIs), zigbee (Zigbee2MQTT), dcs (excelsior's
       # DCS webtop desktop), dcs-control (excelsior's DCS start/stop control
       # page -- NOT its /hooks webhook, see dcsControlHooks below), bambuddy
-      # (the 3D-printer control UI), rip (excelsior's Automatic Ripping
-      # Machine UI), and library (excelsior's tinyMediaManager UI) are gated
-      # by Authelia's forward-auth middleware -- rip has a weak login of its
-      # own (ARM); library's own auth situation (tinyMediaManager) is
-      # unresolved, see the rip/library comment below the routers block --
-      # but Authelia is the single SSO gate in front of both regardless of
-      # what either app's own login does.
+      # (the 3D-printer control UI), rip (ARM), and library (tinyMediaManager)
+      # are gated by Authelia's forward-auth middleware -- see
+      # docs/homelab-network.md § Authelia Forward-Auth for rip/library's own
+      # auth situation.
       # home (Home Assistant) is deliberately NOT here: forward-auth is the
       # wrong mechanism for a service with its own real login -- gating it
       # this way would just add a redundant second login in front of HA's
@@ -566,19 +563,10 @@ in {
   # restriction on excelsior's side (hosts/excelsior/media.nix) still limits
   # the raw port to this host only, matching the others' pattern.
   #
-  # rip.coppertop.ca / library.coppertop.ca: excelsior's disc-ripping
-  # (Automatic Ripping Machine) and library-metadata (tinyMediaManager) admin
-  # UIs, same cross-host pattern. Both get the authelia@file middleware (see
-  # custom.authelia.protectedSubdomains above) as the single SSO gate in
-  # front of them, rather than relying on either app's own login. ARM has a
-  # weak login of its own, disableable via arm.yaml's DISABLE_LOGIN setting
-  # (that setting, if used, lives in excelsior's arm.yaml, not this file --
-  # not required now that Authelia fronts it, but redundant defense-in-depth
-  # if set). tinyMediaManager: this repo's own comments disagree with each
-  # other on whether it has any login at all (modules/media-manager.nix says
-  # "weak", hosts/excelsior/media.nix says "none") and this session had no
-  # network access to confirm upstream -- resolve that discrepancy against
-  # tinyMediaManager's actual docker image docs before assuming either one.
+  # rip.coppertop.ca / library.coppertop.ca: excelsior's ARM and
+  # tinyMediaManager admin UIs, same cross-host pattern, gated by
+  # authelia@file as the single SSO front door regardless of either app's
+  # own login -- see docs/homelab-network.md § Authelia Forward-Auth.
   services.traefik.dynamicConfigOptions.http = {
     routers = {
       dns2 = {

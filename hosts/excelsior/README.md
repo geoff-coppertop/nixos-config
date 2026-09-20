@@ -130,7 +130,7 @@ Start/Stop And Remote Control.
 | DCS-SRS | No manual step — separate `dcs-srs-server` container starts on its own |
 | AdGuard Home | Complete the setup wizard; set upstream DNS to `127.0.0.1:5335` (same as reliant) |
 | Factorio | No manual step — `services.factorio` generates a default save under `/var/lib/factorio/saves` on first start |
-| Automatic Ripping Machine | Create `raw/`, `transcode/`, and `completed/` directories on the NAS media share before the first disc rip — ARM does not create them itself and fails job setup with `No such file or directory` if they're missing: `ssh thomasga@excelsior.local sudo mkdir -p /mnt/media/raw /mnt/media/transcode /mnt/media/completed` (the CIFS mount's `uid=5000,gid=5000` options give them correct ownership automatically; a plain, non-`sudo` `mkdir` fails with `Permission denied` since `thomasga` isn't that uid) |
+| Automatic Ripping Machine | Create `raw/`, `transcode/`, `completed/` on the NAS media share first — ARM doesn't create them and fails with `No such file or directory` otherwise: `ssh thomasga@excelsior.local sudo mkdir -p /mnt/media/{raw,transcode,completed}` (needs `sudo`: the CIFS mount forces `uid=5000,gid=5000`, which `thomasga` isn't) |
 
 After DCS login is saved, set `custom.dcsServer.autoStart = true;` and
 rebuild so the DCS server launches with the container.
@@ -264,15 +264,13 @@ servers — that's a router-side step, not managed by this repo.
   works today.
 
 - **`custom.autoRip` bind-mounts `/home/arm` itself, not just its
-  subdirectories.** Confirmed live: the ARM container image bakes in
-  `/home/arm` at uid:gid 1000:1000, and its own entrypoint's UID/GID
-  remap (`ARM_UID`/`ARM_GID`) fixes up the subdirectories mounted under it
-  but not that top-level directory's group, so the container refused to
-  start (`does not have permissions to /home/arm using 5000:5000... Folder
-  permissions--> 5000:1000`) even with every subdirectory correctly owned.
-  Host-mounting `/home/arm` itself, pre-created and chowned via
-  `systemd.tmpfiles.rules`, sidesteps the container's own ownership check
-  entirely — see the [ARM Docker Troubleshooting
+  subdirectories.** The image bakes `/home/arm` in at uid:gid 1000:1000;
+  ARM's entrypoint UID/GID remap fixes subdirectories under it but not that
+  top-level directory's group, so the container refuses to start otherwise
+  (confirmed live: `does not have permissions to /home/arm using
+  5000:5000... Folder permissions--> 5000:1000`). Host-mounting `/home/arm`
+  itself, pre-created and chowned via `systemd.tmpfiles.rules`, sidesteps
+  it — see the [ARM Docker Troubleshooting
   wiki](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/Docker-Troubleshooting).
 
 ## Provisioning
