@@ -34,8 +34,8 @@ in {
   # custom.backups.nas block uses for the Backups share (lib/nas.nix). Media
   # and Backups are independent top-level shares with independent NAS-side
   # ACLs, so a compromised or misconfigured media pipeline (Jellyfin, ARM,
-  # tinyMediaManager — none of which have meaningful auth of their own) cannot
-  # reach backup data, and a backup job cannot rewrite the library.
+  # tinyMediaManager) cannot reach backup data, and a backup job cannot
+  # rewrite the library.
   fileSystems."/mnt/media" = {
     device = "//${nas.host}/${nas.shares.media}";
     fsType = "cifs";
@@ -70,12 +70,12 @@ in {
   };
 
   custom = {
-    # None of these have real auth of their own at the network layer beyond
-    # Jellyfin's own accounts (ARM/tinyMediaManager have none at all, and this
-    # repo does not add a Traefik-side middleware for them — access control
-    # for those two is handled outside this config). reliant's Traefik
-    # proxies all three cross-host, same pattern as this host's existing
-    # dns2/DCS-control routes. openFirewall stays false everywhere; the
+    # Jellyfin has its own real accounts, so no Traefik middleware. ARM has a
+    # weak login of its own (default-on, disableable via arm.yaml's
+    # DISABLE_LOGIN); tinyMediaManager has none by default (jlesage
+    # baseimage-gui's WEB_AUTHENTICATION is unset here) — reliant's Traefik
+    # gates both with authelia@file regardless, see docs/homelab-network.md §
+    # Authelia Forward-Auth. openFirewall stays false everywhere; the
     # firewall rules below are the only thing that open these ports, and only
     # to reliant.
     jellyfin = {

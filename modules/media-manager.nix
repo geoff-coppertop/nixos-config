@@ -120,7 +120,8 @@ in {
     }
 
     # Self-register a Traefik route when this host itself runs Traefik. The
-    # host adds any auth middleware (tinyMediaManager's own auth is weak).
+    # host adds any auth middleware (tinyMediaManager has no login of its own
+    # by default — jlesage baseimage-gui's WEB_AUTHENTICATION is unset here).
     # When a different host proxies it cross-host instead, that host defines
     # the route by hand.
     (mkIf config.custom.traefik.enable {
