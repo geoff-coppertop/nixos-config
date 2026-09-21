@@ -150,15 +150,11 @@ These must hold without reading any doc first.
   confirmed. A hand-guessed backrest `config.json` schema shipped a service
   that crash-looped on real hardware (`config version 0 is invalid`) — the
   real schema was one search away in the project's own source.
-- **Fix the underlying problem, don't just document it.** A comment flagging
-  a discrepancy, an unmanaged file, or a stale claim is not a fix — resolve
-  it (verify the fact, correct the claim, bring the state under management)
-  before landing anything. The only exemption is a fix that needs something
-  only the user has — hands on physical hardware, a credential or account
-  outside this repo, or a decision between tradeoffs that's theirs to make
-  — and even then, do the diagnosis and hand them the smallest possible
-  concrete step, not a shrug. "Not sure whose call this is" is not the
-  exemption; if you can tell, it's yours.
+- **Fix the underlying problem, don't just document it.** A comment
+  flagging a discrepancy or stale claim isn't a fix — resolve it before
+  landing anything. Exception: only what needs the user's own hands,
+  credentials, or a real tradeoff call — not "not sure whose call this
+  is."
 
 ### Shell and commands
 
