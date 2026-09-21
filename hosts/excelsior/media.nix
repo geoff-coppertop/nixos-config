@@ -88,26 +88,19 @@ in {
       uid = mediaUid;
       gid = mediaGid;
 
-      # rip.coppertop.ca is behind authelia@file (see the comment above), so
-      # ARM's own second login screen would only add a prompt on top of SSO.
-      # Nothing reaches this port except reliant's Traefik.
+      # rip.coppertop.ca is behind authelia@file -- ARM's own login would
+      # just be a second prompt on top of SSO.
       disableLogin = true;
 
-      # MakeMKV needs the drive's /dev/sg* node for Blu-ray -- confirmed live
-      # (ripping a real Blu-ray failed with "Failed to open disc" against
-      # /dev/sr0 alone). /dev/sg1, not /dev/sg0: this host has two SCSI
-      # generic devices (an unrelated SATA one on host0, and this drive on
-      # host5), matched via `readlink -f /sys/class/scsi_generic/sg*/device`
-      # against `readlink -f /sys/class/block/sr0/device` -- don't assume
-      # sg0 without re-checking if this drive's device path ever changes.
+      # /dev/sg1: this drive's SCSI generic node, needed for Blu-ray. Not
+      # sg0 -- that's an unrelated SATA device. Re-check via `readlink -f
+      # /sys/class/scsi_generic/sg*/device` vs `.../block/sr0/device` if
+      # this ever changes.
       extraDevices = ["/dev/sg1"];
 
-      # ARM mounts the disc itself to identify it, which needs CAP_SYS_ADMIN
-      # regardless of which user calls mount() -- confirmed live: dropped by
-      # default without --privileged, causing "mount: permission denied"
-      # even via arm-rip's own --user arm invocation. Narrower than
-      # --privileged (this module deliberately isn't), but still a real
-      # capability grant, not a config value -- scoped to this one container.
+      # ARM mounts the disc itself, which needs CAP_SYS_ADMIN regardless of
+      # user -- dropped by default without --privileged (which this module
+      # deliberately avoids).
       extraOptions = ["--cap-add=SYS_ADMIN"];
     };
 
