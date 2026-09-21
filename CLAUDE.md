@@ -153,8 +153,7 @@ These must hold without reading any doc first.
 - **Fix the underlying problem, don't just document it.** A comment
   flagging a discrepancy or stale claim isn't a fix — resolve it before
   landing anything. Exception: only what needs the user's own hands,
-  credentials, or a real tradeoff call — not "not sure whose call this
-  is."
+  credentials, or a real tradeoff call.
 
 ### Shell and commands
 
