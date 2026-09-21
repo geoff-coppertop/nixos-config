@@ -144,7 +144,7 @@ in {
     };
 
     settings = mkOption {
-      type = yamlFormat.type;
+      inherit (yamlFormat) type;
       default = {};
       example = {
         HB_PRESET_DVD = "HQ 720p30 Surround";
