@@ -93,6 +93,15 @@ in {
       # Nothing reaches this port except reliant's Traefik.
       disableLogin = true;
 
+      # MakeMKV needs the drive's /dev/sg* node for Blu-ray -- confirmed live
+      # (ripping a real Blu-ray failed with "Failed to open disc" against
+      # /dev/sr0 alone). /dev/sg1, not /dev/sg0: this host has two SCSI
+      # generic devices (an unrelated SATA one on host0, and this drive on
+      # host5), matched via `readlink -f /sys/class/scsi_generic/sg*/device`
+      # against `readlink -f /sys/class/block/sr0/device` -- don't assume
+      # sg0 without re-checking if this drive's device path ever changes.
+      extraDevices = ["/dev/sg1"];
+
       # ARM mounts the disc itself to identify it, which needs CAP_SYS_ADMIN
       # regardless of which user calls mount() -- confirmed live: dropped by
       # default without --privileged, causing "mount: permission denied"

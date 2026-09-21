@@ -284,6 +284,13 @@ servers — that's a router-side step, not managed by this repo.
   default regardless of which user calls `mount()`. `custom.autoRip.
   extraOptions` on this host adds it back (narrower than running the whole
   container `--privileged`, which this module deliberately doesn't).
+- **The `sg` kernel module isn't loaded by default — only `bsg` (a
+  different interface) is — and MakeMKV needs a real `/dev/sg*` node for
+  Blu-ray.** `hardware.nix` loads it. This host has two: `/dev/sg1` is the
+  optical drive, `/dev/sg0` an unrelated SATA device — matched via
+  `readlink -f /sys/class/scsi_generic/sg*/device` against the same for
+  `/sys/class/block/sr0/device`. Re-check this if the drive's SCSI path
+  ever changes; don't assume `sg0`.
 
 ## Provisioning
 
