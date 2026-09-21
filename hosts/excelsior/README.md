@@ -277,6 +277,13 @@ servers — that's a router-side step, not managed by this repo.
   Confirmed live: a `C+` rule targeting `arm.yaml` never updated it, even via
   a manual `systemd-tmpfiles --create`, with no error. `custom.autoRip`
   writes that file via `system.activationScripts` instead.
+- **ARM's ripper mounts the disc itself to identify it, which needs
+  `CAP_SYS_ADMIN`.** Confirmed live: `arm-rip` failed with `mount:
+  permission denied` even though the container has the optical drive's
+  device node — an unprivileged podman container drops `CAP_SYS_ADMIN` by
+  default regardless of which user calls `mount()`. `custom.autoRip.
+  extraOptions` on this host adds it back (narrower than running the whole
+  container `--privileged`, which this module deliberately doesn't).
 
 ## Provisioning
 

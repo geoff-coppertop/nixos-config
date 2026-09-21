@@ -92,6 +92,14 @@ in {
       # ARM's own second login screen would only add a prompt on top of SSO.
       # Nothing reaches this port except reliant's Traefik.
       disableLogin = true;
+
+      # ARM mounts the disc itself to identify it, which needs CAP_SYS_ADMIN
+      # regardless of which user calls mount() -- confirmed live: dropped by
+      # default without --privileged, causing "mount: permission denied"
+      # even via arm-rip's own --user arm invocation. Narrower than
+      # --privileged (this module deliberately isn't), but still a real
+      # capability grant, not a config value -- scoped to this one container.
+      extraOptions = ["--cap-add=SYS_ADMIN"];
     };
 
     # Organize existing rips (and fix ARM's output) into consistent,
