@@ -439,9 +439,11 @@ in {
       ldap.bindPasswordFile = "/run/agenix/authelia/ldap-bind-password";
       # dns1/dns2 (AdGuard admin UIs), zigbee (Zigbee2MQTT), dcs (excelsior's
       # DCS webtop desktop), dcs-control (excelsior's DCS start/stop control
-      # page -- NOT its /hooks webhook, see dcsControlHooks below), and
-      # bambuddy (the 3D-printer control UI) are gated by Authelia's
-      # forward-auth middleware -- none of them have a login of their own.
+      # page -- NOT its /hooks webhook, see dcsControlHooks below), bambuddy
+      # (the 3D-printer control UI), rip (ARM), and library (tinyMediaManager)
+      # are gated by Authelia's forward-auth middleware -- see
+      # docs/homelab-network.md § Authelia Forward-Auth for rip/library's own
+      # auth situation.
       # home (Home Assistant) is deliberately NOT here: forward-auth is the
       # wrong mechanism for a service with its own real login -- gating it
       # this way would just add a redundant second login in front of HA's
@@ -461,7 +463,7 @@ in {
       # module for a same-shaped cross-domain need. Never lldap's own admin
       # UI ("ad") or Authelia's own portal ("auth") -- see
       # docs/homelab-network.md § Self-Lockout Rule.
-      protectedSubdomains = ["dns1" "dns2" "zigbee" "dcs" "dcs-control" "bambuddy"];
+      protectedSubdomains = ["dns1" "dns2" "zigbee" "dcs" "dcs-control" "bambuddy" "rip" "library"];
 
       # Authelia as an OpenID Connect 1.0 provider, for Home Assistant's real
       # SSO -- a separate capability from the forward-auth gate above, not a
@@ -561,11 +563,10 @@ in {
   # restriction on excelsior's side (hosts/excelsior/media.nix) still limits
   # the raw port to this host only, matching the others' pattern.
   #
-  # rip.coppertop.ca / library.coppertop.ca: excelsior's disc-ripping
-  # (Automatic Ripping Machine) and library-metadata (tinyMediaManager) admin
-  # UIs, same cross-host pattern. Neither has meaningful auth of its own, and
-  # this repo does not gate them with a Traefik middleware — access control
-  # for these two is handled outside this config.
+  # rip.coppertop.ca / library.coppertop.ca: excelsior's ARM and
+  # tinyMediaManager admin UIs, same cross-host pattern, gated by
+  # authelia@file as the single SSO front door regardless of either app's
+  # own login -- see docs/homelab-network.md § Authelia Forward-Auth.
   services.traefik.dynamicConfigOptions.http = {
     routers = {
       dns2 = {
@@ -624,12 +625,14 @@ in {
         rule = "Host(`rip.coppertop.ca`)";
         service = "rip";
         tls = {};
+        middlewares = ["authelia@file"];
       };
 
       library = {
         rule = "Host(`library.coppertop.ca`)";
         service = "library";
         tls = {};
+        middlewares = ["authelia@file"];
       };
     };
 

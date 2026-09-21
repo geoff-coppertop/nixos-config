@@ -324,6 +324,20 @@ shared config. See [docs/homelab-network.md](homelab-network.md).
 | `custom.lldap` | lldap directory server — LDAP backend for Authelia SSO, with declarative user/group reconciliation via upstream's `bootstrap.sh` (`custom.lldap.bootstrap`) |
 | `custom.authelia` | Authelia forward-auth SSO portal, backed by `custom.lldap`; `protectedSubdomains` drives both its own `access_control` and which routes are expected to carry the `authelia@file` Traefik middleware |
 
+### Media
+
+Enabled on `excelsior`: the disc-to-library pipeline (rip, organize, serve).
+Each is a separate concern with its own module; they meet only at the shared
+media share and the `media` uid/gid.
+
+| Option | What it does |
+| --- | --- |
+| `custom.jellyfin` | Jellyfin media server over the shared library mount |
+| `custom.autoRip` | Automatic Ripping Machine (`modules/auto-rip.nix`) — disc rip, transcode, and web UI, as an unprivileged podman container with the optical drive passed in; `arm-rip` triggers a rip from the host |
+| `custom.autoRip.disableLogin` | Turns off ARM's own built-in login screen (arm.yaml `DISABLE_LOGIN`, default `false`). Only for instances already gated by forward-auth — on `excelsior` `rip.coppertop.ca` carries `authelia@file`, so ARM's own prompt would be a second login over SSO |
+| `custom.autoRip.settings` | Keys pinned into ARM's `arm.yaml`, merged over the ones the module writes. The file is re-copied from the store on every activation and reboot, so a pinned key always beats the same key edited through ARM's Settings page; keys left out are ARM's own defaults (its loader merges this file over the defaults shipped in its image, so nothing is vendored here) |
+| `custom.mediaManager` | tinyMediaManager, naming and scraping the library Jellyfin serves |
+
 ### Game server
 
 Enabled on `excelsior`. Not "homelab services" in the Traefik/appliance sense

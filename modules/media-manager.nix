@@ -120,9 +120,8 @@ in {
     }
 
     # Self-register a Traefik route when this host itself runs Traefik. The
-    # host adds any auth middleware (tinyMediaManager's own auth is weak).
-    # When a different host proxies it cross-host instead, that host defines
-    # the route by hand.
+    # host adds any auth middleware. When a different host proxies it
+    # cross-host instead, that host defines the route by hand.
     (mkIf config.custom.traefik.enable {
       services.traefik.dynamicConfigOptions.http = mkTraefikRoute {
         name = "tmm";

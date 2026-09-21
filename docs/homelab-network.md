@@ -232,19 +232,17 @@ itself, protect anything; the router still has to add
 `hosts/reliant/configuration.nix`), `zigbee.coppertop.ca` (Zigbee2MQTT),
 `dcs.coppertop.ca`/`dcs-control.coppertop.ca` (excelsior's DCS webtop
 desktop and start/stop control page — **not** the `dcs-control` `/hooks`
-webhook router, which is called machine-to-machine and would break if
-Authelia redirected it to a login page), and `bambuddy.coppertop.ca`. None
-of these have a login of their own. The Zigbee and Bambuddy routers are
-self-registered inside `modules/zigbee.nix` (owned by `smart-home`) and
-`modules/bambuddy.nix` — rather than edit those files, `reliant`'s own
+webhook router, which is machine-to-machine and would break behind a login
+page), `bambuddy.coppertop.ca`, and `rip.coppertop.ca`/`library.coppertop.ca`
+(excelsior's ARM and tinyMediaManager admin UIs).
+
+Zigbee and Bambuddy self-register their routers in `modules/zigbee.nix`
+and `modules/bambuddy.nix`; rather than edit those files, `reliant`'s
 `configuration.nix` layers `middlewares = ["authelia@file"]` onto their
-existing router entries as a data overlay, the same freeform-deep-merge
-mechanism `dns2`'s manual router already relies on. This is the pattern for
-gating a cross-domain route without editing the owning module: add the
-router's name and `middlewares` key under
-`services.traefik.dynamicConfigOptions.http.routers` in the host's own
-`configuration.nix`; the module system merges it with that router's
-`rule`/`service`/`tls` defined elsewhere.
+existing entries via Traefik's freeform deep-merge (same mechanism `dns2`
+uses). That's the pattern for gating a cross-domain route without editing
+its owning module. `rip`/`library` are manually-defined routers (the
+`dns2` shape), so they just carry `middlewares` directly.
 
 `home.coppertop.ca` (Home Assistant) is deliberately **not** on this list.
 Forward-auth is the wrong mechanism for a service that already has its own

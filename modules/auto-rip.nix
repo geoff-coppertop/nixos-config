@@ -19,6 +19,26 @@
 
   deviceOptions = map (d: "--device=${d}:${d}") ([cfg.opticalDrive] ++ cfg.extraDevices);
 
+  yamlFormat = pkgs.formats.yaml {};
+
+  # ARM's loader (arm/config/config.py) reads this file, merges it *over* the
+  # full defaults shipped inside the image at ${INSTALLPATH}/setup/arm.yaml,
+  # and then rewrites the merged result back here. Two consequences this
+  # module relies on:
+  #   * Only the keys pinned here need to be present — every other key keeps
+  #     ARM's own upstream default, so there is nothing to vendor or re-state.
+  #   * INSTALLPATH is the one key the loader dereferences before the merge
+  #     (cur_cfg["INSTALLPATH"], no .get), so it must always be written out.
+  # `settings` is applied last so a host can override even these.
+  armSettings =
+    {
+      INSTALLPATH = "/opt/arm/";
+      DISABLE_LOGIN = cfg.disableLogin;
+    }
+    // cfg.settings;
+
+  armConfigFile = yamlFormat.generate "arm.yaml" armSettings;
+
   # Host-side trigger: ARM normally starts rips from a udev rule inside a
   # privileged container. Running unprivileged, we instead exec its wrapper on
   # demand. Insert a disc, then run `arm-rip` (optionally `arm-rip sr1`).
@@ -75,7 +95,11 @@ in {
 
     ripperScript = mkOption {
       type = types.str;
-      default = "/opt/arm/scripts/arm_wrapper.sh";
+      # Confirmed live inside the running container: the image ships
+      # docker_arm_wrapper.sh under scripts/docker/, not scripts/arm_wrapper.sh
+      # (that name belongs to ARM's non-container/udev install path and isn't
+      # present in this image at all).
+      default = "/opt/arm/scripts/docker/docker_arm_wrapper.sh";
       description = "In-container path to ARM's rip wrapper, invoked by the `arm-rip` command.";
     };
 
@@ -111,6 +135,22 @@ in {
         else "127.0.0.1";
       defaultText = "0.0.0.0 if openFirewall, else 127.0.0.1";
       description = "Address the published web port binds to. Override to \"0.0.0.0\" (or a specific host IP) with openFirewall = false to allow only specific hosts to reach it via your own firewall rule — e.g. a cross-host Traefik proxy.";
+    };
+
+    disableLogin = mkOption {
+      type = types.bool;
+      default = false;
+      description = "Turn off ARM's own built-in login screen (its arm.yaml DISABLE_LOGIN key), leaving every page open to anyone who can reach webPort. Only set this true where something else already authenticates every request — e.g. a Traefik forward-auth middleware in front of it — since ARM then trusts whoever reaches it.";
+    };
+
+    settings = mkOption {
+      inherit (yamlFormat) type;
+      default = {};
+      example = {
+        HB_PRESET_DVD = "HQ 720p30 Surround";
+        MINLENGTH = "900";
+      };
+      description = "Keys written to ARM's arm.yaml, merged over the ones this module pins. ARM fills every key left unset here from the defaults shipped in its image, so list only what should be pinned. This file is rewritten from the Nix store on every activation and reboot: a key set here always wins over the same key changed through ARM's own Settings page, and a key *not* listed here is ARM's to manage until the next rebuild, which resets the file (ARM then re-expands its own defaults for it).";
     };
 
     extraOptions = mkOption {
@@ -178,6 +218,28 @@ in {
         "d ${cfg.stateDir}/db 0775 ${uid} ${gid} -"
         "d ${cfg.stateDir}/music 0775 ${uid} ${gid} -"
       ];
+
+      # arm.yaml can't be symlinked into the store (the container only sees
+      # ${cfg.stateDir}/config, not /nix/store, so a store symlink would
+      # dangle inside it — ARM also rewrites this file in place on startup,
+      # which needs a real writable file) and tmpfiles' "C"/"C+" line type
+      # does not reliably overwrite it either: confirmed live, "C+" only
+      # forces a copy into a pre-existing *directory* — for a single regular
+      # file destination that already exists it silently no-ops, so a
+      # changed arm.yaml never reached disk even after a manual
+      # `systemd-tmpfiles --create`. An activation script is what actually
+      # forces the overwrite on every switch. `install -D` also creates
+      # ${cfg.stateDir}/config itself if missing, ahead of the "d" rule above.
+      system.activationScripts.armConfig = {
+        deps = ["users" "groups"];
+        text = ''
+          install -D -m 0664 -o ${uid} -g ${gid} ${armConfigFile} ${cfg.stateDir}/config/arm.yaml
+        '';
+      };
+
+      # The config is read once at ARM's import time, so a changed arm.yaml
+      # only takes effect when the container restarts.
+      systemd.services."podman-${cfg.containerName}".restartTriggers = [armConfigFile];
 
       networking.firewall.allowedTCPPorts = mkIf cfg.openFirewall [cfg.webPort];
     }

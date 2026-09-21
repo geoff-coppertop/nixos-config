@@ -54,8 +54,8 @@ onward (same as enterprise-d).
 | DCS webtop desktop | `https://dcs.coppertop.ca` (no auth yet — same source-IP-only posture as everything else here, pending a holistic Traefik auth pass) |
 | DCS start/stop control | `https://dcs-control.coppertop.ca` (no auth yet, same source-IP-only posture as DCS webtop desktop above) |
 | Jellyfin | `https://jellyfin.coppertop.ca` (proxied cross-host; its own accounts are the auth) |
-| Automatic Ripping Machine | `https://rip.coppertop.ca` (proxied cross-host, no auth of its own) |
-| tinyMediaManager | `https://library.coppertop.ca` (proxied cross-host, no auth of its own) |
+| Automatic Ripping Machine | `https://rip.coppertop.ca` (proxied cross-host, gated by Authelia forward-auth on reliant; ARM's own login screen is off — `custom.autoRip.disableLogin`) |
+| tinyMediaManager | `https://library.coppertop.ca` (proxied cross-host, gated by Authelia forward-auth on reliant) |
 | Factorio ("CGWANO") | in-game server browser (LAN broadcast), `excelsior.local:34197` on the LAN, or `factorio.coppertop.ca:34197` for remote friends once `custom.ddns` (see `docs/homelab-network.md` § Dynamic DNS) is applied on reliant and the router port-forwards UDP 34197 to this host — joining requires the in-game password (agenix secret, see Known Gotchas) |
 
 ### Ports
@@ -130,6 +130,7 @@ Start/Stop And Remote Control.
 | DCS-SRS | No manual step — separate `dcs-srs-server` container starts on its own |
 | AdGuard Home | Complete the setup wizard; set upstream DNS to `127.0.0.1:5335` (same as reliant) |
 | Factorio | No manual step — `services.factorio` generates a default save under `/var/lib/factorio/saves` on first start |
+| Automatic Ripping Machine | Create `raw/`, `transcode/`, `completed/` on the NAS media share first — ARM doesn't create them and fails with `No such file or directory` otherwise: `ssh thomasga@excelsior.local sudo mkdir -p /mnt/media/{raw,transcode,completed}` (needs `sudo`: the CIFS mount forces `uid=5000,gid=5000`, which `thomasga` isn't) |
 
 After DCS login is saved, set `custom.dcsServer.autoStart = true;` and
 rebuild so the DCS server launches with the container.
@@ -263,16 +264,25 @@ servers — that's a router-side step, not managed by this repo.
   works today.
 
 - **`custom.autoRip` bind-mounts `/home/arm` itself, not just its
-  subdirectories.** Confirmed live: the ARM container image bakes in
-  `/home/arm` at uid:gid 1000:1000, and its own entrypoint's UID/GID
-  remap (`ARM_UID`/`ARM_GID`) fixes up the subdirectories mounted under it
-  but not that top-level directory's group, so the container refused to
-  start (`does not have permissions to /home/arm using 5000:5000... Folder
-  permissions--> 5000:1000`) even with every subdirectory correctly owned.
-  Host-mounting `/home/arm` itself, pre-created and chowned via
-  `systemd.tmpfiles.rules`, sidesteps the container's own ownership check
-  entirely — see the [ARM Docker Troubleshooting
+  subdirectories.** The image bakes `/home/arm` in at uid:gid 1000:1000;
+  ARM's entrypoint UID/GID remap fixes subdirectories under it but not that
+  top-level directory's group, so the container refuses to start otherwise
+  (confirmed live: `does not have permissions to /home/arm using
+  5000:5000... Folder permissions--> 5000:1000`). Host-mounting `/home/arm`
+  itself, pre-created and chowned via `systemd.tmpfiles.rules`, sidesteps
+  it — see the [ARM Docker Troubleshooting
   wiki](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/Docker-Troubleshooting).
+- **`systemd.tmpfiles.rules`' `C`/`C+` does not force-overwrite a
+  pre-existing regular file, only a pre-existing directory.** `arm.yaml`
+  needed `system.activationScripts` instead.
+- **ARM mounts the disc itself, which needs `CAP_SYS_ADMIN`** — dropped by
+  default without `--privileged`. `custom.autoRip.extraOptions` adds it
+  back.
+- **The `sg` kernel module (needed for MakeMKV/Blu-ray) isn't loaded by
+  default, only `bsg`.** `hardware.nix` loads it. `/dev/sg1` is this drive,
+  `/dev/sg0` an unrelated SATA device — re-check via `readlink -f
+  /sys/class/scsi_generic/sg*/device` vs `.../block/sr0/device` if it ever
+  changes.
 
 ## Provisioning
 

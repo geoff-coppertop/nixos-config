@@ -34,8 +34,8 @@ in {
   # custom.backups.nas block uses for the Backups share (lib/nas.nix). Media
   # and Backups are independent top-level shares with independent NAS-side
   # ACLs, so a compromised or misconfigured media pipeline (Jellyfin, ARM,
-  # tinyMediaManager — none of which have meaningful auth of their own) cannot
-  # reach backup data, and a backup job cannot rewrite the library.
+  # tinyMediaManager) cannot reach backup data, and a backup job cannot
+  # rewrite the library.
   fileSystems."/mnt/media" = {
     device = "//${nas.host}/${nas.shares.media}";
     fsType = "cifs";
@@ -70,12 +70,9 @@ in {
   };
 
   custom = {
-    # None of these have real auth of their own at the network layer beyond
-    # Jellyfin's own accounts (ARM/tinyMediaManager have none at all, and this
-    # repo does not add a Traefik-side middleware for them — access control
-    # for those two is handled outside this config). reliant's Traefik
-    # proxies all three cross-host, same pattern as this host's existing
-    # dns2/DCS-control routes. openFirewall stays false everywhere; the
+    # Jellyfin has its own real accounts, so no Traefik middleware. ARM and
+    # tinyMediaManager get authelia@file instead, see docs/homelab-network.md
+    # § Authelia Forward-Auth. openFirewall stays false everywhere; the
     # firewall rules below are the only thing that open these ports, and only
     # to reliant.
     jellyfin = {
@@ -90,6 +87,21 @@ in {
       mediaDir = "/mnt/media";
       uid = mediaUid;
       gid = mediaGid;
+
+      # rip.coppertop.ca is behind authelia@file -- ARM's own login would
+      # just be a second prompt on top of SSO.
+      disableLogin = true;
+
+      # /dev/sg1: this drive's SCSI generic node, needed for Blu-ray. Not
+      # sg0 -- that's an unrelated SATA device. Re-check via `readlink -f
+      # /sys/class/scsi_generic/sg*/device` vs `.../block/sr0/device` if
+      # this ever changes.
+      extraDevices = ["/dev/sg1"];
+
+      # ARM mounts the disc itself, which needs CAP_SYS_ADMIN regardless of
+      # user -- dropped by default without --privileged (which this module
+      # deliberately avoids).
+      extraOptions = ["--cap-add=SYS_ADMIN"];
     };
 
     # Organize existing rips (and fix ARM's output) into consistent,
