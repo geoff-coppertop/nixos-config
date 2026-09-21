@@ -272,25 +272,17 @@ servers — that's a router-side step, not managed by this repo.
   itself, pre-created and chowned via `systemd.tmpfiles.rules`, sidesteps
   it — see the [ARM Docker Troubleshooting
   wiki](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/Docker-Troubleshooting).
-- **`systemd.tmpfiles.rules`' `C`/`C+` line type does not force-overwrite a
-  pre-existing single regular file — only a pre-existing directory.**
-  Confirmed live: a `C+` rule targeting `arm.yaml` never updated it, even via
-  a manual `systemd-tmpfiles --create`, with no error. `custom.autoRip`
-  writes that file via `system.activationScripts` instead.
-- **ARM's ripper mounts the disc itself to identify it, which needs
-  `CAP_SYS_ADMIN`.** Confirmed live: `arm-rip` failed with `mount:
-  permission denied` even though the container has the optical drive's
-  device node — an unprivileged podman container drops `CAP_SYS_ADMIN` by
-  default regardless of which user calls `mount()`. `custom.autoRip.
-  extraOptions` on this host adds it back (narrower than running the whole
-  container `--privileged`, which this module deliberately doesn't).
-- **The `sg` kernel module isn't loaded by default — only `bsg` (a
-  different interface) is — and MakeMKV needs a real `/dev/sg*` node for
-  Blu-ray.** `hardware.nix` loads it. This host has two: `/dev/sg1` is the
-  optical drive, `/dev/sg0` an unrelated SATA device — matched via
-  `readlink -f /sys/class/scsi_generic/sg*/device` against the same for
-  `/sys/class/block/sr0/device`. Re-check this if the drive's SCSI path
-  ever changes; don't assume `sg0`.
+- **`systemd.tmpfiles.rules`' `C`/`C+` does not force-overwrite a
+  pre-existing regular file, only a pre-existing directory.** `arm.yaml`
+  needed `system.activationScripts` instead.
+- **ARM mounts the disc itself, which needs `CAP_SYS_ADMIN`** — dropped by
+  default without `--privileged`. `custom.autoRip.extraOptions` adds it
+  back.
+- **The `sg` kernel module (needed for MakeMKV/Blu-ray) isn't loaded by
+  default, only `bsg`.** `hardware.nix` loads it. `/dev/sg1` is this drive,
+  `/dev/sg0` an unrelated SATA device — re-check via `readlink -f
+  /sys/class/scsi_generic/sg*/device` vs `.../block/sr0/device` if it ever
+  changes.
 
 ## Provisioning
 
