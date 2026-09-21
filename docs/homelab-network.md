@@ -234,8 +234,7 @@ itself, protect anything; the router still has to add
 desktop and start/stop control page — **not** the `dcs-control` `/hooks`
 webhook router, which is machine-to-machine and would break behind a login
 page), `bambuddy.coppertop.ca`, and `rip.coppertop.ca`/`library.coppertop.ca`
-(excelsior's ARM and tinyMediaManager admin UIs) — Authelia is the gate
-that matters here, not either app's own login.
+(excelsior's ARM and tinyMediaManager admin UIs).
 
 Zigbee and Bambuddy self-register their routers in `modules/zigbee.nix`
 and `modules/bambuddy.nix`; rather than edit those files, `reliant`'s
