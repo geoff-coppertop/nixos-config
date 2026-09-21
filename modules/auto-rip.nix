@@ -213,14 +213,25 @@ in {
         "d ${cfg.stateDir}/logs 0775 ${uid} ${gid} -"
         "d ${cfg.stateDir}/db 0775 ${uid} ${gid} -"
         "d ${cfg.stateDir}/music 0775 ${uid} ${gid} -"
-
-        # arm.yaml is copied (C+, so re-copied over whatever is there) rather
-        # than symlinked into the store: the container only sees
-        # ${cfg.stateDir}/config, not /nix/store, so a store symlink would
-        # dangle inside it — and ARM rewrites this file in place on startup
-        # to expand its own defaults, which needs a real writable file.
-        "C+ ${cfg.stateDir}/config/arm.yaml 0664 ${uid} ${gid} - ${armConfigFile}"
       ];
+
+      # arm.yaml can't be symlinked into the store (the container only sees
+      # ${cfg.stateDir}/config, not /nix/store, so a store symlink would
+      # dangle inside it — ARM also rewrites this file in place on startup,
+      # which needs a real writable file) and tmpfiles' "C"/"C+" line type
+      # does not reliably overwrite it either: confirmed live, "C+" only
+      # forces a copy into a pre-existing *directory* — for a single regular
+      # file destination that already exists it silently no-ops, so a
+      # changed arm.yaml never reached disk even after a manual
+      # `systemd-tmpfiles --create`. An activation script is what actually
+      # forces the overwrite on every switch. `install -D` also creates
+      # ${cfg.stateDir}/config itself if missing, ahead of the "d" rule above.
+      system.activationScripts.armConfig = {
+        deps = ["users" "groups"];
+        text = ''
+          install -D -m 0664 -o ${uid} -g ${gid} ${armConfigFile} ${cfg.stateDir}/config/arm.yaml
+        '';
+      };
 
       # The config is read once at ARM's import time, so a changed arm.yaml
       # only takes effect when the container restarts.

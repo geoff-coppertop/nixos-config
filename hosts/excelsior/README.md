@@ -272,6 +272,11 @@ servers — that's a router-side step, not managed by this repo.
   itself, pre-created and chowned via `systemd.tmpfiles.rules`, sidesteps
   it — see the [ARM Docker Troubleshooting
   wiki](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/Docker-Troubleshooting).
+- **`systemd.tmpfiles.rules`' `C`/`C+` line type does not force-overwrite a
+  pre-existing single regular file — only a pre-existing directory.**
+  Confirmed live: a `C+` rule targeting `arm.yaml` never updated it, even via
+  a manual `systemd-tmpfiles --create`, with no error. `custom.autoRip`
+  writes that file via `system.activationScripts` instead.
 
 ## Provisioning
 
