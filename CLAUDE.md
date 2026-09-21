@@ -153,8 +153,12 @@ These must hold without reading any doc first.
 - **Fix the underlying problem, don't just document it.** A comment flagging
   a discrepancy, an unmanaged file, or a stale claim is not a fix — resolve
   it (verify the fact, correct the claim, bring the state under management)
-  before landing anything. Only fall back to documenting when the fix
-  genuinely isn't yours to make.
+  before landing anything. The only exemption is a fix that needs something
+  only the user has — hands on physical hardware, a credential or account
+  outside this repo, or a decision between tradeoffs that's theirs to make
+  — and even then, do the diagnosis and hand them the smallest possible
+  concrete step, not a shrug. "Not sure whose call this is" is not the
+  exemption; if you can tell, it's yours.
 
 ### Shell and commands
 
