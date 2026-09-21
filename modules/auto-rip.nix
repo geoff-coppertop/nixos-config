@@ -95,7 +95,11 @@ in {
 
     ripperScript = mkOption {
       type = types.str;
-      default = "/opt/arm/scripts/arm_wrapper.sh";
+      # Confirmed live inside the running container: the image ships
+      # docker_arm_wrapper.sh under scripts/docker/, not scripts/arm_wrapper.sh
+      # (that name belongs to ARM's non-container/udev install path and isn't
+      # present in this image at all).
+      default = "/opt/arm/scripts/docker/docker_arm_wrapper.sh";
       description = "In-container path to ARM's rip wrapper, invoked by the `arm-rip` command.";
     };
 
