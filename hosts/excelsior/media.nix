@@ -102,6 +102,19 @@ in {
       # user -- dropped by default without --privileged (which this module
       # deliberately avoids).
       extraOptions = ["--cap-add=SYS_ADMIN"];
+
+      # ARM's shipped HB_ARGS pair "--subtitle scan" with "-F"
+      # (--subtitle-forced): that combination only keeps a subtitle track
+      # when HandBrake's scan detects the *forced* flag (foreign-dialogue
+      # narration in an otherwise-English source) -- it does not add a
+      # normal English subtitle track, which is why rips came out with none.
+      # --subtitle-lang-list eng --all-subtitles selects every English track
+      # instead, and dropping the Blu-ray default's --subtitle-burned keeps
+      # them as a selectable soft track rather than burned into the video.
+      settings = {
+        HB_ARGS_DVD = "--subtitle-lang-list eng --all-subtitles";
+        HB_ARGS_BD = "--subtitle-lang-list eng --all-subtitles --audio-lang-list eng --all-audio";
+      };
     };
 
     # Organize existing rips (and fix ARM's output) into consistent,
