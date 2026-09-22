@@ -259,12 +259,19 @@ that serves the forward-auth portal above — both capabilities coexist on
 (`custom.authelia.protectedSubdomains` vs `custom.authelia.oidc.enable`).
 This is the mechanism for giving a service **with its own real login** actual
 SSO, instead of the redundant-second-login problem forward-auth would create
-for it. Today the only registered client is Home Assistant, via the
-third-party [`hass-oidc-auth`](https://github.com/christiaangoossens/hass-oidc-auth)
-HACS component, following Authelia's own
-[Home Assistant OIDC integration guide](https://www.authelia.com/integration/openid-connect/clients/home-assistant/)
-(fetched at this repo's pinned Authelia version, `v4.39.20` — matching
-`pkgs.authelia`'s pin in the pinned `nixpkgs` revision — not guessed).
+for it. Two clients are registered today:
+
+- **Home Assistant**, via the third-party
+  [`hass-oidc-auth`](https://github.com/christiaangoossens/hass-oidc-auth)
+  HACS component, following Authelia's own
+  [Home Assistant OIDC integration guide](https://www.authelia.com/integration/openid-connect/clients/home-assistant/)
+  (fetched at this repo's pinned Authelia version, `v4.39.20` — matching
+  `pkgs.authelia`'s pin in the pinned `nixpkgs` revision — not guessed).
+- **Jellyfin** (`excelsior`, proxied cross-host by `reliant`'s Traefik — see
+  § Jellyfin (excelsior) above), via K0lin's fork of
+  [`jellyfin-plugin-sso`](https://github.com/K0lin/jellyfin-plugin-sso), a
+  server-side plugin installed and configured entirely through Jellyfin's own
+  admin UI.
 
 `custom.authelia.oidc` (`modules/authelia.nix`):
 
@@ -306,32 +313,81 @@ HACS component, following Authelia's own
   across `settings` and a secret fragment, because Authelia's config-file
   merging replaces whole list values (`identity_providers.oidc.clients` is a
   list) rather than merging list items.
+- `jellyfin.enable` registers Jellyfin as an OIDC client (asserted to require
+  `oidc.enable`), same shape as `homeAssistant` above. `clientId` (default
+  `jellyfin`) and `redirectUri` (default
+  `https://jellyfin.${domain}/sso/OID/redirect/authelia`) both have real,
+  usable defaults — only `clientSecretHashFile` needs a value. The redirect
+  URI's path is `jellyfin-plugin-sso`'s own fixed callback pattern,
+  `/sso/OID/redirect/<provider-name>` (confirmed against the plugin's
+  `SSOController.cs` source at tag `v5.0.0.0`, not guessed), with provider
+  name `authelia` — this must match the provider name configured on the
+  plugin's own admin settings page. Rendered the same way as
+  `homeAssistantOidcClientFile` (`jellyfinOidcClientFile`, its own generated
+  `settingsFile`, `client_secret` read at runtime via the same Go-template
+  `secret` function). Scopes are `openid`/`profile`/`groups` — the plugin
+  only ever reads those claims (`groups` feeding its RoleClaim-based RBAC),
+  confirmed against Authelia's own documented OIDC `groups` scope, which
+  already maps to exactly that claim.
+- `jellyfin.clientSecretHashFile` — same pbkdf2-sha512-hash convention as
+  `homeAssistant.clientSecretHashFile` above, expected at
+  `secrets/authelia/oidc-client-secret-jellyfin-hash.age` (matching the
+  existing `oidc-client-secret-home-assistant-hash` naming).
 
-Generate the two provider-level secrets and the client secret hash:
+Generate the two provider-level secrets and each client's secret hash:
 
 ```bash
 # oidc-issuer-private-key
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048
 # oidc-hmac-secret
 openssl rand -base64 64 | tr -d '\n=+/' | head -c 64
-# oidc-client-secret-home-assistant-hash -- prints both the raw secret
-# (goes into Home Assistant's own auth_oidc.client_secret, not this repo)
-# and its digest (goes into this file, and only this file)
+# oidc-client-secret-home-assistant-hash / oidc-client-secret-jellyfin-hash --
+# prints both the raw secret (goes into the client's own OIDC config, not
+# this repo) and its digest (goes into the matching secret file, and only
+# that file)
 nix run nixpkgs#authelia -- crypto hash generate pbkdf2 --variant sha512 --random
 ```
 
-What this module does **not** cover: Home Assistant's own side (installing
-the `hass-oidc-auth` HACS component, HA's `auth_oidc` configuration block).
-That's `smart-home`'s (`modules/home-assistant.nix`,
-`hosts/reliant/home-assistant/`). The values it needs from this side:
+What this module does **not** cover:
 
-| What HA needs | Value |
-| --- | --- |
-| OIDC issuer / discovery URL | `https://auth.coppertop.ca/.well-known/openid-configuration` (Authelia's own portal subdomain, `custom.authelia.subdomain`) |
-| `client_id` | `home-assistant` (`custom.authelia.oidc.homeAssistant.clientId`) |
-| `client_secret` | The **raw** (pre-hash) secret from generating `oidc-client-secret-home-assistant-hash` above — not the agenix path, and not the hash stored there. HA's own config needs the plaintext value; Authelia stores only the digest. |
-| Redirect URI | `https://home.coppertop.ca/auth/oidc/callback` (`custom.authelia.oidc.homeAssistant.redirectUri`) — `hass-oidc-auth`'s fixed callback path |
-| Authorization/token/userinfo endpoints | Not hardcoded anywhere — `hass-oidc-auth` discovers them from the discovery URL above, per Authelia's OpenID Connect 1.0 Discoverable Endpoints (`/api/oidc/authorization`, `/api/oidc/token`, `/api/oidc/userinfo` under `auth.coppertop.ca`) |
+- Home Assistant's own side (installing the `hass-oidc-auth` HACS component,
+  HA's `auth_oidc` configuration block). That's `smart-home`'s
+  (`modules/home-assistant.nix`, `hosts/reliant/home-assistant/`). The values
+  it needs from this side:
+
+  | What HA needs | Value |
+  | --- | --- |
+  | OIDC issuer / discovery URL | `https://auth.coppertop.ca/.well-known/openid-configuration` (Authelia's own portal subdomain, `custom.authelia.subdomain`) |
+  | `client_id` | `home-assistant` (`custom.authelia.oidc.homeAssistant.clientId`) |
+  | `client_secret` | The **raw** (pre-hash) secret from generating `oidc-client-secret-home-assistant-hash` above — not the agenix path, and not the hash stored there. HA's own config needs the plaintext value; Authelia stores only the digest. |
+  | Redirect URI | `https://home.coppertop.ca/auth/oidc/callback` (`custom.authelia.oidc.homeAssistant.redirectUri`) — `hass-oidc-auth`'s fixed callback path |
+  | Authorization/token/userinfo endpoints | Not hardcoded anywhere — `hass-oidc-auth` discovers them from the discovery URL above, per Authelia's OpenID Connect 1.0 Discoverable Endpoints (`/api/oidc/authorization`, `/api/oidc/token`, `/api/oidc/userinfo` under `auth.coppertop.ca`) |
+
+- Jellyfin's own side: installing the SSO Authentication plugin
+  (K0lin's fork of `jellyfin-plugin-sso`, manifest URL
+  `https://raw.githubusercontent.com/K0lin/jellyfin-plugin-sso/manifest-release/manifest.json`,
+  plugin version `5.0.0.0` pinned to match this repo's currently-running
+  Jellyfin `10.11.11` — `targetAbi 10.11.11.0`) and configuring the OpenID
+  provider through its own admin settings page. Entirely manual, not
+  Nix-managed — `excelsior` is `smart-home`'s territory for Jellyfin's
+  actual media config, but this plugin install/configure walkthrough is a
+  host operational step, not a Nix module; the click-by-click steps and
+  exact values live in `hosts/excelsior/README.md`, not here. The values it
+  needs from this side, parallel to Home Assistant's table above:
+
+  | What Jellyfin's plugin needs | Value |
+  | --- | --- |
+  | OIDC issuer / discovery URL | `https://auth.coppertop.ca/.well-known/openid-configuration` |
+  | `client_id` (plugin's "OID Client Id") | `jellyfin` (`custom.authelia.oidc.jellyfin.clientId`) |
+  | `client_secret` (plugin's "OID Secret") | The **raw** (pre-hash) secret from generating `oidc-client-secret-jellyfin-hash` above — not the agenix path, and not the hash stored there. |
+  | Redirect URI | `https://jellyfin.coppertop.ca/sso/OID/redirect/authelia` (`custom.authelia.oidc.jellyfin.redirectUri`) — the plugin's fixed callback path pattern, provider name `authelia` |
+  | Provider name | `authelia` — must match what's in the redirect URI above |
+  | Role claim (for RBAC) | `groups` — the scope Authelia sends carrying group membership |
+
+  `custom.authelia.oidc.jellyfin.enable` is **not** turned on for any host
+  yet — the module capability exists, but enabling it is deferred until the
+  `oidc-client-secret-jellyfin-hash` secret exists and host wiring is
+  confirmed.
 
 ### Self-Lockout Rule
 

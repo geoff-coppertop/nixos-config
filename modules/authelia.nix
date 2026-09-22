@@ -4,7 +4,7 @@
   pkgs,
   ...
 }: let
-  inherit (lib) mkEnableOption mkIf mkMerge mkOption types;
+  inherit (lib) mkEnableOption mkIf mkMerge mkOption optional types;
   mkTraefikRoute = import ../lib/traefik-route.nix;
   cfg = config.custom.authelia;
   inherit (config.custom.traefik.acme) domain;
@@ -50,6 +50,40 @@
               - 'authorization_code'
             access_token_signed_response_alg: 'none'
             userinfo_signed_response_alg: 'none'
+            token_endpoint_auth_method: 'client_secret_post'
+  '';
+
+  # Jellyfin's client entry, same shape and same reasoning as
+  # homeAssistantOidcClientFile above -- see that binding's own comment for
+  # why the entire client entry (client_secret included) has to live in one
+  # generated settingsFile rather than split across `settings` and a
+  # secret-only fragment. Scopes deliberately differ from Home Assistant's:
+  # Jellyfin's SSO plugin (K0lin/jellyfin-plugin-sso) only ever reads
+  # `openid`/`profile` claims plus `groups` for its RoleClaim-based RBAC
+  # (confirmed against Authelia's own OpenID Connect 1.0 "groups" scope
+  # definition, which is exactly this claim -- not guessed), so there's no
+  # need for anything beyond what Home Assistant's list already covers here.
+  jellyfinOidcClientFile = pkgs.writeText "authelia-oidc-client-jellyfin.yml" ''
+    identity_providers:
+      oidc:
+        clients:
+          - client_id: '${cfg.oidc.jellyfin.clientId}'
+            client_name: 'Jellyfin'
+            client_secret: {{ secret "${cfg.oidc.jellyfin.clientSecretHashFile}" | mindent 12 "|" | msquote }}
+            public: false
+            require_pkce: true
+            pkce_challenge_method: 'S256'
+            authorization_policy: 'two_factor'
+            redirect_uris:
+              - '${cfg.oidc.jellyfin.redirectUri}'
+            scopes:
+              - 'openid'
+              - 'profile'
+              - 'groups'
+            response_types:
+              - 'code'
+            grant_types:
+              - 'authorization_code'
             token_endpoint_auth_method: 'client_secret_post'
   '';
 in {
@@ -213,6 +247,68 @@ in {
           '';
         };
       };
+
+      jellyfin = {
+        enable = mkEnableOption ''
+          Registering Jellyfin as an OIDC client of this Authelia instance,
+          for real SSO via K0lin's fork of the jellyfin-plugin-sso plugin
+          (github.com/K0lin/jellyfin-plugin-sso) -- Jellyfin's own side
+          (installing the plugin, configuring its OpenID provider settings)
+          is manual, not Nix-managed; see docs/homelab-network.md § OIDC
+          Provider and hosts/excelsior/README.md.
+          Requires custom.authelia.oidc.enable.
+        '';
+
+        clientId = mkOption {
+          type = types.str;
+          default = "jellyfin";
+          description = ''
+            OIDC client_id. The jellyfin-plugin-sso provider's own "OID
+            Client Id" field must be configured with this same value.
+          '';
+        };
+
+        redirectUri = mkOption {
+          type = types.str;
+          default = "https://jellyfin.${domain}/sso/OID/redirect/authelia";
+          description = ''
+            Jellyfin's OIDC callback URL -- jellyfin-plugin-sso's fixed
+            callback path pattern, /sso/OID/redirect/<provider-name>
+            (confirmed against the plugin's own SSOController.cs source at
+            tag v5.0.0.0, not guessed), with provider name "authelia" at
+            whatever subdomain docs/homelab-network.md § Jellyfin
+            (excelsior) hardcodes ("jellyfin", not itself a configurable
+            option there). Not consumed by Jellyfin's own config directly --
+            this is what Authelia's client registration expects to receive
+            the browser back on, and must match the redirect URI configured
+            on the plugin's own admin settings page.
+          '';
+        };
+
+        clientSecretHashFile = mkOption {
+          type = types.str;
+          description = ''
+            Path to an agenix-managed file holding Authelia's own
+            pbkdf2-sha512 *hash* of Jellyfin's OIDC client secret -- NOT the
+            raw secret itself, same convention as
+            custom.authelia.oidc.homeAssistant.clientSecretHashFile (see
+            that option's description for the full explanation of why this
+            is read directly via Authelia's own Go-template "secret"
+            function rather than through a services.authelia secrets.*
+            field). Expected at
+            secrets/authelia/oidc-client-secret-jellyfin-hash.age, matching
+            the existing oidc-client-secret-home-assistant-hash naming.
+
+            Generate both the raw secret and its digest together with the
+            authelia package's own CLI:
+              nix run nixpkgs#authelia -- crypto hash generate pbkdf2 --variant sha512 --random
+            This prints a random plaintext secret (goes into
+            jellyfin-plugin-sso's own "OID Secret" field on its admin
+            settings page -- not managed by this repo) and its digest (goes
+            into this file, and only this file).
+          '';
+        };
+      };
     };
 
     notifier.smtp = {
@@ -254,6 +350,10 @@ in {
         {
           assertion = !cfg.oidc.homeAssistant.enable || cfg.oidc.enable;
           message = "custom.authelia.oidc.homeAssistant.enable requires custom.authelia.oidc.enable -- Home Assistant's OIDC client registration only makes sense once this Authelia instance actually runs as an OIDC provider.";
+        }
+        {
+          assertion = !cfg.oidc.jellyfin.enable || cfg.oidc.enable;
+          message = "custom.authelia.oidc.jellyfin.enable requires custom.authelia.oidc.enable -- Jellyfin's OIDC client registration only makes sense once this Authelia instance actually runs as an OIDC provider.";
         }
       ];
 
@@ -372,14 +472,17 @@ in {
           oidcHmacSecretFile = cfg.oidc.hmacSecretFile;
         };
 
-        # Home Assistant's client entry (client_secret and all) lives
-        # entirely in its own generated settingsFile -- see
-        # homeAssistantOidcClientFile's own comment above for why it can't
-        # be split between this settings attrset and a secret-only fragment.
-        # No identity_providers.oidc.jwks here: nixpkgs' authelia module
-        # auto-generates that from secrets.oidcIssuerPrivateKeyFile above via
-        # its own Go-template settingsFile, merged in alongside these.
-        settingsFiles = mkIf cfg.oidc.homeAssistant.enable [homeAssistantOidcClientFile];
+        # Home Assistant's and Jellyfin's client entries (client_secret and
+        # all) each live entirely in their own generated settingsFile -- see
+        # homeAssistantOidcClientFile's own comment above for why a client
+        # entry can't be split between this settings attrset and a
+        # secret-only fragment. No identity_providers.oidc.jwks here:
+        # nixpkgs' authelia module auto-generates that from
+        # secrets.oidcIssuerPrivateKeyFile above via its own Go-template
+        # settingsFile, merged in alongside these.
+        settingsFiles =
+          (optional cfg.oidc.homeAssistant.enable homeAssistantOidcClientFile)
+          ++ (optional cfg.oidc.jellyfin.enable jellyfinOidcClientFile);
       };
     })
 
