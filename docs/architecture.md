@@ -319,7 +319,7 @@ shared config. See [docs/homelab-network.md](homelab-network.md).
 | `custom.zigbee` | Zigbee2MQTT |
 | `custom.zwave` | Z-Wave JS server |
 | `custom.adsb` | dump1090 ADS-B receiver |
-| `custom.bambuddy` | Bambuddy Bambu Lab printer management (`pkgs/bambuddy.nix`) as a native systemd service; `virtualPrinter.openFirewall` opens the LAN printer-protocol ports, which collide with AdGuard Home on 3000 (asserted) |
+| `custom.bambuddy` | Bambuddy Bambu Lab printer management (`pkgs/bambuddy.nix`) as a native systemd service; `virtualPrinter.openFirewall` opens the LAN printer-protocol ports on `virtualPrinter.bindIp` alone, and asserts on AdGuard Home's 3000 |
 | `custom.bambuddy.slicerSidecar` | Server-side slicing sidecar for Bambuddy — the prebuilt amd64-only `orca-slicer-api` OCI image under podman, loopback-only, on by default with the parent; `bambuStudio` is a second, off-by-default sidecar |
 | `custom.lldap` | lldap directory server — LDAP backend for Authelia SSO, with declarative user/group reconciliation via upstream's `bootstrap.sh` (`custom.lldap.bootstrap`) |
 | `custom.authelia` | Authelia forward-auth SSO portal, backed by `custom.lldap`; `protectedSubdomains` drives both its own `access_control` and which routes are expected to carry the `authelia@file` Traefik middleware |

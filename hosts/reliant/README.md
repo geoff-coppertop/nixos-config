@@ -110,14 +110,14 @@ Rule](../../docs/architecture.md#placement-rule)).
 | 22 | tcp | SSH, `services.openssh` with `openFirewall = true` | LAN (firewall open); key-only auth, no password/root login |
 | 53 | tcp+udp | AdGuard Home resolver, `custom.dns` | Bound `0.0.0.0`; UDP 53 opened to the LAN by `modules/dns.nix` (TCP 53 deliberately not opened) |
 | 80, 443 | tcp | Traefik entry points (`web`/`websecure`), `custom.traefik` | LAN/WAN (firewall open) — every proxied service is reached through 443 here, never its own port |
-| 322, 990, 2024–2026, 3000, 3002, 6000, 8883, 50000–50029 | tcp | Bambuddy virtual printer — bind/detect, RTSPS camera, FTPS, A1/P1S protocol, file tunnel, MQTT, FTP passive range (sized by `virtualPrinter.count`, 3 here). Hardcoded upstream in `bind_server.py`, started by the app whenever `custom.bambuddy` runs | Firewall closed (`virtualPrinter.openFirewall` off). Its 3000 is the same 3000 AdGuard holds below and neither side is configurable — `modules/bambuddy.nix` asserts on the pair; see § Bambuddy |
+| 322, 990, 2024–2026, 3000, 3002, 6000, 8883, 50000–50029 | tcp | Bambuddy virtual printer — bind/detect, RTSPS, FTPS, A1/P1S, file tunnel, MQTT, FTP passive range. Hardcoded upstream (`bind_server.py`) | Opened on `virtualPrinter.bindIp` (`192.168.20.31`) only, closed on this host's primary. The 3000 here is why AdGuard's admin UI moved to 3004 below |
 | 1400 | tcp | `soco`'s embedded UPnP listener — receives Sonos NOTIFY callbacks, not HA's frontend | Opened to `192.168.20.0/24` by `firewall.extraCommands`; see Known Gotchas |
 | 1883 | tcp | Mosquitto MQTT broker, `custom.mqtt` | 127.0.0.1 only |
-| 3000 | tcp | AdGuard Home admin UI, `custom.dns` (upstream default) | Bound `0.0.0.0`, `openFirewall = false`; reached through Traefik at `dns1.coppertop.ca` |
-| 3001 | tcp | zwave-js websocket, `custom.zwave.port` — overridden here because the module default (3000) is AdGuard's admin UI | Firewall closed; Home Assistant connects over localhost |
+| 3001 | tcp | zwave-js websocket, `custom.zwave.port` — overridden here because the module default (3000) is the virtual printer's hardcoded bind port | Firewall closed; Home Assistant connects over localhost |
 | 3890 | tcp | lldap's own LDAP protocol port, `custom.lldap.ldapPort` (upstream default) | 127.0.0.1 only — Authelia is the only consumer, same host |
 | 3001 | tcp | BambuStudio sidecar, `custom.bambuddy.slicerSidecar.bambuStudio.port` (`bambuStudio.enable` off) | **Not bound today** — and its default is the 3001 zwave-js already holds above; `modules/bambuddy.nix` asserts on that pair, so enabling it needs an explicit `port` here first |
 | 3003 | tcp | OrcaSlicer slicing sidecar (podman publish), `custom.bambuddy.slicerSidecar.port` | 127.0.0.1 only; called only by Bambuddy on this host |
+| 3004 | tcp | AdGuard Home admin UI, `custom.dns` — off the module default (3000), which the virtual printer above needs; `modules/bambuddy.nix` asserts on the pair | Bound `0.0.0.0`, `openFirewall = false`; reached through Traefik at `dns1.coppertop.ca` |
 | 5335 | tcp+udp | unbound recursive resolver, `custom.dns` | LAN (firewall open) — the deliberate AdGuard-bypass |
 | 5353 | udp | avahi/mDNS, `profiles/common/networking.nix` (`openFirewall = true`) | LAN (firewall open) — what makes `reliant.local` resolve for deploys |
 | 5580 | tcp | python-matter-server websocket, `custom.matter` (upstream default) | Firewall closed; Home Assistant connects over localhost |
@@ -196,27 +196,10 @@ onward (same as `enterprise-d`/`excelsior`).
 image is not used; see the header comment there for why) plus the OrcaSlicer
 slicing sidecar as a podman container. Host-specific notes:
 
-- Reached at `bambuddy.coppertop.ca` through this host's Traefik. The app
-  itself binds `127.0.0.1:8000` only, the same posture as every other service
-  here.
-- **Each printer needs LAN Only Mode + Developer Mode enabled**, on the
-  printer: Settings → Network → LAN Only Mode, then Developer Mode (it only
-  appears after LAN Only Mode is on). Note the Access Code, IP, and serial —
-  those three are what the first-run wizard asks for. Without Developer Mode
-  the printer is read-only monitoring at best. Also enable **"Store sent files
-  on external storage"** in the slicer, or Bambuddy has no 3MF to archive.
-- The slicing sidecar listens on `127.0.0.1:3003` and is called only by
-  Bambuddy on this same host — no Traefik route, no firewall opening. Its
-  image is **linux/amd64 only** upstream (no ARM64 build, no source for the
-  patched OrcaSlicer CLI inside it), which is fine here and would not be on an
-  ARM host. `SLICER_API_URL` is set from the module, so nothing needs entering
-  in Settings → Slicer.
-- **The virtual-printer feature is off at the firewall on this host and cannot
-  simply be turned on.** It binds ports 3000/3002 unconditionally — hardcoded
-  in upstream's `bind_server.py`, because a slicer looks for a real printer on
-  exactly those ports — and 3000 is already AdGuard Home's admin UI here.
-  `modules/bambuddy.nix` asserts on that combination rather than letting it
-  fail at bind time; moving `services.adguardhome.port` is the prerequisite.
+- Reached at `bambuddy.coppertop.ca` through Traefik; the app itself binds `127.0.0.1:8000` only, same posture as every other service here.
+- **Each printer needs LAN Only Mode + Developer Mode** (Settings → Network → LAN Only Mode, then Developer Mode — it only appears after). Note the Access Code, IP, and serial for the first-run wizard; without Developer Mode the printer is read-only monitoring at best. Also enable **"Store sent files on external storage"** in the slicer, or Bambuddy has no 3MF to archive.
+- The slicing sidecar listens on `127.0.0.1:3003`, called only by Bambuddy on this host — no Traefik route, no firewall opening. Its image is **linux/amd64 only** upstream (no ARM64 build, no CLI source), fine here but not on an ARM host. `SLICER_API_URL` comes from the module — nothing to enter in Settings → Slicer.
+- **Printers and the virtual printer are configured in Bambuddy's own UI** — no seeding mechanism here. Set its Bind IP to `192.168.20.31`, queue mode, targeting the P2S (inherits that printer's access code — nothing reaches `secrets/`).
 - Data (SQLite database, 3MF/print archive) lives in `/var/lib/bambuddy`,
   owned by a fixed `bambuddy` system user. Logs are in `/var/log/bambuddy`.
 - In Home Assistant via [docs/smart-home.md § Bambuddy](../../docs/smart-home.md#bambuddy).
@@ -257,6 +240,10 @@ slicing sidecar as a podman container. Host-specific notes:
   with `defiant` — cutover repointed Unifi's DHCP-advertised DNS server at
   this IP directly rather than reassigning `defiant`'s reservation).
   Consumed by `custom.dns.lanIp` — see § Services above.
+- A second address, `192.168.20.31/24`, the virtual printer's Bind IP. Added
+  by the `bambuddy-bind-ip` unit with `preferred_lft 0`, **not**
+  `networking.interfaces` — see
+  [docs/homelab-network.md § Dedicated Bind IPs](../../docs/homelab-network.md#dedicated-bind-ips-for-lan-emulation-services).
 - Headless. `profiles/desktop` is deliberately **not** imported — there is no
   display server. `profiles/dev` is also not imported — the appliance
   service set migrated in this PR (Home Assistant, Zigbee2MQTT, Z-Wave JS,
@@ -379,11 +366,7 @@ slicing sidecar as a podman container. Host-specific notes:
   yet**: `clientSecretFile` points at
   `/run/agenix/home-assistant/oidc-client-secret`, which does not exist, and
   `home-assistant.service` fails to start outright without it (§ Secrets).
-- **`custom.homepage`'s port (8082) collided with Zigbee2MQTT's frontend,
-  also 8082.** Confirmed live: `homepage-dashboard.service` failed
-  (`EADDRINUSE`) on the first deploy with both enabled on this host. Moved to
-  8083 in `modules/homepage.nix` — same class of conflict as
-  `zwave-js`/AdGuard (3000, above) and `bambuddy`/AdGuard (3000, § Bambuddy).
+- **`custom.homepage`'s port (8082) collided with Zigbee2MQTT's frontend, also 8082.** Confirmed live: `homepage-dashboard.service` failed (`EADDRINUSE`) on the first deploy with both enabled on this host. Moved to 8083 in `modules/homepage.nix`.
 - **Sonos "Subscription to `<ip>` failed" every boot (#170)**: the firewall
   only opened 8123, but Sonos NOTIFY callbacks go to `soco`'s own embedded
   listener on port 1400. Fixed by opening 1400 too.

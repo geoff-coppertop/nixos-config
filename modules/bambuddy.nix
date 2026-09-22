@@ -25,14 +25,11 @@
   dataDir = "/var/lib/bambuddy";
   logDir = "/var/log/bambuddy";
 
-  # Virtual-printer FTP passive-data ports. Upstream allocates a 10-port slice
-  # per virtual printer starting at 50000 (VP 1 → 50000-50009, VP 2 →
-  # 50010-50019, …), so the range is sized by the VP count rather than opening
-  # the full 50000-50100 the Bambu firmware itself uses.
-  passiveFtp = {
-    from = 50000;
-    to = 50000 + (10 * cfg.virtualPrinter.count) - 1;
-  };
+  # What the virtual printer listens on, from upstream's docker-compose.yml;
+  # 8000 is absent on purpose, that one goes through Traefik. Each virtual
+  # printer gets a 10-port FTP passive slice from 50000 up.
+  passiveFtpTo = 50000 + (10 * cfg.virtualPrinter.count) - 1;
+  vpMultiport = "322,990,3000,3002,6000,8883,2024:2026,50000:${toString passiveFtpTo}";
 in {
   options.custom.bambuddy = {
     enable = mkEnableOption "Bambuddy, self-hosted Bambu Lab printer management";
@@ -62,7 +59,14 @@ in {
       # this only controls the host firewall, since the ports have to be
       # reachable from the slicer and the real printers on the LAN rather than
       # through Traefik.
-      openFirewall = mkEnableOption "the virtual printer's LAN ports in the host firewall (bind/detect, MQTT, FTPS, RTSP, and the FTP passive-data range)";
+      openFirewall = mkEnableOption "the virtual printer's LAN ports in the host firewall (bind/detect, MQTT, FTPS, RTSP, and the FTP passive-data range), on bindIp only";
+
+      bindIp = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        example = "192.168.20.31";
+        description = "The address the virtual printer is configured to bind in Bambuddy, and the only one openFirewall opens these ports on. Adding it to the interface is the host's job.";
+      };
 
       count = mkOption {
         type = types.ints.positive;
@@ -151,6 +155,13 @@ in {
         }
 
         {
+          # Without it the rule renders `-d ` and fails firewall.service at
+          # runtime, which leaves the host with no INPUT jump to nixos-fw.
+          assertion = !cfg.virtualPrinter.openFirewall || cfg.virtualPrinter.bindIp != null;
+          message = "custom.bambuddy.virtualPrinter.openFirewall needs virtualPrinter.bindIp — the rules are scoped to that address, so there is nothing to open without it.";
+        }
+
+        {
           # Same class of collision as the one above, one option group down:
           # sidecar.bambuStudio.port defaults to 3001, which is also
           # custom.zwave.port's value on reliant (moved there itself to dodge
@@ -184,6 +195,13 @@ in {
         documentation = ["https://github.com/maziggy/bambuddy"];
         wantedBy = ["multi-user.target"];
         after = ["network.target"];
+
+        # network_utils.py shells out to `ip -j addr show` to find secondary
+        # addresses; without it that silently falls back to an ioctl that
+        # returns only each interface's primary IP, so a virtual printer's
+        # dedicated bind IP never appears in the UI. Its own fallback lookup
+        # (/usr/sbin:/sbin:/usr/bin:/bin) finds nothing on NixOS.
+        path = [pkgs.iproute2];
 
         environment = {
           # backend/app/core/config.py reads both; without them it falls back
@@ -243,22 +261,13 @@ in {
         };
       };
 
-      networking.firewall = mkIf cfg.virtualPrinter.openFirewall {
-        # From upstream's docker-compose.yml, which enumerates what the
-        # virtual printer actually listens on: 3000/3002 bind+detect, 8883
-        # MQTT, 990 FTPS control, 6000 file-transfer tunnel, 322 RTSPS camera,
-        # 2024-2026 the A1/P1S proprietary protocol, plus the passive-data
-        # range above. Port 8000 is deliberately absent — that one goes
-        # through Traefik.
-        allowedTCPPorts = [322 990 3000 3002 6000 8883];
-        allowedTCPPortRanges = [
-          {
-            from = 2024;
-            to = 2026;
-          }
-          passiveFtp
-        ];
-      };
+      # Destination-scoped rather than allowedTCPPorts, which matches on port
+      # alone and would open these on every address the host carries --
+      # AdGuard's 0.0.0.0:3000 admin UI among them. firewall-start rebuilds
+      # nixos-fw, so no extraStopCommands.
+      networking.firewall.extraCommands = mkIf cfg.virtualPrinter.openFirewall ''
+        iptables -I nixos-fw -p tcp -d ${cfg.virtualPrinter.bindIp} -m multiport --dports ${vpMultiport} -j ACCEPT
+      '';
     }
 
     (mkIf sidecar.enable {
