@@ -24,6 +24,7 @@ in {
     flatpak.enable = true;
     vr.enable = true;
     debugProbes.enable = true;
+    bambuSlicer.enable = true;
 
     networkDrives = {
       enable = true;

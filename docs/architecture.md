@@ -296,6 +296,7 @@ says what an option does, the host README says what it binds there.
 | `custom.gaming.enable` | Steam |
 | `custom.flatpak.enable` | Declarative Flatpak plus a weekly update timer |
 | `custom.vr.enable` | VR runtime support |
+| `custom.bambuSlicer.enable` | Inbound UDP 2021 for OrcaSlicer/Bambu Studio SSDP printer discovery — see [docs/workstation.md](workstation.md#bambu-lab-printer-discovery-ssdp) |
 | `custom.ai.claude.enable` / `custom.ai.copilot.enable` | Claude / GitHub Copilot integration in VS Code |
 | `custom.debugProbes.enable` | udev rules for USB JTAG/SWD probes — see [docs/workstation.md](workstation.md#usb-debug-probes-udev) |
 | `custom.binCompat.enable` | Symlinks `/bin/bash` for tools whose shebang expects it |
