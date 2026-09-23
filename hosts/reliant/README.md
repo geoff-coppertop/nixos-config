@@ -81,8 +81,7 @@ for the full design.
   `custom.home-assistant.oidc` and this host's own `configuration.nix`, see
   [docs/smart-home.md § OIDC Login](../../docs/smart-home.md#oidc-login-authelia-sso)
   — but **not yet functional**: it's still missing the one secret
-  (`home-assistant/oidc-client-secret`) and the real package hash for the
-  `hass-oidc-auth` HACS component, both listed in § Secrets and § Known
+  (`home-assistant/oidc-client-secret`), listed in § Secrets and § Known
   Gotchas below.
 - **`thomasga` (Geoffrey Thomas) has a real lldap account** —
   `custom.lldap.bootstrap.users` in `hosts/reliant/configuration.nix`, no
@@ -220,6 +219,7 @@ slicing sidecar as a podman container. Host-specific notes:
   fail at bind time; moving `services.adguardhome.port` is the prerequisite.
 - Data (SQLite database, 3MF/print archive) lives in `/var/lib/bambuddy`,
   owned by a fixed `bambuddy` system user. Logs are in `/var/log/bambuddy`.
+- In Home Assistant via [docs/smart-home.md § Bambuddy](../../docs/smart-home.md#bambuddy).
 
 ## Machine Files
 
@@ -375,20 +375,10 @@ slicing sidecar as a podman container. Host-specific notes:
   `firewall.extraCommands` and `modules/home-assistant.nix`'s Traefik route
   registration — since nixpkgs can no longer discover it automatically. See
   [docs/smart-home.md § Firewall](../../docs/smart-home.md#firewall-openfirewall-removed-upstream).
-- **Home Assistant's OIDC SSO (`custom.home-assistant.oidc`) is wired but
-  not deployable yet — two real gaps, not guesses.** (1)
-  `pkgs/home-assistant-oidc-auth.nix`'s `fetchFromGitHub.hash` is a
-  `lib.fakeHash` placeholder — no local Nix toolchain was available to
-  compute the real NAR hash when this was added; a build attempt will fail
-  loudly on the mismatch, and the real hash from that error needs to
-  replace it before deploying (same recovery step as
-  `docs/smart-home.md` § Matter's PAA cert re-pin). (2) `configuration.nix`
-  already points `custom.home-assistant.oidc.clientSecretFile` at
-  `/run/agenix/home-assistant/oidc-client-secret`, which does not exist yet
-  — `home-assistant.service` will fail to start outright the moment this is
-  deployed until `secrets-warden` creates it (see § Secrets above for the
-  exact value and format needed). Do not `nixos-rebuild switch` this change
-  until both are resolved.
+- **Home Assistant's OIDC SSO (`custom.home-assistant.oidc`) is not deployable
+  yet**: `clientSecretFile` points at
+  `/run/agenix/home-assistant/oidc-client-secret`, which does not exist, and
+  `home-assistant.service` fails to start outright without it (§ Secrets).
 - **`custom.homepage`'s port (8082) collided with Zigbee2MQTT's frontend,
   also 8082.** Confirmed live: `homepage-dashboard.service` failed
   (`EADDRINUSE`) on the first deploy with both enabled on this host. Moved to
@@ -397,6 +387,9 @@ slicing sidecar as a podman container. Host-specific notes:
 - **Sonos "Subscription to `<ip>` failed" every boot (#170)**: the firewall
   only opened 8123, but Sonos NOTIFY callbacks go to `soco`'s own embedded
   listener on port 1400. Fixed by opening 1400 too.
+- **`hacs_bambuddy`'s Chamber Light switch fails both ways** — it sends a
+  Python bool as an aiohttp query param. Patched in
+  `pkgs/home-assistant-bambuddy.nix`.
 
 ## Backups
 
