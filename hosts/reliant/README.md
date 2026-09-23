@@ -387,6 +387,9 @@ slicing sidecar as a podman container. Host-specific notes:
 - **Sonos "Subscription to `<ip>` failed" every boot (#170)**: the firewall
   only opened 8123, but Sonos NOTIFY callbacks go to `soco`'s own embedded
   listener on port 1400. Fixed by opening 1400 too.
+- **`hacs_bambuddy`'s Chamber Light switch fails both ways** — it sends a
+  Python bool as an aiohttp query param. Patched in
+  `pkgs/home-assistant-bambuddy.nix`.
 
 ## Backups
 
