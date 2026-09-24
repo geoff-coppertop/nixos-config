@@ -6,12 +6,13 @@
   bambuddyCa = localFile {path = ./bambuddy-virtual-printer-ca.pem;};
 in
   pkgs.orca-slicer.overrideAttrs (old: {
-    # printer.cer ships read-only (0444) in the built output, so it needs
-    # u+w before it can be appended to.
+    # printer.cer ships read-only (0444) and with no trailing newline, so
+    # this needs u+w and its own leading newline before appending.
     postInstall =
       (old.postInstall or "")
       + ''
         chmod u+w $out/share/OrcaSlicer/cert/printer.cer
+        printf '\n' >> $out/share/OrcaSlicer/cert/printer.cer
         cat ${bambuddyCa} >> $out/share/OrcaSlicer/cert/printer.cer
       '';
   })
