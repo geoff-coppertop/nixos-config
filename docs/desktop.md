@@ -38,7 +38,6 @@ package policy, which is set in `flake.nix`.
 | `profiles/desktop/printing.nix` | CUPS printing, DE-independent |
 | `profiles/desktop/audio.nix` | pipewire |
 | `profiles/desktop/power.nix` | logind idle inhibitor |
-| `modules/flatpak.nix` | Flatpak and Flatseal, as optional platform services |
 | `modules/gaming.nix` | Steam |
 | `profiles/common/base.nix` | Core system policy |
 | `flake.nix` | Unfree package policy needed by Chrome, Steam, and Bambu Studio |

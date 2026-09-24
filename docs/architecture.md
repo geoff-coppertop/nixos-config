@@ -217,7 +217,7 @@ The machines currently in this repo are listed in the [root README](../README.md
 | `profiles/common/` | Baseline every host gets: nix settings/GC, `system.autoUpgrade`, timezone/locale, kernel, fonts; plus network discovery (avahi/mDNS), the agenix identity path, SSH known-hosts rendering |
 | `profiles/desktop/` | Desktop environment baseline, audio (pipewire), power/idle policy |
 | `profiles/dev/` | Dev tooling: GitHub CLI, container runtime, network tools |
-| `modules/` | `custom.*` feature modules: users, Wi-Fi, backups, btrfs, snapper, secure boot, TPM-LUKS, Steam, Flatpak, homelab services (see the `custom.*` catalogue below) |
+| `modules/` | `custom.*` feature modules: users, Wi-Fi, backups, btrfs, snapper, secure boot, TPM-LUKS, Steam, homelab services (see the `custom.*` catalogue below) |
 | `modules/udev-rules/` | Verbatim upstream udev rule files loaded via `services.udev.packages` |
 | `users/thomasga/` | Git, SSH, fish shell, GNOME dconf, VS Code, wallpaper, per-machine profiles |
 | `users/common/` | Shared opt-in user modules: CLI tools, GUI apps, appearance |
@@ -267,7 +267,7 @@ says what an option does, the host README says what it binds there.
 
 | Option | Declared in | What it does |
 | --- | --- | --- |
-| `custom.isLaptop` | `modules/is-laptop.nix` | Gates AC-power-sensitive maintenance jobs (NAS backups, auto-upgrade, Flatpak auto-update) |
+| `custom.isLaptop` | `modules/is-laptop.nix` | Gates AC-power-sensitive maintenance jobs (NAS backups, auto-upgrade) |
 | `custom.nix.gc.keepGenerations` | `modules/nix-gc.nix` | How many system and home-manager profile generations the weekly nix-gc run keeps (default `10`); lower it on hosts with little disk headroom, such as an SD-card-booted Pi |
 | `custom.users` | `modules/users.nix` | Declares user accounts, groups, and SSH authorized keys |
 | `custom.backups` | `modules/backups.nix` | Per-entry restic backups to the NAS over SMB or NFS; `users.<name>.nas` optionally overrides the host-wide NAS target for one entry |
@@ -294,7 +294,6 @@ says what an option does, the host README says what it binds there.
 | `custom.appearance.darkMode` | System-wide dark mode (home-manager, `users/common/appearance.nix`) |
 | `custom.cli.shell` | Selects which shell the user CLI modules activate |
 | `custom.gaming.enable` | Steam |
-| `custom.flatpak.enable` | Declarative Flatpak plus a weekly update timer |
 | `custom.vr.enable` | VR runtime support |
 | `custom.bambuSlicer.enable` | Inbound UDP 2021 for OrcaSlicer/Bambu Studio SSDP printer discovery — see [docs/workstation.md](workstation.md#bambu-lab-printer-discovery-ssdp) |
 | `custom.ai.claude.enable` / `custom.ai.copilot.enable` | Claude / GitHub Copilot integration in VS Code |
@@ -365,7 +364,6 @@ another container.
 | `agenix` | Encrypted secrets in git |
 | `lanzaboote` (v1.0.0) | Secure Boot |
 | `nixos-wsl` | NixOS on WSL2 (`holodeck-01`) |
-| `nix-flatpak` | Declarative Flatpak management |
 | `nix-vscode-extensions` | Overlay populating `pkgs.vscode-extensions.*` |
 | `pre-commit` | Lint checks in the dev shell |
 | `dotfiles` | Non-flake pin of the shared fish/git dotfiles repo — see [docs/users.md](users.md#pattern-1-shared-look-and-feel-via-dotfiles) |

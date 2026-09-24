@@ -3,7 +3,6 @@
   home-manager,
   agenix,
   lanzaboote,
-  nix-flatpak,
   nix-vscode-extensions,
   dotfiles,
 }: {
@@ -33,7 +32,6 @@ nixpkgs.lib.nixosSystem {
       home-manager.nixosModules.home-manager
       agenix.nixosModules.default
       lanzaboote.nixosModules.lanzaboote
-      nix-flatpak.nixosModules.nix-flatpak
     ]
     ++ extraModules;
 }

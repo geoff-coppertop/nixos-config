@@ -14,7 +14,6 @@
     ./desktop.nix
     ./dns.nix
     ./factorio-server.nix
-    ./flatpak.nix
     ./framework.nix
     ./fwupd.nix
     ./gaming.nix

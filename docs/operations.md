@@ -201,7 +201,6 @@ Two opt-in modules add update mechanisms for specific hosts:
 
 | Module | Option | Enabled on | What it does |
 | --- | --- | --- | --- |
-| `modules/flatpak.nix` | `custom.flatpak.enable` | `enterprise-d` | Weekly Flatpak update timer (AC-gated on laptops) plus update-on-activation |
 | `modules/fwupd.nix` | `custom.fwupd.enable` | `enterprise-d` | fwupd daemon for LVFS firmware; apply with `fwupdmgr refresh && fwupdmgr update` |
 
 ### Monthly flake input update
