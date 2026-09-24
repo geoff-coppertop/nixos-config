@@ -7,8 +7,6 @@
   bambuddyCa = localFile {path = ./bambuddy-virtual-printer-ca.pem;};
 in
   trustPrinterCa {
-    inherit pkgs;
-    name = "orca-slicer-bambuddy-ca";
     package = pkgs.orca-slicer;
     certPath = "$out/share/OrcaSlicer/cert/printer.cer";
     caFile = bambuddyCa;

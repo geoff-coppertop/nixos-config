@@ -1,24 +1,25 @@
 # Appends a CA cert to a Bambu-family slicer's bundled printer.cer PEM
-# bundle. overrideAttrs would invalidate the upstream binary-cache
-# substitute for the whole package -- a from-source C++ rebuild taking
-# tens of minutes, for a one-file change -- since it produces a
-# differently-hashed derivation with the same build phases. This instead
-# copies the already-built (substituted) output and patches just the one
-# file, so only that copy runs locally.
+# bundle. A copy-and-patch approach (skip overrideAttrs, cp the already-
+# built output, edit the file) was tried to avoid a full rebuild, but
+# doesn't work: the binary bakes in an absolute resource-directory path
+# at compile time, so a copy still loads printer.cer from the original,
+# unpatched derivation regardless of where the copy sits. overrideAttrs
+# rebuilds so the binary compiles in its own new $out.
 #
 # Upstream ships printer.cer with no trailing newline, so this adds one
 # first — otherwise the two blocks merge into one unparseable line
 # ("bad end line" from OpenSSL's PEM parser, confirmed live).
 {
-  pkgs,
-  name,
   package,
   certPath,
   caFile,
 }:
-pkgs.runCommand name {} ''
-  cp -r ${package} $out
-  chmod -R u+w $out
-  printf '\n' >> ${certPath}
-  cat ${caFile} >> ${certPath}
-''
+package.overrideAttrs (old: {
+  postInstall =
+    (old.postInstall or "")
+    + ''
+      chmod u+w ${certPath}
+      printf '\n' >> ${certPath}
+      cat ${caFile} >> ${certPath}
+    '';
+})
