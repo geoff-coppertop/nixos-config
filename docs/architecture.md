@@ -221,7 +221,7 @@ The machines currently in this repo are listed in the [root README](../README.md
 | `modules/udev-rules/` | Verbatim upstream udev rule files loaded via `services.udev.packages` |
 | `users/thomasga/` | Git, SSH, fish shell, GNOME dconf, VS Code, wallpaper, per-machine profiles |
 | `users/common/` | Shared opt-in user modules: CLI tools, GUI apps, appearance |
-| `lib/` | `apps.nix`, `checks.nix`, `module-inertness.nix` (the `modules-inert` check), `devshell.nix`, `local-file.nix` (see [§ Local Files As Build Inputs](#local-files-as-build-inputs)), `nas.nix`, `nixos-system.nix`, `ssh-hosts.nix`, `traefik-route.nix` |
+| `lib/` | `apps.nix`, `checks.nix`, `module-inertness.nix` (the `modules-inert` check), `devshell.nix`, `local-file.nix` (see [§ Local Files As Build Inputs](#local-files-as-build-inputs)), `nas.nix`, `nixos-system.nix`, `ssh-hosts.nix`, `traefik-route.nix`, `trust-printer-ca.nix` (appends a CA to a Bambu-family slicer's bundled `printer.cer`, used by `pkgs/orca-slicer.nix` and `pkgs/bambu-studio.nix`) |
 | `secrets/` | agenix `.age` files (safe to commit) plus `secrets/secrets.nix` (recipient declarations) |
 | `pkgs/` | Custom package builds: `search-light`, `connect-iq-sdk-manager-cli` (`framework-control` moved upstream to nixpkgs), `pywiim` + `home-assistant-wiim` (see [docs/smart-home.md § Wiim](smart-home.md#wiim-community-integration-not-core-linkplay)), `bambuddy` (npm-built frontend + Python backend, consumed by `modules/bambuddy.nix`) |
 | `tools/` | Python provisioning and secret helpers (plus one shell script, `hibernate-test-report.sh`) |
@@ -296,6 +296,7 @@ says what an option does, the host README says what it binds there.
 | `custom.gaming.enable` | Steam |
 | `custom.flatpak.enable` | Declarative Flatpak plus a weekly update timer |
 | `custom.vr.enable` | VR runtime support |
+| `custom.bambuSlicer.enable` | Inbound UDP 2021 for OrcaSlicer/Bambu Studio SSDP printer discovery — see [docs/workstation.md](workstation.md#bambu-lab-printer-discovery-ssdp) |
 | `custom.ai.claude.enable` / `custom.ai.copilot.enable` | Claude / GitHub Copilot integration in VS Code |
 | `custom.debugProbes.enable` | udev rules for USB JTAG/SWD probes — see [docs/workstation.md](workstation.md#usb-debug-probes-udev) |
 | `custom.binCompat.enable` | Symlinks `/bin/bash` for tools whose shebang expects it |
@@ -319,7 +320,7 @@ shared config. See [docs/homelab-network.md](homelab-network.md).
 | `custom.zigbee` | Zigbee2MQTT |
 | `custom.zwave` | Z-Wave JS server |
 | `custom.adsb` | dump1090 ADS-B receiver |
-| `custom.bambuddy` | Bambuddy Bambu Lab printer management (`pkgs/bambuddy.nix`) as a native systemd service; `virtualPrinter.openFirewall` opens the LAN printer-protocol ports, which collide with AdGuard Home on 3000 (asserted) |
+| `custom.bambuddy` | Bambuddy Bambu Lab printer management (`pkgs/bambuddy.nix`) as a native systemd service; `virtualPrinter.openFirewall` opens the LAN printer-protocol ports on `virtualPrinter.bindIp` alone, and asserts on AdGuard Home's 3000 |
 | `custom.bambuddy.slicerSidecar` | Server-side slicing sidecar for Bambuddy — the prebuilt amd64-only `orca-slicer-api` OCI image under podman, loopback-only, on by default with the parent; `bambuStudio` is a second, off-by-default sidecar |
 | `custom.lldap` | lldap directory server — LDAP backend for Authelia SSO, with declarative user/group reconciliation via upstream's `bootstrap.sh` (`custom.lldap.bootstrap`) |
 | `custom.authelia` | Authelia forward-auth SSO portal, backed by `custom.lldap`; `protectedSubdomains` drives both its own `access_control` and which routes are expected to carry the `authelia@file` Traefik middleware |

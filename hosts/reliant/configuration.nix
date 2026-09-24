@@ -62,6 +62,9 @@ in {
       # bambuddy: config_flow-only, so this installs it and nothing more.
       (pkgs.callPackage ../../pkgs/home-assistant-bambuddy.nix {})
     ];
+
+    # Off the module default (3000), which the virtual printer below needs.
+    adguardhome.port = 3004;
   };
 
   custom = {
@@ -199,9 +202,8 @@ in {
       # (rather than generating new ones) avoids forcing an unnecessary
       # re-pair of every Z-Wave device once the controller moves.
       secretsConfigFile = "/run/agenix/zwave/secrets";
-      # 3000 (the module default) collides with AdGuard Home's admin UI,
-      # enabled above — same collision this host's own `defiant`
-      # predecessor hit.
+      # 3000 (module default) is the virtual printer's hardcoded bind port
+      # here — not AdGuard, which moved off 3000 too.
       port = 3001;
     };
 
@@ -213,11 +215,11 @@ in {
       # Already the module default; stated explicitly because server-side
       # slicing is the reason this host runs Bambuddy rather than nothing.
       slicerSidecar.enable = true;
-      # NOT virtualPrinter.openFirewall: the virtual printer binds 3000/3002
-      # unconditionally and neither port is configurable, while this host's
-      # AdGuard Home admin UI already owns 3000 (see custom.dns below, and the
-      # assertion in modules/bambuddy.nix). Turning the feature on here means
-      # moving AdGuard's UI port first.
+      virtualPrinter = {
+        openFirewall = true;
+        # Added to enp3s0 by the unit at the foot of this file.
+        bindIp = "192.168.20.31";
+      };
     };
 
     adsb = {
@@ -700,6 +702,24 @@ in {
   # boot.loader.systemd-boot.configurationLimit (also 5). Revisit both once
   # real disk usage is known.
   custom.nix.gc.keepGenerations = 5;
+
+  # A unit, and preferred_lft 0, rather than
+  # networking.interfaces.enp3s0.ipv4.addresses -- docs/homelab-network.md
+  # § Dedicated Bind IPs For LAN-Emulation Services has why.
+  systemd.services.bambuddy-bind-ip = {
+    description = "Deprecated secondary address for Bambuddy's virtual printer";
+    wantedBy = ["multi-user.target"];
+    before = ["bambuddy.service"];
+    after = ["network.target"];
+
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStart = "${pkgs.iproute2}/bin/ip addr replace 192.168.20.31/24 dev enp3s0 preferred_lft 0";
+      # Leading `-`: tolerates the address already being gone.
+      ExecStop = "-${pkgs.iproute2}/bin/ip addr del 192.168.20.31/24 dev enp3s0";
+    };
+  };
 
   system.stateVersion = "25.11";
 }

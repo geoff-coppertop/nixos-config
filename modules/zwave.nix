@@ -21,11 +21,10 @@ in {
       default = 3000;
       description = ''
         Port for the zwave-js WebSocket server (services.zwave-js.port
-        upstream default). Confirmed live: AdGuardHome's own admin UI
-        already claims 3000 on reliant, so zwave-js deterministically
-        crash-looped on EADDRINUSE every restart, ~15s in (once its
-        driver finished initializing and tried to bind) — override this
-        per-host to whatever's actually free.
+        upstream default). Override per-host when something else already
+        claims 3000 — confirmed live, it deterministically crash-loops on
+        EADDRINUSE every restart, ~15s in, once its driver finishes
+        initializing and tries to bind.
       '';
     };
 

@@ -259,18 +259,7 @@ sudo nixos-rebuild switch --flake .#enterprise-d
 
 ### What these do not catch: port collisions
 
-Two modules enabled on the same host claiming the same TCP port is not a build
-error. `nix flake check` sees only the hand-written assertions in
-`modules/bambuddy.nix`; everything else evaluates and builds cleanly and then
-fails at runtime with `EADDRINUSE` in the service's journal, after a
-`nixos-rebuild switch`. Two have landed that way already: `custom.zwave`
-against AdGuard Home's admin UI on 3000 (fixed by moving zwave-js to 3001), and
-`custom.homepage`, whose upstream default landed on Zigbee2MQTT's hardcoded
-8082 (moved to 8083). Both were found by reading a service journal, not at
-review time. A third — `custom.bambuddy`'s virtual printer against that same
-AdGuard 3000, which is unfixable since the printer's ports are hardcoded
-upstream — is caught before deploy only because someone hand-wrote the
-assertion in `modules/bambuddy.nix` for it.
+Two modules enabled on the same host claiming the same TCP port is not a build error. `nix flake check` sees only the hand-written assertions in `modules/bambuddy.nix`; everything else evaluates and builds cleanly and then fails at runtime with `EADDRINUSE` in the service's journal, after a `nixos-rebuild switch`. Two have landed that way already: `custom.zwave` against AdGuard Home's admin UI on 3000 (fixed by moving zwave-js to 3001), and `custom.homepage`, whose upstream default landed on Zigbee2MQTT's hardcoded 8082 (moved to 8083). Both were found by reading a service journal, not at review time. A third — `custom.bambuddy`'s virtual printer against that same AdGuard 3000 — was caught before deploy only because someone hand-wrote the assertion in `modules/bambuddy.nix` for it; fixed the same way as zwave-js, by moving AdGuard instead, since the printer's ports are hardcoded upstream.
 
 There is no command for this — the check is reading the port table in
 `hosts/<machine>/README.md` for every host that will run the module before

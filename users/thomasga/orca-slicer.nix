@@ -1,5 +1,9 @@
-{pkgs, ...}: {
-  home.packages = [pkgs.orca-slicer];
+{pkgs, ...}: let
+  # Trusts reliant's Bambuddy virtual-printer CA in OrcaSlicer's slicer
+  # network plugin — see pkgs/orca-slicer.nix.
+  orca-slicer = import ../../pkgs/orca-slicer.nix {inherit pkgs;};
+in {
+  home.packages = [orca-slicer];
 
   xdg.desktopEntries = {
     # Upstream's desktop entry references the icon by theme name
@@ -15,7 +19,7 @@
       name = "OrcaSlicer";
       genericName = "3D Printing Software";
       exec = "orca-slicer %U";
-      icon = "${pkgs.orca-slicer}/share/icons/hicolor/192x192/apps/OrcaSlicer.png";
+      icon = "${orca-slicer}/share/icons/hicolor/192x192/apps/OrcaSlicer.png";
       terminal = false;
       categories = ["Graphics" "3DGraphics" "Engineering"];
       mimeType = [

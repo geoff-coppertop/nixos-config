@@ -20,6 +20,7 @@ Rule](../../docs/architecture.md#placement-rule)).
 | --- | --- | --- | --- |
 | 22 | tcp | SSH, `services.openssh` with `openFirewall = true` | LAN (firewall open); key-only auth, no password/root login |
 | 631 | tcp | CUPS, `profiles/desktop/printing.nix` (`services.printing`) | localhost only; firewall closed (`openFirewall` not set) |
+| 2021 | udp | Bambu Lab printer discovery (SSDP) for OrcaSlicer/Bambu Studio, `custom.bambuSlicer` | LAN (firewall open) — inbound, needed on the discovering host, not the printer |
 | 5353 | udp | avahi/mDNS, `profiles/common/networking.nix` (`openFirewall = true`) | LAN (firewall open) — also how CUPS discovers network printers |
 | 9943, 9944 | tcp | ALVR wireless VR streaming, `custom.vr` | LAN (firewall open) |
 | 9944 | udp | ALVR, `custom.vr` | LAN (firewall open) |

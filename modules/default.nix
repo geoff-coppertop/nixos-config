@@ -4,6 +4,7 @@
     ./authelia.nix
     ./auto-rip.nix
     ./backups.nix
+    ./bambu-slicer.nix
     ./bambuddy.nix
     ./bin-compat.nix
     ./btrfs.nix

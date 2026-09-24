@@ -104,15 +104,11 @@ the proxy connects over `::1`. Home Assistant, whose `trusted_proxies` lists onl
 `127.0.0.1`, returned 400 in exactly this way while AdGuard's route (which has no
 such check) worked.
 
-When the target service's own listen port is itself a configurable option
-(rather than fixed, like dump1090's), pass the live option value —
-`port = config.services.<foo>.port;` — not a literal. `modules/dns.nix`'s own
-AdGuard route does this (`config.services.adguardhome.port`, upstream default
-3000): a hardcoded `3000` would silently decouple the route from the real port
-the moment that option is ever overridden, which is a real prerequisite for
-another module on `reliant` — `custom.bambuddy`'s virtual-printer feature
-hardcodes ports 3000/3002 upstream and can't be enabled on this host until
-AdGuard moves off 3000, see `hosts/reliant/README.md` § Bambuddy.
+When the target service's own listen port is itself a configurable option (rather than fixed, like dump1090's), pass the live option value — `port = config.services.<foo>.port;` — not a literal, or the route silently decouples the moment anything overrides it. `modules/dns.nix`'s AdGuard route does this, which is why `reliant` moving that port needed no change here.
+
+## Dedicated Bind IPs For LAN-Emulation Services
+
+A service that emulates a whole LAN device needs an address separate from the host's. Add it as a systemd unit — see `bambuddy-bind-ip` in `hosts/reliant/configuration.nix` — never `networking.interfaces.<if>.ipv4.addresses`: that disables DHCP unless `useDHCP = true` too, and can't set `preferred_lft 0`, without which a second address in the same `/24` steals source-address selection from the primary. Pick an address outside the DHCP pool.
 
 ## Authelia Forward-Auth (lldap + Authelia SSO)
 
