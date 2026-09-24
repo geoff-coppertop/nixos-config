@@ -329,6 +329,8 @@ request, each job posting its output as a PR comment before failing:
 not — both depend on `changes`, which runs two derivation-diff scripts to
 decide what actually needs to happen for this push or PR.
 
+`build` alone installs Nix via `DeterminateSystems/nix-installer-action` paired with `DeterminateSystems/magic-nix-cache-action`, rather than the `cachix/install-nix-action` the other jobs use — GitHub Actions runners are ephemeral with no cross-run store, so any `overrideAttrs`-based package (no `cache.nixos.org` substitute, e.g. the Bambu-family slicers in `pkgs/orca-slicer.nix`/`pkgs/bambu-studio.nix`) would otherwise rebuild from source on every single run. `magic-nix-cache-action` caches build outputs through GitHub's own Actions cache instead, no external account needed.
+
 `build`'s scoping: `tools/ci_changed_hosts.py` evaluates each host's toplevel
 `drvPath` at the base commit and again at the head commit, and prints a build
 matrix containing only those hosts whose `drvPath` differs. A host whose

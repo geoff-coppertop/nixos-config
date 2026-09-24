@@ -18,10 +18,17 @@ on:
 # default GITHUB_TOKEN is read-only unless permissions are declared here,
 # so without this the comment step itself 403s and the real failure output
 # never reaches the PR — masked behind an unrelated HttpError instead.
+#
+# id-token: write is magic-nix-cache-action's requirement, used only by the
+# build job below (the one job whose derivations are worth caching across
+# runs — overrideAttrs-based packages like Bambu-family slicers have no
+# cache.nixos.org substitute, so every run rebuilds them from source
+# without this).
 permissions:
   contents: read
   issues: write
   pull-requests: write
+  id-token: write
 
 jobs:
   lint:
@@ -264,11 +271,11 @@ jobs:
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" /opt/hostedtoolcache /usr/local/lib/android /usr/share/swift /usr/local/.ghcup
           docker system prune --all --force || true
 
-      - uses: cachix/install-nix-action@v27
+      - uses: DeterminateSystems/nix-installer-action@v23
         with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: DeterminateSystems/magic-nix-cache-action@v15
 
       - name: build ${{ matrix.host }} (native)
         id: buildhost
