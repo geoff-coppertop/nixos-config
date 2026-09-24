@@ -7,12 +7,12 @@
   certPath,
   caFile,
 }:
-  package.overrideAttrs (old: {
-    postInstall =
-      (old.postInstall or "")
-      + ''
-        chmod u+w ${certPath}
-        printf '\n' >> ${certPath}
-        cat ${caFile} >> ${certPath}
-      '';
-  })
+package.overrideAttrs (old: {
+  postInstall =
+    (old.postInstall or "")
+    + ''
+      chmod u+w ${certPath}
+      printf '\n' >> ${certPath}
+      cat ${caFile} >> ${certPath}
+    '';
+})
