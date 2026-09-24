@@ -111,7 +111,8 @@ These must hold without reading any doc first.
   `"automation"`, and live one concern per file under
   `hosts/<host>/home-assistant/`.
 - **markdownlint runs over every `.md` in the tree**, including `docs/`,
-  `.claude/`, and host READMEs. `MD013` is the only disabled rule.
+  `.claude/`, and host READMEs. `MD013` is the only disabled rule — so never
+  hand-wrap markdown at a fixed column; write each paragraph as one line.
 
 ## Working With This User
 
