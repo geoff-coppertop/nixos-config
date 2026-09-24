@@ -221,7 +221,7 @@ The machines currently in this repo are listed in the [root README](../README.md
 | `modules/udev-rules/` | Verbatim upstream udev rule files loaded via `services.udev.packages` |
 | `users/thomasga/` | Git, SSH, fish shell, GNOME dconf, VS Code, wallpaper, per-machine profiles |
 | `users/common/` | Shared opt-in user modules: CLI tools, GUI apps, appearance |
-| `lib/` | `apps.nix`, `checks.nix`, `module-inertness.nix` (the `modules-inert` check), `devshell.nix`, `local-file.nix` (see [§ Local Files As Build Inputs](#local-files-as-build-inputs)), `nas.nix`, `nixos-system.nix`, `ssh-hosts.nix`, `traefik-route.nix` |
+| `lib/` | `apps.nix`, `checks.nix`, `module-inertness.nix` (the `modules-inert` check), `devshell.nix`, `local-file.nix` (see [§ Local Files As Build Inputs](#local-files-as-build-inputs)), `nas.nix`, `nixos-system.nix`, `ssh-hosts.nix`, `traefik-route.nix`, `trust-printer-ca.nix` (appends a CA to a Bambu-family slicer's bundled `printer.cer`, used by `pkgs/orca-slicer.nix` and `pkgs/bambu-studio.nix`) |
 | `secrets/` | agenix `.age` files (safe to commit) plus `secrets/secrets.nix` (recipient declarations) |
 | `pkgs/` | Custom package builds: `search-light`, `connect-iq-sdk-manager-cli` (`framework-control` moved upstream to nixpkgs), `pywiim` + `home-assistant-wiim` (see [docs/smart-home.md § Wiim](smart-home.md#wiim-community-integration-not-core-linkplay)), `bambuddy` (npm-built frontend + Python backend, consumed by `modules/bambuddy.nix`) |
 | `tools/` | Python provisioning and secret helpers (plus one shell script, `hibernate-test-report.sh`) |
