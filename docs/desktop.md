@@ -113,26 +113,13 @@ Managing it would clobber plugin state on every `nixos-rebuild switch`.
 
 ## OrcaSlicer
 
-`users/thomasga/orca-slicer.nix` installs `pkgs.orca-slicer`, the native
-desktop slicer GUI, for local model prep, preview, and slicing on
-enterprise-d. Its printer profiles and network-plugin settings live in
-`~/.config/OrcaSlicer` and are configured through the app's own first-run
-wizard, not declaratively — same as other account-bound apps in this repo
-(Signal, Discord, Bitwarden).
+`users/thomasga/orca-slicer.nix` installs the native desktop slicer GUI on enterprise-d. Printer profiles and network-plugin settings live in `~/.config/OrcaSlicer`, configured through the app's own first-run wizard — same as other account-bound apps here (Signal, Discord, Bitwarden).
 
-This is separate from the OrcaSlicer *sidecar* on `reliant`
-(`custom.bambuddy.slicerSidecar` in `modules/bambuddy.nix`): that's a
-headless, patched OrcaSlicer CLI wrapped in a container for Bambuddy's
-server-side slicing, with no GUI and no shared configuration with this
-desktop package.
+Separate from the OrcaSlicer *sidecar* on `reliant` (`custom.bambuddy.slicerSidecar`): a headless, patched CLI in a container for Bambuddy's server-side slicing, no GUI, no shared config with this desktop package.
 
-nixpkgs' `orca-slicer` package references its icon by theme name
-(`Icon=OrcaSlicer`) rather than a path, and ships no scalable SVG — only
-hicolor PNGs. Hicolor lookup by name doesn't resolve through the
-home-manager profile, so GNOME's app grid falls back to a generic icon.
-`users/thomasga/orca-slicer.nix` overrides the upstream `.desktop` entry
-(same XDG_DATA_DIRS-precedence trick as the draw.io and Signal overrides)
-to point `icon` at the packaged 192px PNG directly.
+nixpkgs' `orca-slicer` references its icon by theme name, not a path, and ships no scalable SVG — only hicolor PNGs, which don't resolve through the home-manager profile, so GNOME falls back to a generic icon. `users/thomasga/orca-slicer.nix` overrides the `.desktop` entry (same XDG_DATA_DIRS trick as draw.io/Signal) to point `icon` at the PNG directly.
+
+`users/thomasga/orca-slicer.nix` pulls the package from `pkgs/orca-slicer.nix` rather than `pkgs.orca-slicer` directly — it adds reliant's Bambuddy virtual-printer CA to OrcaSlicer's trusted-CA bundle so its Bambu network plugin accepts the virtual printer's TLS certificate (staleness caveat in that file's comments).
 
 ## EasyEffects (Framework Speaker EQ)
 
