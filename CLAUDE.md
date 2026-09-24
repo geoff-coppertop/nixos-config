@@ -224,4 +224,6 @@ These must hold without reading any doc first.
 - **Keep the doc-to-code ratio proportionate — state a fact once, where it's
   owned, and point to it everywhere else.** Restating the same gotcha across
   a doc comment, an inline comment, and a README is the failure mode, not
-  thoroughness.
+  thoroughness. For every line of comment or documentation you add, cut two
+  lines of existing comment or documentation in the same change — a net
+  budget, not just a dedup pass.
