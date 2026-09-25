@@ -181,6 +181,9 @@ per-extension dconf settings block was added; defaults are left as-is.
 - **`GDK_BACKEND=x11` (`lib/trust-printer-ca.nix`) doesn't cover the Device
   tab's printer-selector dropdown**, only the dialog it targets; collapse
   it to dismiss.
+- **Each slicer's own dark-mode setting only themes its own panels, not
+  GTK chrome** — `GTK_THEME=Adwaita:dark` (`lib/trust-printer-ca.nix`)
+  covers the rest.
 - **Bambu Studio's Home/Library screen stays light regardless of dark
   mode** — it's an embedded bambulab.com webview, unthemed by
   `dark_color_mode`.
