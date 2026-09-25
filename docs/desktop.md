@@ -178,3 +178,9 @@ per-extension dconf settings block was added; defaults are left as-is.
   `users/thomasga/orca-slicer.nix`.
 - **Bambu Studio has the same `.desktop` icon issue and fix as OrcaSlicer
   above** — see `users/thomasga/bambu-studio.nix`.
+- **`GDK_BACKEND=x11` (`lib/trust-printer-ca.nix`) doesn't cover the Device
+  tab's printer-selector dropdown**, only the dialog it targets; collapse
+  it to dismiss.
+- **Bambu Studio's Home/Library screen stays light regardless of dark
+  mode** — it's an embedded bambulab.com webview, unthemed by
+  `dark_color_mode`.
