@@ -20,6 +20,7 @@
     ./shell.nix
     ./drawio.nix
     ./orca-slicer.nix
+    ./bambu-studio.nix
   ];
 
   custom.appearance.darkMode = true;
