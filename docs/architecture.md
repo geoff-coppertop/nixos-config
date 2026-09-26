@@ -336,6 +336,7 @@ media share and the `media` uid/gid.
 | `custom.autoRip` | Automatic Ripping Machine (`modules/auto-rip.nix`) — disc rip, transcode, and web UI, as an unprivileged podman container with the optical drive passed in; `arm-rip` triggers a rip from the host |
 | `custom.autoRip.disableLogin` | Turns off ARM's own built-in login screen (arm.yaml `DISABLE_LOGIN`, default `false`). Only for instances already gated by forward-auth — on `excelsior` `rip.coppertop.ca` carries `authelia@file`, so ARM's own prompt would be a second login over SSO |
 | `custom.autoRip.settings` | Keys pinned into ARM's `arm.yaml`, merged over the ones the module writes. The file is re-copied from the store on every activation and reboot, so a pinned key always beats the same key edited through ARM's Settings page; keys left out are ARM's own defaults (its loader merges this file over the defaults shipped in its image, so nothing is vendored here) |
+| `custom.autoRip.tmdbApiKeyFile` | Path to an agenix-decrypted TMDb API key (v3 auth) file. Without it ARM cannot identify discs and everything lands in its `unidentified` bucket. Pins `METADATA_PROVIDER = "tmdb"` and writes a `@TMDB_API_KEY@` placeholder into `arm.yaml`; an `ExecStartPre` on the container service substitutes the real key from this file right before each start, so it never reaches the Nix store |
 | `custom.mediaManager` | tinyMediaManager, naming and scraping the library Jellyfin serves |
 
 ### Game server

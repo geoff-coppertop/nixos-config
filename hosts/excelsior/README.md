@@ -278,6 +278,11 @@ servers — that's a router-side step, not managed by this repo.
 - **ARM mounts the disc itself, which needs `CAP_SYS_ADMIN`** — dropped by
   default without `--privileged`. `custom.autoRip.extraOptions` adds it
   back.
+- **ARM has no metadata provider key by default**, so it can't identify
+  discs — they land in `completed/unidentified/`. `custom.autoRip.tmdbApiKeyFile`
+  fixes this.
+- **ARM's default `HB_ARGS` only kept forced subtitles, not English ones.**
+  Pinned via `custom.autoRip.settings.HB_ARGS_DVD`/`HB_ARGS_BD`.
 - **The `sg` kernel module (needed for MakeMKV/Blu-ray) isn't loaded by
   default, only `bsg`.** `hardware.nix` loads it. `/dev/sg1` is this drive,
   `/dev/sg0` an unrelated SATA device — re-check via `readlink -f
