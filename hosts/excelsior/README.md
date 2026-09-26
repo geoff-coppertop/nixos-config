@@ -55,7 +55,6 @@ onward (same as enterprise-d).
 | DCS start/stop control | `https://dcs-control.coppertop.ca` (no auth yet, same source-IP-only posture as DCS webtop desktop above) |
 | Jellyfin | `https://jellyfin.coppertop.ca` (proxied cross-host; its own accounts are the auth) |
 | Automatic Ripping Machine | `https://rip.coppertop.ca` (proxied cross-host, gated by Authelia forward-auth on reliant; ARM's own login screen is off — `custom.autoRip.disableLogin`) |
-| tinyMediaManager | `https://library.coppertop.ca` (proxied cross-host, gated by Authelia forward-auth on reliant) |
 | Factorio ("CGWANO") | in-game server browser (LAN broadcast), `excelsior.local:34197` on the LAN, or `factorio.coppertop.ca:34197` for remote friends once `custom.ddns` (see `docs/homelab-network.md` § Dynamic DNS) is applied on reliant and the router port-forwards UDP 34197 to this host — joining requires the in-game password (agenix secret, see Known Gotchas) |
 
 ### Ports
@@ -71,7 +70,6 @@ Rule](../../docs/architecture.md#placement-rule)).
 | 53 | udp | DNS (AdGuard Home → unbound), `custom.dns` | LAN/WAN (firewall open; TCP 53 deliberately not opened) |
 | 3000 | tcp | AdGuard Home admin UI, `custom.dns` (upstream default) | Bound `0.0.0.0`, `openFirewall = false`; reliant only (firewall-restricted to `192.168.20.15`; proxied at `dns2.coppertop.ca`) |
 | 3001 | tcp | DCS webtop web desktop, `custom.dcsServer.desktopPort` — overridden from the module default (3000), which AdGuard's admin UI holds here | Bound to `192.168.1.10` (`desktopBindAddress`); reliant only (firewall-restricted); proxied at `dcs.coppertop.ca` |
-| 4000 | tcp | tinyMediaManager web UI, `custom.mediaManager.webPort` | Bound `0.0.0.0`, `openFirewall = false`; reliant only (firewall-restricted; proxied at `library.coppertop.ca`) |
 | 5002 | tcp+udp | DCS-SRS voice (separate `dcs-srs-server` container), `custom.dcsServer.srs.port` | LAN/WAN (firewall open) |
 | 5335 | tcp+udp | unbound bypass (skips AdGuard filtering), `custom.dns` | LAN/WAN (firewall open) |
 | 5353 | udp | avahi/mDNS, `profiles/common/networking.nix` (`openFirewall = true`) | LAN (firewall open) — what makes `excelsior.local` resolve for deploys |
@@ -130,7 +128,8 @@ Start/Stop And Remote Control.
 | DCS-SRS | No manual step — separate `dcs-srs-server` container starts on its own |
 | AdGuard Home | Complete the setup wizard; set upstream DNS to `127.0.0.1:5335` (same as reliant) |
 | Factorio | No manual step — `services.factorio` generates a default save under `/var/lib/factorio/saves` on first start |
-| Automatic Ripping Machine | Create `raw/`, `transcode/`, `completed/` on the NAS media share first — ARM doesn't create them and fails with `No such file or directory` otherwise: `ssh thomasga@excelsior.local sudo mkdir -p /mnt/media/{raw,transcode,completed}` (needs `sudo`: the CIFS mount forces `uid=5000,gid=5000`, which `thomasga` isn't) |
+| Automatic Ripping Machine | No manual step — `completed/` (like `raw/`/`transcode/`) is local disk (`custom.autoRip.stateDir`), created by its own `tmpfiles.rules`. `movies/`/`tv/` on the NAS share are created lazily by `custom.mediaSort`'s own first sort |
+| tinyMediaManager | Nothing manual, and nothing to scan by hand either — `custom.mediaManager.movieDataSources`/`tvShowDataSources` write its Data Sources declaratively, and `custom.mediaSort` triggers its headless `--updateSources --scrapeUnscraped` run right after every sort (`systemd`'s `OnSuccess=`, see `hosts/excelsior/media.nix`). There is no tmm web UI to check anymore — see Known Gotchas |
 
 After DCS login is saved, set `custom.dcsServer.autoStart = true;` and
 rebuild so the DCS server launches with the container.
@@ -282,7 +281,16 @@ servers — that's a router-side step, not managed by this repo.
   discs — they land in `completed/unidentified/`. `custom.autoRip.tmdbApiKeyFile`
   fixes this.
 - **ARM's default `HB_ARGS` only kept forced subtitles, not English ones.**
-  Pinned via `custom.autoRip.settings.HB_ARGS_DVD`/`HB_ARGS_BD`.
+  Pinned via `custom.autoRip.settings.HB_ARGS_DVD`/`HB_ARGS_BD`. The default
+  `HB_PRESET_DVD`/`HB_PRESET_BD` are also overridden, to H.265/HEVC presets
+  for smaller output at comparable quality.
+- **ARM nests its own output one level deeper than `COMPLETED_PATH` itself** — confirmed live: `completed/movies/<title>`, `completed/unidentified/<title>`, not `completed/<title>` directly. `custom.mediaSort` searches for the basename of ARM's `job.path` under `completed/` (up to two levels deep) rather than assuming a fixed relative location, since `job.video_type` from the database is the authoritative movie/series answer regardless of which of ARM's own bucket names it landed under. An unidentified disc (`video_type` outside `movie`/`series`) is left alone in `completed/` for manual sorting.
+- **ARM's `DELRAWFILES` only deletes raw/transcode scratch after a *successful* job** — confirmed against ARM's own source. A failed or aborted rip leaves it behind forever with no cleanup of its own. `custom.autoRip.scratchMaxAgeDays` (default 3 days) is the safety net.
+- **`custom.autoRip.hardwareEncode`'s QSV HEVC encoder is less compression-efficient than software x265** — output runs larger than the `HB_PRESET_*` names alone suggest.
+- **`pkgs.intel-media-sdk` is nixpkgs-marked insecure** (EOL, 5 known local privilege-escalation CVEs) — confirmed live via CI refusing to evaluate otherwise. `vpl-gpu-rt`, the non-insecure successor, only supports Xe/Alderlake+ GPUs, not this host's Skylake HD 530, so there is no non-insecure nixpkgs path to the MFX dispatch layer on this hardware. `pkgs.intel-media-driver` (the actual VA-API driver, required alongside it — libva has nothing to initialise against otherwise) is not insecure. Permitted knowingly in `modules/auto-rip.nix`'s `hardwareEncode` block.
+- **`pkgs/handbrake-qsv.nix` forces `-Wno-error=format-security`** — building from source (required for `--enable-qsv`) hits a real upstream bug nixpkgs' own cached binary never does: `libhb/compat.c` passes a non-literal format string to `snprintf`, which `--harden`'s `-Werror=format-security` turns into a build failure. Confirmed live via CI, unrelated to QSV/libva/libvpl themselves.
+- **tinyMediaManager has no web UI anymore, by design.** `custom.mediaManager` overrides the image's own CMD to run its CLI (`--updateSources --scrapeUnscraped`) instead of its GUI, and the container only ever starts via `custom.mediaSort`'s `OnSuccess=` — confirmed live that the GUI and a `podman exec`'d CLI run would otherwise fight over tmm's own single-instance lock on its config folder. A wrong scrape match now needs a one-off interactive run (temporarily set `cmd` back, or run the image manually) rather than the always-on `library.coppertop.ca`, which no longer exists (see reliant's own README/config for that removal).
+- **`import-disc` requires `--type movie|tv`, and `tv` also requires `--show`/`--season`** — it has no metadata source of its own (no TMDB lookup like ARM, no job database), so it can't infer movie vs. TV or season/episode structure; the operator supplies it at import time. Output lands under `custom.mediaRipping.importDir` (`movies/<title>/` or `tv/<show>/Season N/`), which `custom.mediaSort`'s `importDir` leg merges straight into the library on its next run — no per-item classification needed, since the bucket the operator chose already is the classification.
 - **The `sg` kernel module (needed for MakeMKV/Blu-ray) isn't loaded by
   default, only `bsg`.** `hardware.nix` loads it. `/dev/sg1` is this drive,
   `/dev/sg0` an unrelated SATA device — re-check via `readlink -f

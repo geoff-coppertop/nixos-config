@@ -3,9 +3,9 @@ _: {
   # Runs on reliant (the hub); the apex DNS record and cert are wired in
   # configuration.nix and the traefik module.
   #
-  # The ARM and tinyMediaManager links point at excelsior via this host's
-  # cross-host Traefik routes and only resolve once that work (a separate
-  # PR) is also deployed.
+  # The ARM link points at excelsior via this host's cross-host Traefik
+  # routes and only resolves once that work (a separate PR) is also
+  # deployed.
   custom.homepage.enable = true;
 
   services.homepage-dashboard = {
@@ -28,12 +28,6 @@ _: {
             "Ripping (ARM)" = {
               href = "https://rip.coppertop.ca";
               description = "Disc rip queue";
-            };
-          }
-          {
-            "tinyMediaManager" = {
-              href = "https://library.coppertop.ca";
-              description = "Library metadata";
             };
           }
         ];

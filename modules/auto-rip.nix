@@ -8,6 +8,8 @@
   mkTraefikRoute = import ../lib/traefik-route.nix;
   cfg = config.custom.autoRip;
 
+  handbrakeQsv = pkgs.callPackage ../pkgs/handbrake-qsv.nix {};
+
   tz =
     if config.time.timeZone != null
     then config.time.timeZone
@@ -35,10 +37,36 @@
     {
       INSTALLPATH = "/opt/arm/";
       DISABLE_LOGIN = cfg.disableLogin;
+      # ARM's own defaults put all three under mediaDir (the NAS mount) --
+      # pinning all three to stateDir keeps every ARM write local. The only
+      # network transfer left is custom.mediaSort's own push of a finished,
+      # already-classified file straight into movies/ or tv/, once, instead
+      # of ARM crossing the network first and mediaSort shuffling it a
+      # second time on the same share (confirmed live: that second shuffle,
+      # implemented as an rsync round-trip rather than a same-device rename,
+      # cost 11+ minutes moving 4 titles that were already on the NAS).
+      RAW_PATH = "/home/arm/raw/";
+      TRANSCODE_PATH = "/home/arm/transcode/";
+      # ARM's own default (confirmed against its source, arm/ripper/main.py's
+      # delete_raw_files() call): raw MakeMKV output is deleted after a
+      # *successful* transcode+move. A failed or aborted job leaves it
+      # behind forever -- nothing in ARM cleans that up. scratchMaxAgeDays
+      # below is the safety net for that case.
+      DELRAWFILES = true;
+      # A landing zone, not a library folder, and deliberately neither
+      # movies/ nor tv/: ARM only has one COMPLETED_PATH, so it can't split
+      # output by type itself, and defaulting to one of the two real folders
+      # would let tmm scan a still-misclassified item before custom.mediaSort
+      # moves it. Neither library folder sees anything until it's sorted.
+      COMPLETED_PATH = "/home/arm/completed/";
     }
     // optionalAttrs (cfg.tmdbApiKeyFile != null) {
       METADATA_PROVIDER = "tmdb";
       TMDB_API_KEY = "@TMDB_API_KEY@";
+    }
+    // optionalAttrs cfg.hardwareEncode {
+      HANDBRAKE_CLI = "${handbrakeQsv}/bin/HandBrakeCLI";
+      HANDBRAKE_LOCAL = "${handbrakeQsv}/bin/HandBrakeCLI";
     }
     // cfg.settings;
 
@@ -76,13 +104,25 @@ in {
 
     mediaDir = mkOption {
       type = types.str;
-      description = "Directory ARM writes finished rips to; point this at the Jellyfin media share.";
+      description = "The Jellyfin media share, mounted into the container at /home/arm/media. ARM itself no longer writes here directly -- COMPLETED_PATH is local (see stateDir) -- this is custom.mediaSort's eventual destination and whatever else ARM's own UI browses under /home/arm/media.";
     };
 
     stateDir = mkOption {
       type = types.str;
       default = "/var/lib/arm";
       description = "Base directory for ARM's config, logs, database, and CD music output.";
+    };
+
+    scratchMaxAgeDays = mkOption {
+      type = types.int;
+      default = 3;
+      description = "A daily timer deletes anything under stateDir's raw/transcode scratch older than this. A healthy job never lives there this long (DELRAWFILES only cleans up on success), so this is the safety net for a failed or aborted one.";
+    };
+
+    hardwareEncode = mkOption {
+      type = types.bool;
+      default = false;
+      description = "Use a QSV-enabled HandBrakeCLI (pkgs/handbrake-qsv.nix) instead of the image's own: passes /dev/dri, the host Nix store, and the render group's GID into the container, and adds pkgs.intel-media-sdk to hardware.graphics.extraPackages (legacy pre-Xe Intel iGPUs; override for a newer GPU needing vpl-gpu-rt). Also needs a HandBrake preset/HB_ARGS naming a qsv_h264/qsv_h265 encoder -- picking a plain x264/x265 preset here still runs in software even with this on.";
     };
 
     opticalDrive = mkOption {
@@ -206,6 +246,9 @@ in {
               "${cfg.stateDir}/logs:/home/arm/logs"
               "${cfg.stateDir}/db:/home/arm/db"
               "${cfg.stateDir}/music:/home/arm/Music"
+              "${cfg.stateDir}/raw:/home/arm/raw"
+              "${cfg.stateDir}/transcode:/home/arm/transcode"
+              "${cfg.stateDir}/completed:/home/arm/completed"
               "${cfg.mediaDir}:/home/arm/media"
             ];
 
@@ -217,18 +260,6 @@ in {
       };
 
       environment.systemPackages = [armRip];
-
-      # ARM's state dirs must exist and be owned by the container UID/GID before
-      # the container starts. mediaDir is intentionally left out: it is expected
-      # to be a NAS mount whose ownership is governed by the mount, not here.
-      systemd.tmpfiles.rules = [
-        "d ${cfg.stateDir} 0755 root root -"
-        "d ${cfg.stateDir}/home 0775 ${uid} ${gid} -"
-        "d ${cfg.stateDir}/config 0775 ${uid} ${gid} -"
-        "d ${cfg.stateDir}/logs 0775 ${uid} ${gid} -"
-        "d ${cfg.stateDir}/db 0775 ${uid} ${gid} -"
-        "d ${cfg.stateDir}/music 0775 ${uid} ${gid} -"
-      ];
 
       # arm.yaml can't be symlinked into the store (the container only sees
       # ${cfg.stateDir}/config, not /nix/store, so a store symlink would
@@ -248,11 +279,53 @@ in {
         '';
       };
 
-      # The config is read once at ARM's import time, so a changed arm.yaml
-      # only takes effect when the container restarts.
-      systemd.services."podman-${cfg.containerName}".restartTriggers = [armConfigFile];
-
       networking.firewall.allowedTCPPorts = mkIf cfg.openFirewall [cfg.webPort];
+
+      systemd = {
+        # ARM's state dirs must exist and be owned by the container UID/GID
+        # before the container starts. mediaDir is intentionally left out:
+        # it is expected to be a NAS mount whose ownership is governed by
+        # the mount, not here.
+        tmpfiles.rules = [
+          "d ${cfg.stateDir} 0755 root root -"
+          "d ${cfg.stateDir}/home 0775 ${uid} ${gid} -"
+          "d ${cfg.stateDir}/config 0775 ${uid} ${gid} -"
+          "d ${cfg.stateDir}/logs 0775 ${uid} ${gid} -"
+          "d ${cfg.stateDir}/db 0775 ${uid} ${gid} -"
+          "d ${cfg.stateDir}/music 0775 ${uid} ${gid} -"
+          "d ${cfg.stateDir}/raw 0775 ${uid} ${gid} -"
+          "d ${cfg.stateDir}/transcode 0775 ${uid} ${gid} -"
+          "d ${cfg.stateDir}/completed 0775 ${uid} ${gid} -"
+        ];
+
+        services = {
+          # The config is read once at ARM's import time, so a changed
+          # arm.yaml only takes effect when the container restarts.
+          "podman-${cfg.containerName}".restartTriggers = [armConfigFile];
+
+          arm-scratch-cleanup = {
+            description = "Delete ARM's raw/transcode scratch older than scratchMaxAgeDays";
+            serviceConfig = {
+              Type = "oneshot";
+              ExecStart = toString (pkgs.writeShellScript "arm-scratch-cleanup" ''
+                set -euo pipefail
+                find ${cfg.stateDir}/raw ${cfg.stateDir}/transcode -mindepth 1 -maxdepth 1 \
+                  -mtime +${toString cfg.scratchMaxAgeDays} -print -exec rm -rf {} +
+              '');
+              User = uid;
+              Group = gid;
+            };
+          };
+        };
+
+        timers.arm-scratch-cleanup = {
+          wantedBy = ["timers.target"];
+          timerConfig = {
+            OnCalendar = "daily";
+            Persistent = true;
+          };
+        };
+      };
     }
 
     # Same secret-injection pattern as modules/ddns.nix.
@@ -264,6 +337,52 @@ in {
           sed -i "s|@TMDB_API_KEY@|$key|" ${cfg.stateDir}/config/arm.yaml
         ''))
       ];
+    })
+
+    (mkIf cfg.hardwareEncode {
+      # intel-media-sdk alone isn't a VA-API driver -- it's oneVPL's legacy
+      # MFX dispatch library. intel-media-driver (iHD) is the actual driver
+      # libva initialises against; confirmed against its own README that it
+      # supports Skylake for HEVC encode (shader-based, needs HuC firmware,
+      # already covered by this host's existing firmware config).
+      hardware.graphics.extraPackages = [pkgs.intel-media-sdk pkgs.intel-media-driver];
+
+      # intel-media-sdk is nixpkgs-marked insecure -- EOL, 5 known local
+      # privilege-escalation CVEs (2023-22656/45221/47169/47282/48368).
+      # Accepted knowingly: the CVEs are local-privesc inside a podman
+      # container with GPU passthrough, a narrower blast radius than a
+      # bare-metal install. Confirmed live via CI (nix flake check refusing
+      # to evaluate otherwise); version string must track
+      # pkgs.intel-media-sdk's actual version or this silently stops
+      # matching and CI refuses again.
+      nixpkgs.config.permittedInsecurePackages = ["intel-media-sdk-23.2.2"];
+
+      # NixOS doesn't reliably predefine a "render" group (confirmed:
+      # tracked upstream as "Specified group 'render' unknown"), but udev's
+      # own default rule still assigns /dev/dri/renderD128 to whatever GID
+      # the group *named* "render" has -- so declaring it ourselves with a
+      # fixed GID keeps both sides (the device's real group, and the
+      # container's --group-add below) at the same eval-time-known value.
+      users.groups.render.gid = 303;
+
+      virtualisation.oci-containers.containers.${cfg.containerName} = {
+        volumes = ["/nix/store:/nix/store:ro"];
+        extraOptions = [
+          "--device=/dev/dri:/dev/dri"
+          "--group-add=${toString config.users.groups.render.gid}"
+        ];
+
+        # ARM's container is a foreign (non-NixOS) rootfs -- it has no
+        # /run/opengl-driver symlink for libva's default search convention,
+        # only whatever this /nix/store bind mount exposes. Point it at
+        # intel-media-driver's own output directly instead of relying on
+        # any default; confirmed live this was the actual missing piece
+        # ("Failed to initialise VAAPI connection" with nothing else set).
+        environment = {
+          LIBVA_DRIVER_NAME = "iHD";
+          LIBVA_DRIVERS_PATH = "${pkgs.intel-media-driver}/lib/dri";
+        };
+      };
     })
 
     # Self-register a Traefik route when this host itself runs Traefik. The
