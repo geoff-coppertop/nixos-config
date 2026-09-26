@@ -4,7 +4,7 @@
   pkgs,
   ...
 }: let
-  inherit (lib) mkEnableOption mkIf mkMerge mkOption types;
+  inherit (lib) mkBefore mkEnableOption mkIf mkMerge mkOption optionalAttrs types;
   mkTraefikRoute = import ../lib/traefik-route.nix;
   cfg = config.custom.autoRip;
 
@@ -30,10 +30,15 @@
   #   * INSTALLPATH is the one key the loader dereferences before the merge
   #     (cur_cfg["INSTALLPATH"], no .get), so it must always be written out.
   # `settings` is applied last so a host can override even these.
+  # TMDB_API_KEY is a placeholder; see the tmdbApiKeyFile mkIf block below.
   armSettings =
     {
       INSTALLPATH = "/opt/arm/";
       DISABLE_LOGIN = cfg.disableLogin;
+    }
+    // optionalAttrs (cfg.tmdbApiKeyFile != null) {
+      METADATA_PROVIDER = "tmdb";
+      TMDB_API_KEY = "@TMDB_API_KEY@";
     }
     // cfg.settings;
 
@@ -159,6 +164,12 @@ in {
       example = ["--group-add" "cdrom"];
       description = "Extra arguments appended to the podman run command, e.g. --group-add if ARM's user cannot reach the passed device.";
     };
+
+    tmdbApiKeyFile = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      description = "Path to a file holding a TMDb API Key (v3, not the v4 Read Access Token). Without it, ARM can't identify discs.";
+    };
   };
 
   config = mkIf cfg.enable (mkMerge [
@@ -243,6 +254,17 @@ in {
 
       networking.firewall.allowedTCPPorts = mkIf cfg.openFirewall [cfg.webPort];
     }
+
+    # Same secret-injection pattern as modules/ddns.nix.
+    (mkIf (cfg.tmdbApiKeyFile != null) {
+      systemd.services."podman-${cfg.containerName}".serviceConfig.ExecStartPre = mkBefore [
+        (toString (pkgs.writeShellScript "arm-tmdb-api-key" ''
+          set -euo pipefail
+          key=$(cat "${cfg.tmdbApiKeyFile}")
+          sed -i "s|@TMDB_API_KEY@|$key|" ${cfg.stateDir}/config/arm.yaml
+        ''))
+      ];
+    })
 
     # Self-register a Traefik route when this host itself runs Traefik. The
     # host adds any auth middleware (ARM's own auth is weak). When a

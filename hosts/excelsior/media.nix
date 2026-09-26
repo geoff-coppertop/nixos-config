@@ -1,4 +1,4 @@
-_: let
+{config, ...}: let
   nas = import ../../lib/nas.nix;
 
   # reliant's reserved LAN IP — the only host allowed to reach the ports
@@ -102,6 +102,15 @@ in {
       # user -- dropped by default without --privileged (which this module
       # deliberately avoids).
       extraOptions = ["--cap-add=SYS_ADMIN"];
+
+      # ARM's default HB_ARGS only kept *forced* subtitles, not English ones.
+      settings = {
+        HB_ARGS_DVD = "--subtitle-lang-list eng --all-subtitles";
+        HB_ARGS_BD = "--subtitle-lang-list eng --all-subtitles --audio-lang-list eng --all-audio";
+      };
+
+      # Needed for disc identification; see custom.autoRip.tmdbApiKeyFile.
+      tmdbApiKeyFile = config.age.secrets."arm/tmdb-api-key".path;
     };
 
     # Organize existing rips (and fix ARM's output) into consistent,

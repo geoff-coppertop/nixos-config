@@ -304,6 +304,13 @@ secret into that file at service start, the same pattern
 comments): the raw token never touches the Nix store, only
 `/run/agenix/hass/aqicn-token`.
 
+### ARM disc-identification key
+
+`arm/tmdb-api-key.age` (recipient: `excelsior`) is a single line, the TMDb
+API Key (v3 auth, not the v4 Read Access Token), no prefix or quotes. Backs
+`custom.autoRip.tmdbApiKeyFile`, same injection pattern as
+`hass/aqicn-token.age` above.
+
 `zwave/secrets.age` must look exactly like this:
 
 ```json

@@ -50,5 +50,8 @@ _: {
     # across hosts.
     "adguardhome/restic-password".file = ../../secrets/adguardhome/restic-password.age;
     "thomasga/restic-password".file = ../../secrets/thomasga/restic-password.age;
+
+    # No owner: read by podman-arm's ExecStartPre, which runs as root.
+    "arm/tmdb-api-key".file = ../../secrets/arm/tmdb-api-key.age;
   };
 }

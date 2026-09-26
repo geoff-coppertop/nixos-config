@@ -124,4 +124,6 @@ in {
   # shared with defiant like the hass/* secrets above, since reliant is the
   # only host running this integration.
   "hass/aqicn-token.age".publicKeys = [reliant offlineAdmin];
+  # TMDb API key for custom.autoRip.tmdbApiKeyFile.
+  "arm/tmdb-api-key.age".publicKeys = [excelsior offlineAdmin];
 }
