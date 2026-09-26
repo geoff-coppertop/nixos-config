@@ -364,13 +364,12 @@ in {
       # modules/home-assistant.nix, modules/adsb.nix, modules/zigbee.nix,
       # modules/bambuddy.nix), which they now are, above.
       # dns1 is this host's own AdGuard admin UI; dns2, dcs, dcs-control,
-      # jellyfin, rip, and library are cross-host routers to excelsior
-      # (AdGuard admin UI, DCS's webtop desktop, DCS on-demand control page,
-      # Jellyfin, Automatic Ripping Machine, and tinyMediaManager
-      # respectively), defined by hand below.
+      # jellyfin, and rip are cross-host routers to excelsior (AdGuard admin
+      # UI, DCS's webtop desktop, DCS on-demand control page, Jellyfin, and
+      # Automatic Ripping Machine respectively), defined by hand below.
       # "ad" (lldap's own admin UI) and "auth" (Authelia's own portal) are
       # self-registered by custom.lldap/custom.authelia below.
-      subdomains = ["home" "dns1" "dns2" "dcs" "dcs-control" "jellyfin" "rip" "library" "adsb" "zigbee" "bambuddy" "ad" "auth"];
+      subdomains = ["home" "dns1" "dns2" "dcs" "dcs-control" "jellyfin" "rip" "adsb" "zigbee" "bambuddy" "ad" "auth"];
       # Renamed from the module default "dns", carried from defiant — dns1
       # (this host) and dns2 (excelsior) pair the two AdGuard instances.
       adminSubdomain = "dns1";
@@ -444,10 +443,9 @@ in {
       # dns1/dns2 (AdGuard admin UIs), zigbee (Zigbee2MQTT), dcs (excelsior's
       # DCS webtop desktop), dcs-control (excelsior's DCS start/stop control
       # page -- NOT its /hooks webhook, see dcsControlHooks below), bambuddy
-      # (the 3D-printer control UI), rip (ARM), and library (tinyMediaManager)
-      # are gated by Authelia's forward-auth middleware -- see
-      # docs/homelab-network.md § Authelia Forward-Auth for rip/library's own
-      # auth situation.
+      # (the 3D-printer control UI), and rip (ARM) are gated by Authelia's
+      # forward-auth middleware -- see docs/homelab-network.md § Authelia
+      # Forward-Auth for rip's own auth situation.
       # home (Home Assistant) is deliberately NOT here: forward-auth is the
       # wrong mechanism for a service with its own real login -- gating it
       # this way would just add a redundant second login in front of HA's
@@ -467,7 +465,7 @@ in {
       # module for a same-shaped cross-domain need. Never lldap's own admin
       # UI ("ad") or Authelia's own portal ("auth") -- see
       # docs/homelab-network.md § Self-Lockout Rule.
-      protectedSubdomains = ["dns1" "dns2" "zigbee" "dcs" "dcs-control" "bambuddy" "rip" "library"];
+      protectedSubdomains = ["dns1" "dns2" "zigbee" "dcs" "dcs-control" "bambuddy" "rip"];
 
       # Authelia as an OpenID Connect 1.0 provider, for Home Assistant's real
       # SSO -- a separate capability from the forward-auth gate above, not a
@@ -567,10 +565,9 @@ in {
   # restriction on excelsior's side (hosts/excelsior/media.nix) still limits
   # the raw port to this host only, matching the others' pattern.
   #
-  # rip.coppertop.ca / library.coppertop.ca: excelsior's ARM and
-  # tinyMediaManager admin UIs, same cross-host pattern, gated by
-  # authelia@file as the single SSO front door regardless of either app's
-  # own login -- see docs/homelab-network.md § Authelia Forward-Auth.
+  # rip.coppertop.ca: excelsior's ARM admin UI, same cross-host pattern,
+  # gated by authelia@file as the single SSO front door regardless of the
+  # app's own login -- see docs/homelab-network.md § Authelia Forward-Auth.
   services.traefik.dynamicConfigOptions.http = {
     routers = {
       dns2 = {
@@ -631,13 +628,6 @@ in {
         tls = {};
         middlewares = ["authelia@file"];
       };
-
-      library = {
-        rule = "Host(`library.coppertop.ca`)";
-        service = "library";
-        tls = {};
-        middlewares = ["authelia@file"];
-      };
     };
 
     services = {
@@ -647,7 +637,6 @@ in {
       dcsDesktop.loadBalancer.servers = [{url = "http://192.168.1.10:3001";}];
       jellyfin.loadBalancer.servers = [{url = "http://192.168.1.10:8096";}];
       rip.loadBalancer.servers = [{url = "http://192.168.1.10:8080";}];
-      library.loadBalancer.servers = [{url = "http://192.168.1.10:4000";}];
     };
   };
 

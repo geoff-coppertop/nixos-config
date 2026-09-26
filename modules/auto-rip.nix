@@ -340,18 +340,21 @@ in {
     })
 
     (mkIf cfg.hardwareEncode {
-      hardware.graphics.extraPackages = [pkgs.intel-media-sdk];
+      # intel-media-sdk alone isn't a VA-API driver -- it's oneVPL's legacy
+      # MFX dispatch library. intel-media-driver (iHD) is the actual driver
+      # libva initialises against; confirmed against its own README that it
+      # supports Skylake for HEVC encode (shader-based, needs HuC firmware,
+      # already covered by this host's existing firmware config).
+      hardware.graphics.extraPackages = [pkgs.intel-media-sdk pkgs.intel-media-driver];
 
       # intel-media-sdk is nixpkgs-marked insecure -- EOL, 5 known local
       # privilege-escalation CVEs (2023-22656/45221/47169/47282/48368).
-      # vpl-gpu-rt (the non-insecure successor) only supports Xe/Alderlake+
-      # GPUs, not this host's Skylake HD 530, so there is no non-insecure
-      # nixpkgs path to QSV on this hardware. Accepted knowingly: the CVEs
-      # are local-privesc inside a podman container with GPU passthrough, a
-      # narrower blast radius than a bare-metal install. Confirmed live via
-      # CI (nix flake check refusing to evaluate otherwise); version string
-      # must track pkgs.intel-media-sdk's actual version or this silently
-      # stops matching and CI refuses again.
+      # Accepted knowingly: the CVEs are local-privesc inside a podman
+      # container with GPU passthrough, a narrower blast radius than a
+      # bare-metal install. Confirmed live via CI (nix flake check refusing
+      # to evaluate otherwise); version string must track
+      # pkgs.intel-media-sdk's actual version or this silently stops
+      # matching and CI refuses again.
       nixpkgs.config.permittedInsecurePackages = ["intel-media-sdk-23.2.2"];
 
       # NixOS doesn't reliably predefine a "render" group (confirmed:
@@ -368,6 +371,17 @@ in {
           "--device=/dev/dri:/dev/dri"
           "--group-add=${toString config.users.groups.render.gid}"
         ];
+
+        # ARM's container is a foreign (non-NixOS) rootfs -- it has no
+        # /run/opengl-driver symlink for libva's default search convention,
+        # only whatever this /nix/store bind mount exposes. Point it at
+        # intel-media-driver's own output directly instead of relying on
+        # any default; confirmed live this was the actual missing piece
+        # ("Failed to initialise VAAPI connection" with nothing else set).
+        environment = {
+          LIBVA_DRIVER_NAME = "iHD";
+          LIBVA_DRIVERS_PATH = "${pkgs.intel-media-driver}/lib/dri";
+        };
       };
     })
 

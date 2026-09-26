@@ -24,54 +24,55 @@
   mediaSort = pkgs.writeShellApplication {
     name = "media-sort";
     runtimeInputs = [pkgs.sqlite pkgs.jq pkgs.rsync];
-    text = ''
-      sqlite3 -json ${cfg.dbFile} \
-        "SELECT path, video_type FROM job WHERE status = 'success' AND video_type IN ('movie', 'series')" |
-        jq -c '.[]' |
-        while read -r row; do
-          path=$(jq -r '.path' <<<"$row")
-          video_type=$(jq -r '.video_type' <<<"$row")
+    text =
+      ''
+        sqlite3 -json ${cfg.dbFile} \
+          "SELECT path, video_type FROM job WHERE status = 'success' AND video_type IN ('movie', 'series')" |
+          jq -c '.[]' |
+          while read -r row; do
+            path=$(jq -r '.path' <<<"$row")
+            video_type=$(jq -r '.video_type' <<<"$row")
 
-          # ARM nests output under its own subfolders (completedDir/movies/,
-          # completedDir/unidentified/, ...) rather than completedDir
-          # directly -- confirmed live. video_type from the database is
-          # authoritative regardless of which of ARM's own bucket names it
-          # landed under, so search for it instead of assuming a fixed
-          # relative path.
-          src=$(find "${cfg.completedDir}" -mindepth 1 -maxdepth 3 -type d -name "$(basename "$path")" -print -quit)
-          [ -n "$src" ] || continue # already sorted, or nothing landed under this name
+            # ARM nests output under its own subfolders (completedDir/movies/,
+            # completedDir/unidentified/, ...) rather than completedDir
+            # directly -- confirmed live. video_type from the database is
+            # authoritative regardless of which of ARM's own bucket names it
+            # landed under, so search for it instead of assuming a fixed
+            # relative path.
+            src=$(find "${cfg.completedDir}" -mindepth 1 -maxdepth 3 -type d -name "$(basename "$path")" -print -quit)
+            [ -n "$src" ] || continue # already sorted, or nothing landed under this name
 
-          case "$video_type" in
-            movie) dest_dir="${cfg.mediaDir}/movies" ;;
-            series) dest_dir="${cfg.mediaDir}/tv" ;;
-            *) continue ;;
-          esac
+            case "$video_type" in
+              movie) dest_dir="${cfg.mediaDir}/movies" ;;
+              series) dest_dir="${cfg.mediaDir}/tv" ;;
+              *) continue ;;
+            esac
 
-          dest="$dest_dir/$(basename "$src")"
-          echo "Sorting $(basename "$src") -> $dest_dir/"
-          mkdir -p "$dest"
-          # --ignore-existing: never overwrite something tmm already renamed
-          # at the destination. -a merges into an existing same-named show
-          # folder instead of nesting (unlike mv, which would move src
-          # *inside* an existing dest).
-          rsync -a --ignore-existing --remove-source-files "$src"/ "$dest"/
-          find "$src" -depth -type d -empty -delete
+            dest="$dest_dir/$(basename "$src")"
+            echo "Sorting $(basename "$src") -> $dest_dir/"
+            mkdir -p "$dest"
+            # --ignore-existing: never overwrite something tmm already renamed
+            # at the destination. -a merges into an existing same-named show
+            # folder instead of nesting (unlike mv, which would move src
+            # *inside* an existing dest).
+            rsync -a --ignore-existing --remove-source-files "$src"/ "$dest"/
+            find "$src" -depth -type d -empty -delete
+          done
+      ''
+      # A second, DB-less leg for custom.mediaRipping's import-disc: it has no
+      # metadata source to classify by (no TMDB lookup, no arm.db row), so the
+      # operator already bucketed the files under importDir/movies/ or
+      # importDir/tv/<show>/Season N/ at import time -- the folder they chose
+      # to put it under *is* the classification, so this just merges those
+      # trees straight into the library, no per-item lookup needed.
+      + optionalString (cfg.importDir != null) ''
+        for bucket in movies tv; do
+          if [ -d "${cfg.importDir}/$bucket" ]; then
+            rsync -a --ignore-existing --remove-source-files "${cfg.importDir}/$bucket"/ "${cfg.mediaDir}/$bucket"/
+            find "${cfg.importDir}/$bucket" -depth -type d -empty -delete
+          fi
         done
-    ''
-    # A second, DB-less leg for custom.mediaRipping's import-disc: it has no
-    # metadata source to classify by (no TMDB lookup, no arm.db row), so the
-    # operator already bucketed the files under importDir/movies/ or
-    # importDir/tv/<show>/Season N/ at import time -- the folder they chose
-    # to put it under *is* the classification, so this just merges those
-    # trees straight into the library, no per-item lookup needed.
-    + optionalString (cfg.importDir != null) ''
-      for bucket in movies tv; do
-        if [ -d "${cfg.importDir}/$bucket" ]; then
-          rsync -a --ignore-existing --remove-source-files "${cfg.importDir}/$bucket"/ "${cfg.mediaDir}/$bucket"/
-          find "${cfg.importDir}/$bucket" -depth -type d -empty -delete
-        fi
-      done
-    '';
+      '';
   };
 in {
   options.custom.mediaSort = {
