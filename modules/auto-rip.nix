@@ -40,9 +40,11 @@
       # network; only the finished file below still crosses it.
       RAW_PATH = "/home/arm/raw/";
       TRANSCODE_PATH = "/home/arm/transcode/";
-      # A landing zone, not a library folder: ARM can't tell movies from TV,
-      # so finished rips still need sorting into mediaDir's movies/tv/ before
-      # tinyMediaManager scans them.
+      # A landing zone, not a library folder, and deliberately neither
+      # movies/ nor tv/: ARM only has one COMPLETED_PATH, so it can't split
+      # output by type itself, and defaulting to one of the two real folders
+      # would let tmm scan a still-misclassified item before custom.mediaSort
+      # moves it. Neither library folder sees anything until it's sorted.
       COMPLETED_PATH = "/home/arm/media/incoming/";
     }
     // optionalAttrs (cfg.tmdbApiKeyFile != null) {

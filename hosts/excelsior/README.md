@@ -131,7 +131,7 @@ Start/Stop And Remote Control.
 | AdGuard Home | Complete the setup wizard; set upstream DNS to `127.0.0.1:5335` (same as reliant) |
 | Factorio | No manual step — `services.factorio` generates a default save under `/var/lib/factorio/saves` on first start |
 | Automatic Ripping Machine | Create `incoming/`, `movies/`, `tv/` on the NAS media share first — nothing here creates them and ARM fails with `No such file or directory` otherwise: `ssh thomasga@excelsior.local sudo mkdir -p /mnt/media/{incoming,movies,tv}` (needs `sudo`: the CIFS mount forces `uid=5000,gid=5000`, which `thomasga` isn't). `raw/`/`transcode/` are local disk (`custom.autoRip.stateDir`), not on the NAS share |
-| tinyMediaManager | Nothing manual — `custom.mediaManager.movieDataSources`/`tvShowDataSources` write its Data Sources declaratively (merged into `movies.json`/`tvShows.json` on activation). ARM can't tell movies from TV apart, so a finished rip in `incoming/` still needs manually moving into `movies/` or `tv/` before running a library scan in the tmm UI |
+| tinyMediaManager | Nothing manual — `custom.mediaManager.movieDataSources`/`tvShowDataSources` write its Data Sources declaratively (merged into `movies.json`/`tvShows.json` on activation). `custom.mediaSort` sorts each finished rip out of `incoming/` into `movies/`/`tv/` on a timer (using ARM's own movie/series identification), so a library scan in the tmm UI is the only remaining manual step |
 
 After DCS login is saved, set `custom.dcsServer.autoStart = true;` and
 rebuild so the DCS server launches with the container.
@@ -284,6 +284,7 @@ servers — that's a router-side step, not managed by this repo.
   fixes this.
 - **ARM's default `HB_ARGS` only kept forced subtitles, not English ones.**
   Pinned via `custom.autoRip.settings.HB_ARGS_DVD`/`HB_ARGS_BD`.
+- **`custom.mediaSort` matches ARM's `job.path` by basename only, not the full path.** ARM's own `job.path` column (`arm/models/job.py`) is confirmed to exist and to record the output folder, but its exact string form (container-absolute vs. something else) isn't; matching just the final path component against `incoming/` sidesteps that without needing it confirmed. An unidentified disc (`video_type` outside `movie`/`series`) is left alone in `incoming/` for manual sorting.
 - **The `sg` kernel module (needed for MakeMKV/Blu-ray) isn't loaded by
   default, only `bsg`.** `hardware.nix` loads it. `/dev/sg1` is this drive,
   `/dev/sg0` an unrelated SATA device — re-check via `readlink -f

@@ -126,6 +126,18 @@ in {
       movieDataSources = ["/media/movies"];
       tvShowDataSources = ["/media/tv"];
     };
+
+    # ARM can't tell movies from TV apart, so its incoming/ output still
+    # needs sorting into the movies/tv/ split above before tmm can identify
+    # it -- this reuses ARM's own movie/series identification instead of
+    # re-guessing it.
+    mediaSort = {
+      enable = true;
+      dbFile = "${config.custom.autoRip.stateDir}/db/arm.db";
+      mediaDir = "/mnt/media";
+      uid = mediaUid;
+      gid = mediaGid;
+    };
   };
 
   networking.firewall.extraCommands = ''
