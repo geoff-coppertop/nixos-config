@@ -135,10 +135,9 @@ in {
         HB_PRESET_BD = "H.265 MKV 1080p30";
       };
 
-      # i5-6500T's HD 530 (Skylake, pre-Xe) does hardware HEVC encode.
-      # Untested end-to-end -- see modules/auto-rip.nix and
-      # pkgs/handbrake-qsv.nix, and confirm a real rip actually uses the GPU
-      # (e.g. intel_gpu_top) before trusting this on a production rip.
+      # i5-6500T's HD 530 (Skylake, pre-Xe) does hardware HEVC encode --
+      # confirmed live (real QSV encode, work result = 0). See
+      # modules/auto-rip.nix and pkgs/handbrake-qsv.nix.
       hardwareEncode = true;
 
       # Needed for disc identification; see custom.autoRip.tmdbApiKeyFile.
