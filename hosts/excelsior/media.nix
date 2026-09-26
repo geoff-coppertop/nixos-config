@@ -103,10 +103,19 @@ in {
       # deliberately avoids).
       extraOptions = ["--cap-add=SYS_ADMIN"];
 
-      # ARM's default HB_ARGS only kept *forced* subtitles, not English ones.
       settings = {
+        # ARM's default HB_ARGS only kept *forced* subtitles, not English ones.
         HB_ARGS_DVD = "--subtitle-lang-list eng --all-subtitles";
         HB_ARGS_BD = "--subtitle-lang-list eng --all-subtitles --audio-lang-list eng --all-audio";
+
+        # H.265/HEVC over ARM's H.264 defaults ("HQ 720p30 Surround"/"HQ
+        # 1080p30 Surround") -- meaningfully smaller output at comparable
+        # visual quality. Confirmed against HandBrake's own official preset
+        # list (handbrake.fr/docs, Matroska category) that these two names
+        # exist; HandBrake doesn't publish the RF/quality value each bakes
+        # in, so the exact size delta isn't known ahead of a real rip.
+        HB_PRESET_DVD = "H.265 MKV 720p30";
+        HB_PRESET_BD = "H.265 MKV 1080p30";
       };
 
       # Needed for disc identification; see custom.autoRip.tmdbApiKeyFile.

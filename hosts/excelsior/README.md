@@ -283,7 +283,9 @@ servers — that's a router-side step, not managed by this repo.
   discs — they land in `incoming/unidentified/`. `custom.autoRip.tmdbApiKeyFile`
   fixes this.
 - **ARM's default `HB_ARGS` only kept forced subtitles, not English ones.**
-  Pinned via `custom.autoRip.settings.HB_ARGS_DVD`/`HB_ARGS_BD`.
+  Pinned via `custom.autoRip.settings.HB_ARGS_DVD`/`HB_ARGS_BD`. The default
+  `HB_PRESET_DVD`/`HB_PRESET_BD` are also overridden, to H.265/HEVC presets
+  for smaller output at comparable quality.
 - **ARM nests its own output one level deeper than `COMPLETED_PATH` itself** — confirmed live: `incoming/movies/<title>`, `incoming/unidentified/<title>`, not `incoming/<title>` directly. `custom.mediaSort` searches for the basename of ARM's `job.path` under `incoming/` (up to two levels deep) rather than assuming a fixed relative location, since `job.video_type` from the database is the authoritative movie/series answer regardless of which of ARM's own bucket names it landed under. An unidentified disc (`video_type` outside `movie`/`series`) is left alone in `incoming/` for manual sorting.
 - **ARM's `DELRAWFILES` only deletes raw/transcode scratch after a *successful* job** — confirmed against ARM's own source. A failed or aborted rip leaves it behind forever with no cleanup of its own. `custom.autoRip.scratchMaxAgeDays` (default 3 days) is the safety net.
 - **The `sg` kernel module (needed for MakeMKV/Blu-ray) isn't loaded by
