@@ -210,6 +210,15 @@
         };
         doCheck = false;
       };
+
+      # Directly buildable so CI can resolve their store paths for
+      # `cachix pin` (ci.yml) without re-deriving the home-manager path.
+      bambu-studio = import ./pkgs/bambu-studio.nix {inherit pkgs;};
+      orca-slicer = import ./pkgs/orca-slicer.nix {inherit pkgs;};
+
+      # The stock package lib/trust-printer-ca.nix patches -- what CI
+      # actually pins (see ci.yml for why bambu-studio only).
+      bambu-studio-stock = pkgs.bambu-studio;
     };
 
     nixosConfigurations = {

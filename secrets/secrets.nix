@@ -119,11 +119,11 @@ in {
   # docs/secrets.md § Authelia OIDC (Home Assistant SSO).
   "authelia/oidc-client-secret-home-assistant-hash.age".publicKeys = [reliant offlineAdmin];
   "home-assistant/oidc-client-secret.age".publicKeys = [reliant offlineAdmin];
-  # AQICN API token for the outdoor-AQI REST sensor in
-  # hosts/reliant/home-assistant/climate-dashboard.nix — reliant only, not
-  # shared with defiant like the hass/* secrets above, since reliant is the
-  # only host running this integration.
+  # AQICN token for hosts/reliant/home-assistant/climate-dashboard.nix.
   "hass/aqicn-token.age".publicKeys = [reliant offlineAdmin];
   # TMDb API key for custom.autoRip.tmdbApiKeyFile.
   "arm/tmdb-api-key.age".publicKeys = [excelsior offlineAdmin];
+  # enterprise-d's own Cachix token, separate from CI's CACHIX_AUTH_TOKEN so
+  # each can be revoked independently. See docs/secrets.md § Cachix.
+  "cachix/write-token-enterprise-d.age".publicKeys = [enterprise-d offlineAdmin];
 }

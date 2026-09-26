@@ -18,17 +18,10 @@ on:
 # default GITHUB_TOKEN is read-only unless permissions are declared here,
 # so without this the comment step itself 403s and the real failure output
 # never reaches the PR — masked behind an unrelated HttpError instead.
-#
-# id-token: write is magic-nix-cache-action's requirement, used only by the
-# build job below (the one job whose derivations are worth caching across
-# runs — overrideAttrs-based packages like Bambu-family slicers have no
-# cache.nixos.org substitute, so every run rebuilds them from source
-# without this).
 permissions:
   contents: read
   issues: write
   pull-requests: write
-  id-token: write
 
 jobs:
   lint:
@@ -275,7 +268,14 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: DeterminateSystems/magic-nix-cache-action@v15
+      - uses: cachix/cachix-action@v17
+        with:
+          name: geoff-coppertop-nixos-config
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          # Debug-symbol outputs aren't part of the main output's closure
+          # (nixpkgs splits them precisely so runtime doesn't need them) and
+          # nothing here gdb-debugs these apps through this cache.
+          pushFilter: "-debug$"
 
       - name: build ${{ matrix.host }} (native)
         id: buildhost
@@ -304,3 +304,30 @@ jobs:
       - name: Fail if build failed
         if: steps.buildhost.outcome == 'failure'
         run: exit 1
+
+      # bambu-studio only: unfree, so it's the only slicer pushed to our
+      # own cache (orca-slicer is AGPL3, already on cache.nixos.org).
+      #
+      # Cachix's pin API is create-only, so re-pinning an unchanged path
+      # still burns a --keep-revisions slot. actions/cache, keyed on the
+      # store path, tracks whether this path is already pinned.
+      - name: resolve bambu-studio stock path
+        if: matrix.host == 'enterprise-d' && steps.buildhost.outcome == 'success'
+        id: bambu-stock
+        run: echo "path=$(nix build .#bambu-studio-stock --no-link --print-out-paths)" >> "$GITHUB_OUTPUT"
+
+      - name: check whether that path is already pinned
+        if: matrix.host == 'enterprise-d' && steps.buildhost.outcome == 'success'
+        id: pin-marker
+        uses: actions/cache@v4
+        with:
+          path: /tmp/cachix-pinned-bambu-studio
+          key: cachix-pin-bambu-studio-${{ steps.bambu-stock.outputs.path }}
+
+      - name: pin bambu-studio in Cachix
+        if: matrix.host == 'enterprise-d' && steps.buildhost.outcome == 'success' && steps.pin-marker.outputs.cache-hit != 'true'
+        env:
+          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+        run: |
+          cachix pin geoff-coppertop-nixos-config bambu-studio "${{ steps.bambu-stock.outputs.path }}" --keep-revisions 3
+          touch /tmp/cachix-pinned-bambu-studio

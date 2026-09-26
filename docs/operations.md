@@ -329,7 +329,7 @@ request, each job posting its output as a PR comment before failing:
 not — both depend on `changes`, which runs two derivation-diff scripts to
 decide what actually needs to happen for this push or PR.
 
-`build` alone installs Nix via `DeterminateSystems/nix-installer-action` paired with `DeterminateSystems/magic-nix-cache-action`, rather than the `cachix/install-nix-action` the other jobs use — GitHub Actions runners are ephemeral with no cross-run store, and the Bambu-family slicers (`pkgs/orca-slicer.nix`/`pkgs/bambu-studio.nix`) are unfree, so Hydra never builds them for `cache.nixos.org`; the stock package compiles from source on any runner that hasn't seen it before. `magic-nix-cache-action` caches that build across runs through GitHub's own Actions cache, no external account needed. `lib/trust-printer-ca.nix` patches the already-built stock output rather than rebuilding it (see that file's own header), so this repo's own commits no longer invalidate the cached entry — only a nixpkgs version bump does.
+`build` pushes/pulls/pins `bambu-studio`'s stock build through the `geoff-coppertop-nixos-config` Cachix cache (see that job's comments for why) — replacing `magic-nix-cache-action`, which rebuilt an unchanged derivation on back-to-back runs. `profiles/common/base.nix` mirrors this locally for any host with a write-token secret; see its comments and `docs/secrets.md`.
 
 `build`'s scoping: `tools/ci_changed_hosts.py` evaluates each host's toplevel
 `drvPath` at the base commit and again at the head commit, and prints a build

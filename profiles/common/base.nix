@@ -6,6 +6,10 @@
 }: let
   inherit (lib) optionalAttrs;
   keepGenerations = toString config.custom.nix.gc.keepGenerations;
+  # Opt-in per host: declare this secret (docs/secrets.md § Cachix push
+  # token) to get the push-back hook and local pin below; none, get neither.
+  cachixWriteToken = "cachix/write-token-${config.networking.hostName}";
+  hasCachixWriteToken = config.age.secrets ? ${cachixWriteToken};
 in {
   # Backups are not optional. Every real host imports profiles/common (the
   # module-inertness probe in flake.nix deliberately does not — it imports
@@ -22,17 +26,32 @@ in {
   ];
 
   nix = {
-    settings = {
-      experimental-features = ["nix-command" "flakes"];
+    settings =
+      {
+        experimental-features = ["nix-command" "flakes"];
 
-      # Remote deploys (nixos-rebuild --target-host) push locally-built
-      # store paths over SSH as the login user. The nix daemon only
-      # accepts unsigned paths from trusted-users (default: root only) —
-      # without this, deploying to any host over SSH as a non-root user
-      # fails with "lacks a signature by a trusted key". Confirmed live
-      # deploying to reliant as thomasga.
-      trusted-users = ["root" "@wheel"];
-    };
+        # Remote deploys (nixos-rebuild --target-host) push locally-built
+        # store paths over SSH as the login user. The nix daemon only
+        # accepts unsigned paths from trusted-users (default: root only) —
+        # without this, deploying to any host over SSH as a non-root user
+        # fails with "lacks a signature by a trusted key". Confirmed live
+        # deploying to reliant as thomasga.
+        trusted-users = ["root" "@wheel"];
+
+        # Substitutes bambu-studio instead of building it (docs/operations.md).
+        extra-substituters = ["https://geoff-coppertop-nixos-config.cachix.org"];
+        extra-trusted-public-keys = ["geoff-coppertop-nixos-config.cachix.org-1:fNXwlffIbUPY4mzw3AFSfCELawlTD94TBnNYgiAP0xA="];
+      }
+      // optionalAttrs hasCachixWriteToken {
+        # Pushes new local builds back to the cache. `|| true`: a nonzero
+        # post-build-hook exit aborts the whole build.
+        post-build-hook = toString (pkgs.writeShellScript "cachix-post-build-hook" ''
+          set -f
+          export IFS=' '
+          export CACHIX_AUTH_TOKEN="$(cat ${config.age.secrets.${cachixWriteToken}.path})"
+          ${pkgs.cachix}/bin/cachix push geoff-coppertop-nixos-config $OUT_PATHS || true
+        '');
+      };
 
     gc = {
       automatic = true;
@@ -40,6 +59,20 @@ in {
       options = "--delete-older-than 30d";
     };
   };
+
+  # Mirrors CI's pin step (ci.yml): whichever side builds first protects
+  # the other's next fetch.
+  system.activationScripts.cachixPinBambuStudio.text = lib.optionalString hasCachixWriteToken ''
+    marker=/var/lib/cachix-pinned-bambu-studio
+    current=${pkgs.bambu-studio}
+    if [ "$(cat "$marker" 2>/dev/null)" != "$current" ]; then
+      if CACHIX_AUTH_TOKEN="$(cat ${config.age.secrets.${cachixWriteToken}.path})" \
+        ${pkgs.cachix}/bin/cachix pin geoff-coppertop-nixos-config bambu-studio "$current" --keep-revisions 3
+      then
+        echo "$current" > "$marker"
+      fi
+    fi
+  '';
 
   # Fetch from GitHub and stage the new build as the next boot entry weekly.
   # operation = "boot" means no automatic reboot; the user reboots at their
