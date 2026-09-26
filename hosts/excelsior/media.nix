@@ -123,6 +123,8 @@ in {
       mediaDir = "/mnt/media";
       uid = mediaUid;
       gid = mediaGid;
+      movieDataSources = ["/media/movies"];
+      tvShowDataSources = ["/media/tv"];
     };
   };
 

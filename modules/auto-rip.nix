@@ -35,6 +35,15 @@
     {
       INSTALLPATH = "/opt/arm/";
       DISABLE_LOGIN = cfg.disableLogin;
+      # ARM's own defaults put all three under mediaDir (the NAS mount) --
+      # pinning the first two to stateDir keeps raw/transcode I/O off the
+      # network; only the finished file below still crosses it.
+      RAW_PATH = "/home/arm/raw/";
+      TRANSCODE_PATH = "/home/arm/transcode/";
+      # A landing zone, not a library folder: ARM can't tell movies from TV,
+      # so finished rips still need sorting into mediaDir's movies/tv/ before
+      # tinyMediaManager scans them.
+      COMPLETED_PATH = "/home/arm/media/incoming/";
     }
     // optionalAttrs (cfg.tmdbApiKeyFile != null) {
       METADATA_PROVIDER = "tmdb";
@@ -206,6 +215,8 @@ in {
               "${cfg.stateDir}/logs:/home/arm/logs"
               "${cfg.stateDir}/db:/home/arm/db"
               "${cfg.stateDir}/music:/home/arm/Music"
+              "${cfg.stateDir}/raw:/home/arm/raw"
+              "${cfg.stateDir}/transcode:/home/arm/transcode"
               "${cfg.mediaDir}:/home/arm/media"
             ];
 
@@ -228,6 +239,8 @@ in {
         "d ${cfg.stateDir}/logs 0775 ${uid} ${gid} -"
         "d ${cfg.stateDir}/db 0775 ${uid} ${gid} -"
         "d ${cfg.stateDir}/music 0775 ${uid} ${gid} -"
+        "d ${cfg.stateDir}/raw 0775 ${uid} ${gid} -"
+        "d ${cfg.stateDir}/transcode 0775 ${uid} ${gid} -"
       ];
 
       # arm.yaml can't be symlinked into the store (the container only sees

@@ -130,7 +130,8 @@ Start/Stop And Remote Control.
 | DCS-SRS | No manual step — separate `dcs-srs-server` container starts on its own |
 | AdGuard Home | Complete the setup wizard; set upstream DNS to `127.0.0.1:5335` (same as reliant) |
 | Factorio | No manual step — `services.factorio` generates a default save under `/var/lib/factorio/saves` on first start |
-| Automatic Ripping Machine | Create `raw/`, `transcode/`, `completed/` on the NAS media share first — ARM doesn't create them and fails with `No such file or directory` otherwise: `ssh thomasga@excelsior.local sudo mkdir -p /mnt/media/{raw,transcode,completed}` (needs `sudo`: the CIFS mount forces `uid=5000,gid=5000`, which `thomasga` isn't) |
+| Automatic Ripping Machine | Create `incoming/`, `movies/`, `tv/` on the NAS media share first — nothing here creates them and ARM fails with `No such file or directory` otherwise: `ssh thomasga@excelsior.local sudo mkdir -p /mnt/media/{incoming,movies,tv}` (needs `sudo`: the CIFS mount forces `uid=5000,gid=5000`, which `thomasga` isn't). `raw/`/`transcode/` are local disk (`custom.autoRip.stateDir`), not on the NAS share |
+| tinyMediaManager | Nothing manual — `custom.mediaManager.movieDataSources`/`tvShowDataSources` write its Data Sources declaratively (merged into `movies.json`/`tvShows.json` on activation). ARM can't tell movies from TV apart, so a finished rip in `incoming/` still needs manually moving into `movies/` or `tv/` before running a library scan in the tmm UI |
 
 After DCS login is saved, set `custom.dcsServer.autoStart = true;` and
 rebuild so the DCS server launches with the container.
@@ -279,7 +280,7 @@ servers — that's a router-side step, not managed by this repo.
   default without `--privileged`. `custom.autoRip.extraOptions` adds it
   back.
 - **ARM has no metadata provider key by default**, so it can't identify
-  discs — they land in `completed/unidentified/`. `custom.autoRip.tmdbApiKeyFile`
+  discs — they land in `incoming/unidentified/`. `custom.autoRip.tmdbApiKeyFile`
   fixes this.
 - **ARM's default `HB_ARGS` only kept forced subtitles, not English ones.**
   Pinned via `custom.autoRip.settings.HB_ARGS_DVD`/`HB_ARGS_BD`.

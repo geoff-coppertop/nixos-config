@@ -1,11 +1,29 @@
 {
   config,
   lib,
+  pkgs,
   ...
 }: let
-  inherit (lib) mkEnableOption mkIf mkMerge mkOption types;
+  inherit (lib) mkEnableOption mkIf mkMerge mkOption optionalString types;
   mkTraefikRoute = import ../lib/traefik-route.nix;
   cfg = config.custom.mediaManager;
+
+  # Merges (not overwrites) movieDataSource/tvShowDataSource into whatever tmm
+  # already persisted -- these files carry every other setting tmm's own UI
+  # writes (scrapers, renamer profiles, ...), and there's no equivalent to
+  # ARM's own "merge pinned keys over shipped defaults" loader here to lean
+  # on. Skipped (not created) until tmm has run once and written its own
+  # defaults -- there is no known-good full default set to seed from Nix.
+  mkDataSourceMerge = file: jsonKey: paths:
+    optionalString (paths != []) ''
+      if [ -f ${cfg.stateDir}/data/${file} ]; then
+        tmp=$(mktemp)
+        ${pkgs.jq}/bin/jq --argjson ds '${builtins.toJSON paths}' '.${jsonKey} = $ds' \
+          ${cfg.stateDir}/data/${file} > "$tmp"
+        install -m 0664 -o ${uid} -g ${gid} "$tmp" ${cfg.stateDir}/data/${file}
+        rm -f "$tmp"
+      fi
+    '';
 
   tz =
     if config.time.timeZone != null
@@ -82,6 +100,20 @@ in {
       default = [];
       description = "Extra arguments appended to the podman run command.";
     };
+
+    movieDataSources = mkOption {
+      type = types.listOf types.str;
+      default = [];
+      example = ["/media/movies"];
+      description = "Container-side paths (under /media) merged into movies.json's movieDataSource on every activation; other tmm-managed settings in that file are left untouched. Only takes effect once tmm has run at least once and created its own data/ files. Empty leaves Data Sources as whatever tmm's own UI has set.";
+    };
+
+    tvShowDataSources = mkOption {
+      type = types.listOf types.str;
+      default = [];
+      example = ["/media/tv"];
+      description = "Same as movieDataSources, for tvShows.json's tvShowDataSource.";
+    };
   };
 
   config = mkIf cfg.enable (mkMerge [
@@ -118,6 +150,21 @@ in {
 
       networking.firewall.allowedTCPPorts = mkIf cfg.openFirewall [cfg.webPort];
     }
+
+    (mkIf (cfg.movieDataSources != [] || cfg.tvShowDataSources != []) {
+      system.activationScripts.mediaManagerDataSources = {
+        deps = ["users" "groups"];
+        text =
+          mkDataSourceMerge "movies.json" "movieDataSource" cfg.movieDataSources
+          + mkDataSourceMerge "tvShows.json" "tvShowDataSource" cfg.tvShowDataSources;
+      };
+
+      # tmm only reads its settings files at startup.
+      systemd.services."podman-${cfg.containerName}".restartTriggers = [
+        (builtins.toJSON cfg.movieDataSources)
+        (builtins.toJSON cfg.tvShowDataSources)
+      ];
+    })
 
     # Self-register a Traefik route when this host itself runs Traefik. The
     # host adds any auth middleware. When a different host proxies it
