@@ -102,13 +102,9 @@ jobs:
         if: steps.flakecheck.outcome == 'failure'
         run: exit 1
 
-  # Which hosts actually need rebuilding, decided by diffing each host's
-  # toplevel derivation between the base and head commit. The host list itself
-  # comes from the flake's nixosConfigurations at the head commit, so a newly
-  # registered host is picked up here with no workflow change. fetch-depth: 0
-  # is required — the script checks out the base commit to evaluate it. See
-  # tools/ci_changed_hosts.py for how the decision is made and where it
-  # deliberately fails safe.
+  # Which hosts and checks actually need to run; how and why is in
+  # docs/operations.md § Lint, Format, And CI. fetch-depth: 0 is required —
+  # the scripts check out the base commit to evaluate it.
   changes:
     runs-on: ubuntu-latest
     outputs:
@@ -125,37 +121,43 @@ jobs:
             experimental-features = nix-command flakes
             access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
 
+      # On pull_request, github.sha is the synthetic merge commit — the tree
+      # build and ha-config-check actually check out — and its first parent is
+      # the master tip it was merged onto.
+      - name: resolve the commit range to compare
+        id: range
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = pull_request ]; then
+            base=$(git rev-parse "$GITHUB_SHA^1")
+          else
+            base=$PUSH_BEFORE
+          fi
+          echo "comparing base=$base head=$GITHUB_SHA"
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          echo "head=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+
       - name: detect hosts whose toplevel changed
         id: detect
         env:
-          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
-          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          BASE_SHA: ${{ steps.range.outputs.base }}
+          HEAD_SHA: ${{ steps.range.outputs.head }}
         run: |
           set -euo pipefail
           matrix=$(python3 tools/ci_changed_hosts.py --base "$BASE_SHA" --head "$HEAD_SHA")
           echo "matrix=$matrix"
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
-      # reliant's toplevel being unchanged (per the matrix above) already
-      # implies nothing about its Home Assistant config changed either, so
-      # only pay for the finer-grained package diff below when reliant is
-      # actually in the matrix. tools/ci_ha_config_changed.py then decides
-      # whether the change was HA-relevant at all (it might just be Traefik,
-      # Bambuddy, Z-Wave, etc.) or a nixpkgs bump that touched the Home
-      # Assistant package itself.
-      #
-      # MATRIX_JSON comes in as an env var rather than a `${{ }}` expression
-      # interpolated into the script below. The matrix is JSON full of double
-      # quotes ([{"host":"reliant",...}]); substituted straight into a
-      # double-quoted shell string those quotes collide with the shell's own
-      # quoting, jq gets handed mangled input, `jq -e` exits non-zero and every
-      # run silently took the else branch — ha-config-check was skipped on
-      # every PR from the day this scoping was added until this was fixed.
+      # Two-layer scoping (reliant in the matrix, then the HA package diff) and
+      # why MATRIX_JSON is an env var: docs/operations.md § Lint, Format, And CI.
       - name: detect whether reliant's Home Assistant config changed
         id: detect-ha
         env:
-          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
-          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          BASE_SHA: ${{ steps.range.outputs.base }}
+          HEAD_SHA: ${{ steps.range.outputs.head }}
           MATRIX_JSON: ${{ steps.detect.outputs.matrix }}
         run: |
           set -euo pipefail

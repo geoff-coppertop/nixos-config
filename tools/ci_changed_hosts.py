@@ -153,8 +153,8 @@ def runner_for(host: str, info: dict[str, str] | None) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--base", default="", help="base commit SHA of the push or PR")
-    parser.add_argument("--head", required=True, help="head commit SHA of the push or PR")
+    parser.add_argument("--base", default="", help="commit to compare against (docs/operations.md: how CI picks it)")
+    parser.add_argument("--head", required=True, help="commit to evaluate (on a PR, the merge commit)")
     args = parser.parse_args()
 
     root = repo_root()

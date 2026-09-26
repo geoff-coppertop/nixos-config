@@ -331,12 +331,9 @@ decide what actually needs to happen for this push or PR.
 
 `build` pushes/pulls/pins `bambu-studio`'s stock build through the `geoff-coppertop-nixos-config` Cachix cache (see that job's comments for why) — replacing `magic-nix-cache-action`, which rebuilt an unchanged derivation on back-to-back runs. `profiles/common/base.nix` mirrors this locally for any host with a write-token secret; see its comments and `docs/secrets.md`.
 
-`build`'s scoping: `tools/ci_changed_hosts.py` evaluates each host's toplevel
-`drvPath` at the base commit and again at the head commit, and prints a build
-matrix containing only those hosts whose `drvPath` differs. A host whose
-derivation is byte-identical at both commits cannot produce a different
-build, so it is skipped; a docs-only change moves no host's `drvPath` and
-runs zero build jobs.
+`build`'s scoping: `tools/ci_changed_hosts.py` evaluates each host's toplevel `drvPath` at the base commit and again at the head commit, and prints a build matrix containing only those hosts whose `drvPath` differs. A host whose derivation is byte-identical at both commits cannot produce a different build, so it is skipped; a docs-only change moves no host's `drvPath` and runs zero build jobs.
+
+`changes` picks the range in its `range` step. On a push to `master` it is the push's before and after commits. On a pull request, head is GitHub's synthetic merge commit (`github.sha`, the tree `build` and `ha-config-check` check out) and base is that commit's first parent, the `master` tip it merged onto — so commits that land on `master` after a branch is cut are in both ends and never select a host. Comparing the PR branch tip against the `master` tip would count each of those as reverted by the PR; comparing against the merge-base would miss a PR change that only moves a host in combination with something newer on `master`.
 
 Nothing about the host list is hand-maintained. The script reads it out of the
 flake at each commit:
