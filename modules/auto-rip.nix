@@ -8,6 +8,8 @@
   mkTraefikRoute = import ../lib/traefik-route.nix;
   cfg = config.custom.autoRip;
 
+  handbrakeQsv = pkgs.callPackage ../pkgs/handbrake-qsv.nix {};
+
   tz =
     if config.time.timeZone != null
     then config.time.timeZone
@@ -56,6 +58,10 @@
     // optionalAttrs (cfg.tmdbApiKeyFile != null) {
       METADATA_PROVIDER = "tmdb";
       TMDB_API_KEY = "@TMDB_API_KEY@";
+    }
+    // optionalAttrs cfg.hardwareEncode {
+      HANDBRAKE_CLI = "${handbrakeQsv}/bin/HandBrakeCLI";
+      HANDBRAKE_LOCAL = "${handbrakeQsv}/bin/HandBrakeCLI";
     }
     // cfg.settings;
 
@@ -106,6 +112,12 @@ in {
       type = types.int;
       default = 3;
       description = "A daily timer deletes anything under stateDir's raw/transcode scratch older than this. A healthy job never lives there this long (DELRAWFILES only cleans up on success), so this is the safety net for a failed or aborted one.";
+    };
+
+    hardwareEncode = mkOption {
+      type = types.bool;
+      default = false;
+      description = "Use a QSV-enabled HandBrakeCLI (pkgs/handbrake-qsv.nix) instead of the image's own, and pass /dev/dri plus the host Nix store into the container. Needs the container's user able to reach /dev/dri -- add \"--group-add\" with the host's render GID via extraOptions. Adds pkgs.intel-media-sdk to hardware.graphics.extraPackages (legacy pre-Xe Intel iGPUs; override for a newer GPU needing vpl-gpu-rt). Also needs a HandBrake preset/HB_ARGS naming a qsv_h264/qsv_h265 encoder -- picking a plain x264/x265 preset here still runs in software even with this on.";
     };
 
     opticalDrive = mkOption {
@@ -313,6 +325,15 @@ in {
           sed -i "s|@TMDB_API_KEY@|$key|" ${cfg.stateDir}/config/arm.yaml
         ''))
       ];
+    })
+
+    (mkIf cfg.hardwareEncode {
+      hardware.graphics.extraPackages = [pkgs.intel-media-sdk];
+
+      virtualisation.oci-containers.containers.${cfg.containerName} = {
+        volumes = ["/nix/store:/nix/store:ro"];
+        extraOptions = ["--device=/dev/dri:/dev/dri"];
+      };
     })
 
     # Self-register a Traefik route when this host itself runs Traefik. The
