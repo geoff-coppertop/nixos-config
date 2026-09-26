@@ -4,8 +4,7 @@
   pkgs,
   ...
 }: let
-  inherit (lib) mkEnableOption mkIf mkMerge mkOption optionalString types;
-  mkTraefikRoute = import ../lib/traefik-route.nix;
+  inherit (lib) mkEnableOption mkForce mkIf mkMerge mkOption optionalString types;
   cfg = config.custom.mediaManager;
 
   # Merges (not overwrites) movieDataSource/tvShowDataSource into whatever tmm
@@ -34,7 +33,7 @@
   gid = toString cfg.gid;
 in {
   options.custom.mediaManager = {
-    enable = mkEnableOption "tinyMediaManager library metadata and renaming (web UI)";
+    enable = mkEnableOption "tinyMediaManager library metadata and renaming (headless CLI, triggered by custom.mediaSort)";
 
     image = mkOption {
       type = types.str;
@@ -61,12 +60,6 @@ in {
       description = "Directory for tinyMediaManager's config and database (container /data).";
     };
 
-    webPort = mkOption {
-      type = types.port;
-      default = 4000;
-      description = "Host port for the tinyMediaManager web UI.";
-    };
-
     uid = mkOption {
       type = types.int;
       default = 1000;
@@ -77,22 +70,6 @@ in {
       type = types.int;
       default = 1000;
       description = "GID the container runs as.";
-    };
-
-    openFirewall = mkOption {
-      type = types.bool;
-      default = false;
-      description = "Open webPort broadly in the NixOS firewall. Off by default: reach it through a reverse proxy (local or cross-host) instead.";
-    };
-
-    bindAddress = mkOption {
-      type = types.str;
-      default =
-        if cfg.openFirewall
-        then "0.0.0.0"
-        else "127.0.0.1";
-      defaultText = "0.0.0.0 if openFirewall, else 127.0.0.1";
-      description = "Address the published web port binds to. Override to \"0.0.0.0\" (or a specific host IP) with openFirewall = false to allow only specific hosts to reach it via your own firewall rule — e.g. a cross-host Traefik proxy.";
     };
 
     extraOptions = mkOption {
@@ -126,9 +103,16 @@ in {
 
           containers.${cfg.containerName} = {
             inherit (cfg) image extraOptions;
-            autoStart = true;
-
-            ports = ["${cfg.bindAddress}:${toString cfg.webPort}:4000"];
+            # Not a persistent service: the image's own CMD is tmm's GUI, but
+            # overriding it with its CLI flags (confirmed against tmm's own
+            # docs -- --updateSources scans data sources, --scrapeUnscraped
+            # identifies anything new) runs it headless and lets the process
+            # exit on its own once done. autoStart = false since it isn't
+            # meant to run continuously; custom.mediaSort's own service
+            # starts it (systemd OnSuccess=) right after each sort, via
+            # unit name in hosts/*/media.nix, not a shared option.
+            autoStart = false;
+            cmd = ["--updateSources" "--scrapeUnscraped"];
 
             environment = {
               TZ = tz;
@@ -148,7 +132,10 @@ in {
         "d ${cfg.stateDir} 0775 ${uid} ${gid} -"
       ];
 
-      networking.firewall.allowedTCPPorts = mkIf cfg.openFirewall [cfg.webPort];
+      # oci-containers defaults this service to Restart=always, meant for a
+      # long-running server -- here the container is *supposed* to exit once
+      # its CLI run finishes, so a restart loop would just fight that.
+      systemd.services."podman-${cfg.containerName}".serviceConfig.Restart = mkForce "no";
     }
 
     (mkIf (cfg.movieDataSources != [] || cfg.tvShowDataSources != []) {
@@ -157,23 +144,6 @@ in {
         text =
           mkDataSourceMerge "movies.json" "movieDataSource" cfg.movieDataSources
           + mkDataSourceMerge "tvShows.json" "tvShowDataSource" cfg.tvShowDataSources;
-      };
-
-      # tmm only reads its settings files at startup.
-      systemd.services."podman-${cfg.containerName}".restartTriggers = [
-        (builtins.toJSON cfg.movieDataSources)
-        (builtins.toJSON cfg.tvShowDataSources)
-      ];
-    })
-
-    # Self-register a Traefik route when this host itself runs Traefik. The
-    # host adds any auth middleware. When a different host proxies it
-    # cross-host instead, that host defines the route by hand.
-    (mkIf config.custom.traefik.enable {
-      services.traefik.dynamicConfigOptions.http = mkTraefikRoute {
-        name = "tmm";
-        port = cfg.webPort;
-        inherit (config.custom.traefik.acme) domain;
       };
     })
   ]);
