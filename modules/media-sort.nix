@@ -27,8 +27,13 @@
           path=$(jq -r '.path' <<<"$row")
           video_type=$(jq -r '.video_type' <<<"$row")
 
-          src="${cfg.mediaDir}/incoming/$(basename "$path")"
-          [ -d "$src" ] || continue # already sorted, or nothing landed under this name
+          # ARM nests output under its own subfolders (incoming/movies/,
+          # incoming/unidentified/, ...) rather than incoming/ directly --
+          # confirmed live. video_type from the database is authoritative
+          # regardless of which of ARM's own bucket names it landed under,
+          # so search for it instead of assuming a fixed relative path.
+          src=$(find "${cfg.mediaDir}/incoming" -mindepth 1 -maxdepth 3 -type d -name "$(basename "$path")" -print -quit)
+          [ -n "$src" ] || continue # already sorted, or nothing landed under this name
 
           case "$video_type" in
             movie) dest_dir="${cfg.mediaDir}/movies" ;;

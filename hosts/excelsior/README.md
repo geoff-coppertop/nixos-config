@@ -284,7 +284,8 @@ servers — that's a router-side step, not managed by this repo.
   fixes this.
 - **ARM's default `HB_ARGS` only kept forced subtitles, not English ones.**
   Pinned via `custom.autoRip.settings.HB_ARGS_DVD`/`HB_ARGS_BD`.
-- **`custom.mediaSort` matches ARM's `job.path` by basename only, not the full path.** ARM's own `job.path` column (`arm/models/job.py`) is confirmed to exist and to record the output folder, but its exact string form (container-absolute vs. something else) isn't; matching just the final path component against `incoming/` sidesteps that without needing it confirmed. An unidentified disc (`video_type` outside `movie`/`series`) is left alone in `incoming/` for manual sorting.
+- **ARM nests its own output one level deeper than `COMPLETED_PATH` itself** — confirmed live: `incoming/movies/<title>`, `incoming/unidentified/<title>`, not `incoming/<title>` directly. `custom.mediaSort` searches for the basename of ARM's `job.path` under `incoming/` (up to two levels deep) rather than assuming a fixed relative location, since `job.video_type` from the database is the authoritative movie/series answer regardless of which of ARM's own bucket names it landed under. An unidentified disc (`video_type` outside `movie`/`series`) is left alone in `incoming/` for manual sorting.
+- **ARM's `DELRAWFILES` only deletes raw/transcode scratch after a *successful* job** — confirmed against ARM's own source. A failed or aborted rip leaves it behind forever with no cleanup of its own. `custom.autoRip.scratchMaxAgeDays` (default 3 days) is the safety net.
 - **The `sg` kernel module (needed for MakeMKV/Blu-ray) isn't loaded by
   default, only `bsg`.** `hardware.nix` loads it. `/dev/sg1` is this drive,
   `/dev/sg0` an unrelated SATA device — re-check via `readlink -f

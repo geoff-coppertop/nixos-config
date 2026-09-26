@@ -40,6 +40,12 @@
       # network; only the finished file below still crosses it.
       RAW_PATH = "/home/arm/raw/";
       TRANSCODE_PATH = "/home/arm/transcode/";
+      # ARM's own default (confirmed against its source, arm/ripper/main.py's
+      # delete_raw_files() call): raw MakeMKV output is deleted after a
+      # *successful* transcode+move. A failed or aborted job leaves it
+      # behind forever -- nothing in ARM cleans that up. scratchMaxAgeDays
+      # below is the safety net for that case.
+      DELRAWFILES = true;
       # A landing zone, not a library folder, and deliberately neither
       # movies/ nor tv/: ARM only has one COMPLETED_PATH, so it can't split
       # output by type itself, and defaulting to one of the two real folders
@@ -94,6 +100,12 @@ in {
       type = types.str;
       default = "/var/lib/arm";
       description = "Base directory for ARM's config, logs, database, and CD music output.";
+    };
+
+    scratchMaxAgeDays = mkOption {
+      type = types.int;
+      default = 3;
+      description = "A daily timer deletes anything under stateDir's raw/transcode scratch older than this. A healthy job never lives there this long (DELRAWFILES only cleans up on success), so this is the safety net for a failed or aborted one.";
     };
 
     opticalDrive = mkOption {
@@ -268,6 +280,28 @@ in {
       systemd.services."podman-${cfg.containerName}".restartTriggers = [armConfigFile];
 
       networking.firewall.allowedTCPPorts = mkIf cfg.openFirewall [cfg.webPort];
+
+      systemd.services.arm-scratch-cleanup = {
+        description = "Delete ARM's raw/transcode scratch older than scratchMaxAgeDays";
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = toString (pkgs.writeShellScript "arm-scratch-cleanup" ''
+            set -euo pipefail
+            find ${cfg.stateDir}/raw ${cfg.stateDir}/transcode -mindepth 1 -maxdepth 1 \
+              -mtime +${toString cfg.scratchMaxAgeDays} -print -exec rm -rf {} +
+          '');
+          User = uid;
+          Group = gid;
+        };
+      };
+
+      systemd.timers.arm-scratch-cleanup = {
+        wantedBy = ["timers.target"];
+        timerConfig = {
+          OnCalendar = "daily";
+          Persistent = true;
+        };
+      };
     }
 
     # Same secret-injection pattern as modules/ddns.nix.
