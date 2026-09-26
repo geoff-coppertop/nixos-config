@@ -21,7 +21,6 @@ in {
 
     wifi.enable = true;
     gaming.enable = true;
-    flatpak.enable = true;
     vr.enable = true;
     debugProbes.enable = true;
     bambuSlicer.enable = true;

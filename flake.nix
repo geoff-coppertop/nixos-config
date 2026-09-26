@@ -27,7 +27,6 @@
     pre-commit.url = "github:cachix/pre-commit-hooks.nix";
     pre-commit.inputs.nixpkgs.follows = "nixpkgs";
 
-    nix-flatpak.url = "github:gmodena/nix-flatpak/?ref=latest";
     nix-vscode-extensions.url = "github:nix-community/nix-vscode-extensions";
     nix-vscode-extensions.inputs.nixpkgs.follows = "nixpkgs";
 
@@ -60,7 +59,6 @@
     home-manager,
     agenix,
     lanzaboote,
-    nix-flatpak,
     nix-vscode-extensions,
     nixos-wsl,
     dotfiles,
@@ -83,9 +81,9 @@
           inherit pkgs;
           modulesDir = ./modules;
           # The probe imports modules/ through the same base module list every
-          # host uses (home-manager, agenix, lanzaboote, nix-flatpak), so the
-          # options our modules reference are declared exactly as they are on a
-          # real host. It deliberately sets no custom.* option.
+          # host uses (home-manager, agenix, lanzaboote), so the options our
+          # modules reference are declared exactly as they are on a real host.
+          # It deliberately sets no custom.* option.
           probe = mkNixosSystem {
             inherit system;
             extraModules = [
@@ -112,7 +110,7 @@
     };
 
     mkNixosSystem = import ./lib/nixos-system.nix {
-      inherit nixpkgs home-manager agenix lanzaboote nix-flatpak nix-vscode-extensions dotfiles;
+      inherit nixpkgs home-manager agenix lanzaboote nix-vscode-extensions dotfiles;
     };
 
     mkHomeConfig = {
@@ -212,6 +210,15 @@
         };
         doCheck = false;
       };
+
+      # Directly buildable so CI can resolve their store paths for
+      # `cachix pin` (ci.yml) without re-deriving the home-manager path.
+      bambu-studio = import ./pkgs/bambu-studio.nix {inherit pkgs;};
+      orca-slicer = import ./pkgs/orca-slicer.nix {inherit pkgs;};
+
+      # The stock package lib/trust-printer-ca.nix patches -- what CI
+      # actually pins (see ci.yml for why bambu-studio only).
+      bambu-studio-stock = pkgs.bambu-studio;
     };
 
     nixosConfigurations = {

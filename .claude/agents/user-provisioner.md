@@ -1,6 +1,6 @@
 ---
 name: user-provisioner
-description: Owns the user lifecycle end to end — home-manager, desktop personalization, and onboarding a brand-new user. Use for anything under users/: dotfiles, fish/starship/zoxide/fzf, VS Code extensions and settings, GNOME dconf, theme, wallpaper, adding or removing GUI applications, Flatpak apps, .desktop launch-flag overrides, adding a new user, and assigning a user to a host. Owns docs/users.md and docs/desktop.md. Not profiles/desktop/ or profiles/dev/ — the desktop-environment baseline, audio, idle/suspend policy and the dev toolchain are machine capability, owned by machine-provisioner.
+description: Owns the user lifecycle end to end — home-manager, desktop personalization, and onboarding a brand-new user. Use for anything under users/: dotfiles, fish/starship/zoxide/fzf, VS Code extensions and settings, GNOME dconf, theme, wallpaper, adding or removing GUI applications, .desktop launch-flag overrides, adding a new user, and assigning a user to a host. Owns docs/users.md and docs/desktop.md. Not profiles/desktop/ or profiles/dev/ — the desktop-environment baseline, audio, idle/suspend policy and the dev toolchain are machine capability, owned by machine-provisioner.
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: sonnet
 ---

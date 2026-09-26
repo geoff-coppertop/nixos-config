@@ -176,7 +176,6 @@ in {
           "org.gnome.tweaks.desktop"
           "org.gnome.Extensions.desktop"
           "cups.desktop"
-          "com.github.tchx84.Flatseal.desktop"
           "framework-control.desktop"
           "bitwarden.desktop"
           "org.fedoraproject.MediaWriter.desktop"

@@ -38,16 +38,16 @@ package policy, which is set in `flake.nix`.
 | `profiles/desktop/printing.nix` | CUPS printing, DE-independent |
 | `profiles/desktop/audio.nix` | pipewire |
 | `profiles/desktop/power.nix` | logind idle inhibitor |
-| `modules/flatpak.nix` | Flatpak and Flatseal, as optional platform services |
 | `modules/gaming.nix` | Steam |
 | `profiles/common/base.nix` | Core system policy |
-| `flake.nix` | Unfree package policy needed by Chrome and Steam |
+| `flake.nix` | Unfree package policy needed by Chrome, Steam, and Bambu Studio |
 | `users/common/gui-apps.nix` | Firefox, Fedora Media Writer, Bitwarden, Chrome, Signal Desktop, for any user importing it |
 | `users/thomasga/desktop.nix` | Opts `thomasga` into that shared GUI set on desktop machines |
 | `users/thomasga/desktop-common.nix` | DE-neutral home bits: wallpaper decode, avatar, Steam-shortcut cleanup, launcher hygiene — loaded regardless of the selected desktop |
 | `users/thomasga/vscode.nix` | VS Code through home-manager rather than the system profile |
 | `users/thomasga/easyeffects.nix` | EasyEffects EQ for the Framework 13 speakers |
 | `users/thomasga/orca-slicer.nix` | OrcaSlicer, the 3D-print slicer GUI |
+| `users/thomasga/bambu-studio.nix` | Bambu Studio, the 3D-print slicer GUI, from nixpkgs |
 
 ## Theme, Background, And Desktop Preferences
 
@@ -121,6 +121,12 @@ nixpkgs' `orca-slicer` references its icon by theme name, not a path, and ships 
 
 `users/thomasga/orca-slicer.nix` pulls the package from `pkgs/orca-slicer.nix` rather than `pkgs.orca-slicer` directly — it adds reliant's Bambuddy virtual-printer CA to OrcaSlicer's trusted-CA bundle so its Bambu network plugin accepts the virtual printer's TLS certificate (staleness caveat in that file's comments).
 
+## Bambu Studio
+
+`users/thomasga/bambu-studio.nix` pulls `pkgs.bambu-studio` from nixpkgs (via `pkgs/bambu-studio.nix`, same cert-trust override as OrcaSlicer — see § OrcaSlicer above) rather than the Flatpak this repo used before nixpkgs carried a native package. The same file seeds `~/.config/BambuStudio/BambuStudio.conf`'s `dark_color_mode` key on activation, since Bambu Studio ignores the XDG color-scheme portal `custom.appearance.darkMode` otherwise relies on — that file (JSON, unlike OrcaSlicer's `.ini`) doesn't exist until the app's first launch, so the seed only takes effect on the next `home-manager switch` after that.
+
+Separate from the BambuStudio *sidecar* on `reliant` (`custom.bambuddy.slicerSidecar.bambuStudio`): a headless CLI image for Bambuddy's server-side slicing, no GUI, no shared config with this desktop package.
+
 ## EasyEffects (Framework Speaker EQ)
 
 `users/thomasga/easyeffects.nix` enables `services.easyeffects` (home-manager)
@@ -170,3 +176,14 @@ per-extension dconf settings block was added; defaults are left as-is.
   SVG; hicolor lookup by name doesn't resolve through the home-manager
   profile, so the app grid shows a generic icon otherwise — see
   `users/thomasga/orca-slicer.nix`.
+- **Bambu Studio has the same `.desktop` icon issue and fix as OrcaSlicer
+  above** — see `users/thomasga/bambu-studio.nix`.
+- **`GDK_BACKEND=x11` (`lib/trust-printer-ca.nix`) doesn't cover the Device
+  tab's printer-selector dropdown**, only the dialog it targets; collapse
+  it to dismiss.
+- **Each slicer's own dark-mode setting only themes its own panels, not
+  GTK chrome** — `GTK_THEME=Adwaita:dark` (`lib/trust-printer-ca.nix`)
+  covers the rest.
+- **Bambu Studio's Home/Library screen stays light regardless of dark
+  mode** — it's an embedded bambulab.com webview, unthemed by
+  `dark_color_mode`.

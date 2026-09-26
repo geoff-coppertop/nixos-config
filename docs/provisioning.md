@@ -67,7 +67,7 @@ agent:
 - any other `custom.*` service module: homelab DNS/Traefik
   ([docs/homelab-network.md](homelab-network.md)), Home Assistant/Zigbee/Z-Wave/
   MQTT/ADS-B ([docs/smart-home.md](smart-home.md)), Wi-Fi, network drives,
-  gaming, Flatpak, and so on
+  gaming, and so on
 
 A new host's Step 1 files (`configuration.nix`, `default.nix`) must import
 only what this list requires. Do not import `profiles/desktop` or

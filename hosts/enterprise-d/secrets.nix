@@ -28,5 +28,8 @@
       file = ../../secrets/thomasga/garmin-password.age;
       owner = "thomasga";
     };
+    # Root-owned (default): read by nix-daemon's post-build-hook.
+    "cachix/write-token-enterprise-d".file =
+      ../../secrets/cachix/write-token-enterprise-d.age;
   };
 }

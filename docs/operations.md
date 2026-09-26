@@ -201,7 +201,6 @@ Two opt-in modules add update mechanisms for specific hosts:
 
 | Module | Option | Enabled on | What it does |
 | --- | --- | --- | --- |
-| `modules/flatpak.nix` | `custom.flatpak.enable` | `enterprise-d` | Weekly Flatpak update timer (AC-gated on laptops) plus update-on-activation |
 | `modules/fwupd.nix` | `custom.fwupd.enable` | `enterprise-d` | fwupd daemon for LVFS firmware; apply with `fwupdmgr refresh && fwupdmgr update` |
 
 ### Monthly flake input update
@@ -329,6 +328,8 @@ request, each job posting its output as a PR comment before failing:
 `lint` and `flake-check` are unconditional. `build` and `ha-config-check` are
 not — both depend on `changes`, which runs two derivation-diff scripts to
 decide what actually needs to happen for this push or PR.
+
+`build` pushes/pulls/pins `bambu-studio`'s stock build through the `geoff-coppertop-nixos-config` Cachix cache (see that job's comments for why) — replacing `magic-nix-cache-action`, which rebuilt an unchanged derivation on back-to-back runs. `profiles/common/base.nix` mirrors this locally for any host with a write-token secret; see its comments and `docs/secrets.md`.
 
 `build`'s scoping: `tools/ci_changed_hosts.py` evaluates each host's toplevel
 `drvPath` at the base commit and again at the head commit, and prints a build

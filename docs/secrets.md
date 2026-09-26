@@ -4,10 +4,7 @@ This repo uses agenix for committed secrets and Bitwarden for recovery material.
 Secrets live in `secrets/` and are safe to commit; only the decrypted content is
 sensitive.
 
-SSH login keys are agenix secrets and are covered here too — see
-[SSH Keys And Host Trust](#ssh-keys-and-host-trust) below. SSH host-key pinning
-is not encrypted material, but it is wired up by the same `enroll.py` procedure,
-so it lives in this doc rather than a separate one.
+SSH login keys and host-key pinning are covered in [SSH Keys And Host Trust](#ssh-keys-and-host-trust).
 
 ## Model
 
@@ -232,15 +229,7 @@ is a recipient of all four hosts: the `thomasga` backup job runs on all of
 them and stays on the personal login. Do not reuse it for a machine or service
 mount; mint a `*-svc` account on the NAS instead.
 
-`reliant` and `excelsior` hold both credentials, because the NAS mount is
-configurable per backup entry rather than only per host — see
-[docs/backups.md](backups.md). `backup-svc` handles their shared/appliance
-jobs, and the personal login (declared with no `owner`, since the backup mount
-is performed by root) handles `thomasga` on the same host. `enterprise-d` and
-`holodeck-01` hold only the personal login, since neither runs anything else —
-on `enterprise-d` it is owned by `thomasga` because the desktop mount needs it,
-and root reads it for the backup mount regardless; on `holodeck-01` it has no
-owner, matching `reliant`/`excelsior`'s pattern.
+Both credentials coexist on `reliant` and `excelsior` via the per-entry NAS override (see [docs/backups.md](backups.md)). The personal login has no `owner` wherever only root's backup mount reads it; on `enterprise-d` it is owned by `thomasga` for the desktop mount, and root still reads it for the backup.
 
 ### Wi-Fi passphrases
 
@@ -259,18 +248,7 @@ WIFI_AGT_HOME_PASSWORD=your-passphrase-here
 
 ### Shared hardware and domain secrets
 
-Named for what they hold or which physical hardware they're tied to, not for
-`reliant` — the Zigbee/Z-Wave keys are matched to the coordinator/controller's
-own NVRAM/NVM state, and the Cloudflare token and location aren't
-host-specific at all, so none of them are renamed if that hardware or
-responsibility ever moves to a different host.
-
-None are rotated or duplicated per host, since each is tied to physical
-hardware state (the Zigbee/Z-Wave radios' own NVRAM/NVM) or isn't
-host-specific at all (the Cloudflare token, the receiver location). A new
-host taking over that hardware or responsibility is simply added as an extra
-recipient — this is what let the Zigbee/Z-Wave radios keep working without a
-re-pair when they physically moved to `reliant`.
+Named for what they hold, not for `reliant`: the Zigbee/Z-Wave keys are matched to the radios' own NVRAM/NVM state, and the Cloudflare token and location aren't host-specific. None are duplicated per host — a host taking over that hardware or responsibility is added as a recipient, which is how the radios moved to `reliant` without a re-pair.
 
 | Secret | Contents | Host recipients |
 | --- | --- | --- |
@@ -415,6 +393,12 @@ plaintext goes into `home-assistant/oidc-client-secret.age` as
 `HASS_OIDC_CLIENT_SECRET=<plaintext>`. Generating them independently produces
 two unrelated values and the OIDC handshake fails at the token endpoint.
 Rotating one means rotating both, from a single new run of that command.
+
+### Cachix push token
+
+`cachix/write-token-enterprise-d.age` (owner: default/root, recipient: `enterprise-d`) is one line, the bare Cachix auth token (Write + Read on `geoff-coppertop-nixos-config`) — no `CACHIX_AUTH_TOKEN=` prefix, no quotes.
+
+Declaring `cachix/write-token-<hostname>` gives that host the push-back hook and local pin in `profiles/common/base.nix`, no code change needed. Independent of CI's `CACHIX_AUTH_TOKEN` and every other host's token, so each is revocable alone.
 
 ## What May Be Committed
 
@@ -564,10 +548,7 @@ Two consumers read it:
   a user is enrolled on a machine, they can log in from it to every other machine
   that declares them.
 
-No machine currently has `publicKey` pinned — all three are `null`, pending the
-out-of-band verification below. Until one is pinned, `programs.ssh.knownHosts`
-evaluates to an empty set and clients still prompt on first connect. That is
-expected, not a fault.
+`excelsior` and `reliant` are pinned; `enterprise-d` and `holodeck-01` are still `null` pending the out-of-band verification below, so clients prompt on first connect to those two. That is expected, not a fault.
 
 > **Note:** `modules/ssh-known-hosts.nix` was missing from `modules/default.nix`
 > until it was added alongside `tools/check_orphan_nix.py`. It had never been
