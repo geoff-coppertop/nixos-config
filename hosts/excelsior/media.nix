@@ -121,7 +121,9 @@ in {
         # encoder choice with the hardwareEncode QSV build below -- real
         # wall-clock win on this CPU (i5-6500T), but QSV's HEVC encoder is
         # less compression-efficient than software x265, so output will run
-        # larger than the presets' own name suggests.
+        # larger than the presets' own name suggests. fra alongside eng in
+        # both lang-lists: HandBrake's own ISO 639-2 code, confirmed live
+        # against this disc's own stream tags ("Stream #0:9(fra)").
         # --subtitle-burned=none: ARM always adds its own --subtitle scan
         # track: HandBrake's default for it, when nothing's forced (0 forced
         # hits, confirmed live), is to burn it into the picture instead of
@@ -133,8 +135,8 @@ in {
         # auto-select and burn it into every transcoded stream regardless of
         # the player's own subtitle toggle -- on top of the real, manually
         # toggled track, so dialogue showed twice.
-        HB_ARGS_DVD = "--subtitle-lang-list eng --all-subtitles --subtitle-burned=none --subtitle-default=none --encoder qsv_h265";
-        HB_ARGS_BD = "--subtitle-lang-list eng --all-subtitles --subtitle-burned=none --subtitle-default=none --audio-lang-list eng --all-audio --encoder qsv_h265";
+        HB_ARGS_DVD = "--subtitle-lang-list eng,fra --all-subtitles --subtitle-burned=none --subtitle-default=none --encoder qsv_h265";
+        HB_ARGS_BD = "--subtitle-lang-list eng,fra --all-subtitles --subtitle-burned=none --subtitle-default=none --audio-lang-list eng,fra --all-audio --encoder qsv_h265";
 
         # H.265/HEVC over ARM's H.264 defaults ("HQ 720p30 Surround"/"HQ
         # 1080p30 Surround") -- meaningfully smaller output at comparable
