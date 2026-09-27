@@ -127,8 +127,14 @@ in {
         # hits, confirmed live), is to burn it into the picture instead of
         # muxing a selectable track. Without this, every eng subtitle ends
         # up permanently on.
-        HB_ARGS_DVD = "--subtitle-lang-list eng --all-subtitles --subtitle-burned=none --encoder qsv_h265";
-        HB_ARGS_BD = "--subtitle-lang-list eng --all-subtitles --subtitle-burned=none --audio-lang-list eng --all-audio --encoder qsv_h265";
+        # --subtitle-default=none: that same scan track is also flagged
+        # Default (confirmed live in HandBrake's own log: "Foreign Audio
+        # Search: Passthru, Forced Only, Default"), which made Jellyfin
+        # auto-select and burn it into every transcoded stream regardless of
+        # the player's own subtitle toggle -- on top of the real, manually
+        # toggled track, so dialogue showed twice.
+        HB_ARGS_DVD = "--subtitle-lang-list eng --all-subtitles --subtitle-burned=none --subtitle-default=none --encoder qsv_h265";
+        HB_ARGS_BD = "--subtitle-lang-list eng --all-subtitles --subtitle-burned=none --subtitle-default=none --audio-lang-list eng --all-audio --encoder qsv_h265";
 
         # H.265/HEVC over ARM's H.264 defaults ("HQ 720p30 Surround"/"HQ
         # 1080p30 Surround") -- meaningfully smaller output at comparable
