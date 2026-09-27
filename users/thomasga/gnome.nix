@@ -59,9 +59,10 @@ in {
           if [ -n "''${DBUS_SESSION_BUS_ADDRESS:-}" ] || [ -S "/run/user/$(id -u)/bus" ]; then
             ${pkgs.dconf}/bin/dconf write /org/gnome/shell/app-picker-layout "[{ \
               'Engineering': <{'position': <0>}>, \
-              'Games':       <{'position': <1>}>, \
-              'Media':       <{'position': <2>}>, \
-              'System':      <{'position': <3>}> \
+              'Creative':    <{'position': <1>}>, \
+              'Games':       <{'position': <2>}>, \
+              'Media':       <{'position': <3>}>, \
+              'System':      <{'position': <4>}> \
             }]" || true
           fi
         '';
@@ -137,6 +138,7 @@ in {
       "org/gnome/desktop/app-folders" = {
         folder-children = [
           "Engineering"
+          "Creative"
           "Games"
           "Media"
           "System"
@@ -147,7 +149,12 @@ in {
       "org/gnome/desktop/app-folders/folders/Engineering" = {
         name = "Engineering";
         translate = false;
-        apps = ["onshape.desktop" "com.bambulab.BambuStudio.desktop" "qgroundcontrol.desktop" "companion211.desktop" "simulator211.desktop"];
+        apps = ["onshape.desktop" "BambuStudio.desktop" "com.orcaslicer.OrcaSlicer.desktop" "qgroundcontrol.desktop" "companion211.desktop" "simulator211.desktop"];
+      };
+      "org/gnome/desktop/app-folders/folders/Creative" = {
+        name = "Creative";
+        translate = false;
+        apps = ["drawio.desktop" "excalidraw.desktop"];
       };
       "org/gnome/desktop/app-folders/folders/Games" = {
         name = "Games";
@@ -182,6 +189,7 @@ in {
           "org.gnome.seahorse.Application.desktop"
           "org.gnome.Papers.desktop"
           "btop.desktop"
+          "com.github.wwmm.easyeffects.desktop"
         ];
       };
 
