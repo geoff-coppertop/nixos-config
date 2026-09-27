@@ -21,6 +21,22 @@
 
   deviceOptions = map (d: "--device=${d}:${d}") ([cfg.opticalDrive] ++ cfg.extraDevices);
 
+  # docker_arm_wrapper.sh (ARM's own image, invoked by its internal udev
+  # rule on real disc-insert jobs) starts from udev's own sanitised
+  # environment, not the container's declared one -- confirmed live: its own
+  # comment says "we need PATH, udev doesn't give it to us", and it recovers
+  # exactly that one variable by sourcing /etc/environment. The LIBVA_* vars
+  # below aren't in that file, so a real automatic rip silently lost them
+  # and failed VAAPI init even though a manual `podman exec` (which never
+  # goes through udev) always had them. Overlaying our own /etc/environment
+  # with the same PATH plus the LIBVA_* vars lets the wrapper's existing
+  # source line pick them up too.
+  armEtcEnvironment = pkgs.writeText "arm-etc-environment" ''
+    PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+    LIBVA_DRIVER_NAME="iHD"
+    LIBVA_DRIVERS_PATH="${pkgs.intel-media-driver}/lib/dri"
+  '';
+
   yamlFormat = pkgs.formats.yaml {};
 
   # ARM's loader (arm/config/config.py) reads this file, merges it *over* the
@@ -366,7 +382,10 @@ in {
       users.groups.render.gid = 303;
 
       virtualisation.oci-containers.containers.${cfg.containerName} = {
-        volumes = ["/nix/store:/nix/store:ro"];
+        volumes = [
+          "/nix/store:/nix/store:ro"
+          "${armEtcEnvironment}:/etc/environment:ro" # see armEtcEnvironment above
+        ];
         extraOptions = [
           "--device=/dev/dri:/dev/dri"
           "--group-add=${toString config.users.groups.render.gid}"
@@ -378,6 +397,7 @@ in {
         # intel-media-driver's own output directly instead of relying on
         # any default; confirmed live this was the actual missing piece
         # ("Failed to initialise VAAPI connection" with nothing else set).
+        # Real udev-triggered rips also need armEtcEnvironment above.
         environment = {
           LIBVA_DRIVER_NAME = "iHD";
           LIBVA_DRIVERS_PATH = "${pkgs.intel-media-driver}/lib/dri";
