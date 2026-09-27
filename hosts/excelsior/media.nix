@@ -122,8 +122,13 @@ in {
         # wall-clock win on this CPU (i5-6500T), but QSV's HEVC encoder is
         # less compression-efficient than software x265, so output will run
         # larger than the presets' own name suggests.
-        HB_ARGS_DVD = "--subtitle-lang-list eng --all-subtitles --encoder qsv_h265";
-        HB_ARGS_BD = "--subtitle-lang-list eng --all-subtitles --audio-lang-list eng --all-audio --encoder qsv_h265";
+        # --subtitle-burned=none: ARM always adds its own --subtitle scan
+        # track: HandBrake's default for it, when nothing's forced (0 forced
+        # hits, confirmed live), is to burn it into the picture instead of
+        # muxing a selectable track. Without this, every eng subtitle ends
+        # up permanently on.
+        HB_ARGS_DVD = "--subtitle-lang-list eng --all-subtitles --subtitle-burned=none --encoder qsv_h265";
+        HB_ARGS_BD = "--subtitle-lang-list eng --all-subtitles --subtitle-burned=none --audio-lang-list eng --all-audio --encoder qsv_h265";
 
         # H.265/HEVC over ARM's H.264 defaults ("HQ 720p30 Surround"/"HQ
         # 1080p30 Surround") -- meaningfully smaller output at comparable
