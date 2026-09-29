@@ -121,28 +121,16 @@ in {
         # encoder choice with the hardwareEncode QSV build below -- real
         # wall-clock win on this CPU (i5-6500T), but QSV's HEVC encoder is
         # less compression-efficient than software x265, so output will run
-        # larger than the presets' own name suggests. fra alongside eng in
-        # audio-lang-list only: HandBrake's own ISO 639-2 code, confirmed
-        # live against this disc's own stream tags ("Stream #0:9(fra)").
-        # Not in subtitle-lang-list -- confirmed live this disc's two French
-        # PGS tracks come out byte-identical (same md5) in the muxed output,
-        # a real HandBrake track-resolution bug when multiple same-language
-        # subtitle tracks exist, not something HB_ARGS can work around.
-        # French audio alone (a single, correctly-mapped track) has no such
-        # problem.
-        # --subtitle-burned=none: ARM always adds its own --subtitle scan
-        # track: HandBrake's default for it, when nothing's forced (0 forced
-        # hits, confirmed live), is to burn it into the picture instead of
-        # muxing a selectable track. Without this, every eng subtitle ends
-        # up permanently on.
-        # --subtitle-default=none: that same scan track is also flagged
-        # Default (confirmed live in HandBrake's own log: "Foreign Audio
-        # Search: Passthru, Forced Only, Default"), which made Jellyfin
-        # auto-select and burn it into every transcoded stream regardless of
-        # the player's own subtitle toggle -- on top of the real, manually
-        # toggled track, so dialogue showed twice.
-        HB_ARGS_DVD = "--subtitle-lang-list eng --all-subtitles --subtitle-burned=none --subtitle-default=none --encoder qsv_h265";
-        HB_ARGS_BD = "--subtitle-lang-list eng --all-subtitles --subtitle-burned=none --subtitle-default=none --audio-lang-list eng,fra --all-audio --encoder qsv_h265";
+        # larger than the presets' own name suggests. fra is HandBrake's own
+        # ISO 639-2 code for French (the muxed file tags it "fre").
+        # --subtitle-burned=none / --subtitle-default=none: the preset's
+        # Foreign Audio Search pass finds nothing forced (0 forced hits) and
+        # burned the English subtitle into the picture; with only that off,
+        # the passthrough track was flagged Default and playback still showed
+        # a permanent second copy of the dialogue subtitles. Both flags were
+        # needed (confirmed live).
+        HB_ARGS_DVD = "--subtitle-lang-list eng,fra --all-subtitles --subtitle-burned=none --subtitle-default=none --encoder qsv_h265";
+        HB_ARGS_BD = "--subtitle-lang-list eng,fra --all-subtitles --subtitle-burned=none --subtitle-default=none --audio-lang-list eng,fra --all-audio --encoder qsv_h265";
 
         # H.265/HEVC over ARM's H.264 defaults ("HQ 720p30 Surround"/"HQ
         # 1080p30 Surround") -- meaningfully smaller output at comparable
