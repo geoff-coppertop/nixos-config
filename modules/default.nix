@@ -25,6 +25,7 @@
     ./matter.nix
     ./media-manager.nix
     ./media-ripping.nix
+    ./media-sort.nix
     ./mqtt.nix
     ./network-drives.nix
     ./nix-gc.nix
