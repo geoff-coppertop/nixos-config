@@ -4,7 +4,7 @@
   pkgs,
   ...
 }: let
-  inherit (lib) mkBefore mkEnableOption mkIf mkMerge mkOption optionalAttrs types;
+  inherit (lib) mkBefore mkEnableOption mkIf mkMerge mkOption optionalAttrs optionalString types;
   mkTraefikRoute = import ../lib/traefik-route.nix;
   cfg = config.custom.autoRip;
 
@@ -48,7 +48,7 @@
   #   * INSTALLPATH is the one key the loader dereferences before the merge
   #     (cur_cfg["INSTALLPATH"], no .get), so it must always be written out.
   # `settings` is applied last so a host can override even these.
-  # TMDB_API_KEY is a placeholder; see the tmdbApiKeyFile mkIf block below.
+  # TMDB_API_KEY is a placeholder; see the arm-config ExecStartPre below.
   armSettings =
     {
       INSTALLPATH = "/opt/arm/";
@@ -277,24 +277,6 @@ in {
 
       environment.systemPackages = [armRip];
 
-      # arm.yaml can't be symlinked into the store (the container only sees
-      # ${cfg.stateDir}/config, not /nix/store, so a store symlink would
-      # dangle inside it — ARM also rewrites this file in place on startup,
-      # which needs a real writable file) and tmpfiles' "C"/"C+" line type
-      # does not reliably overwrite it either: confirmed live, "C+" only
-      # forces a copy into a pre-existing *directory* — for a single regular
-      # file destination that already exists it silently no-ops, so a
-      # changed arm.yaml never reached disk even after a manual
-      # `systemd-tmpfiles --create`. An activation script is what actually
-      # forces the overwrite on every switch. `install -D` also creates
-      # ${cfg.stateDir}/config itself if missing, ahead of the "d" rule above.
-      system.activationScripts.armConfig = {
-        deps = ["users" "groups"];
-        text = ''
-          install -D -m 0664 -o ${uid} -g ${gid} ${armConfigFile} ${cfg.stateDir}/config/arm.yaml
-        '';
-      };
-
       networking.firewall.allowedTCPPorts = mkIf cfg.openFirewall [cfg.webPort];
 
       systemd = {
@@ -315,9 +297,30 @@ in {
         ];
 
         services = {
-          # The config is read once at ARM's import time, so a changed
-          # arm.yaml only takes effect when the container restarts.
-          "podman-${cfg.containerName}".restartTriggers = [armConfigFile];
+          "podman-${cfg.containerName}" = {
+            # The config is read once at ARM's import time, so a changed
+            # arm.yaml only takes effect when the container restarts.
+            restartTriggers = [armConfigFile];
+
+            # Written here, at container start, together with the TMDb key
+            # substitution -- confirmed live that doing it from an activation
+            # script put the unsubstituted placeholder back on every switch
+            # that didn't restart the container, so ARM sent the literal
+            # placeholder to TMDb ("Invalid API key") and every rip landed in
+            # unidentified/. A real writable copy is needed (a store symlink
+            # would dangle inside the container; ARM rewrites it in place),
+            # and tmpfiles' "C+" silently no-ops on an existing file.
+            serviceConfig.ExecStartPre = mkBefore [
+              (toString (pkgs.writeShellScript "arm-config" (''
+                  set -euo pipefail
+                  install -D -m 0664 -o ${uid} -g ${gid} ${armConfigFile} ${cfg.stateDir}/config/arm.yaml
+                ''
+                + optionalString (cfg.tmdbApiKeyFile != null) ''
+                  key=$(cat "${cfg.tmdbApiKeyFile}")
+                  sed -i "s|@TMDB_API_KEY@|$key|" ${cfg.stateDir}/config/arm.yaml
+                '')))
+            ];
+          };
 
           arm-scratch-cleanup = {
             description = "Delete ARM's raw/transcode scratch older than scratchMaxAgeDays";
@@ -343,17 +346,6 @@ in {
         };
       };
     }
-
-    # Same secret-injection pattern as modules/ddns.nix.
-    (mkIf (cfg.tmdbApiKeyFile != null) {
-      systemd.services."podman-${cfg.containerName}".serviceConfig.ExecStartPre = mkBefore [
-        (toString (pkgs.writeShellScript "arm-tmdb-api-key" ''
-          set -euo pipefail
-          key=$(cat "${cfg.tmdbApiKeyFile}")
-          sed -i "s|@TMDB_API_KEY@|$key|" ${cfg.stateDir}/config/arm.yaml
-        ''))
-      ];
-    })
 
     (mkIf cfg.hardwareEncode {
       # intel-media-sdk alone isn't a VA-API driver -- it's oneVPL's legacy

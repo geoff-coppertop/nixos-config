@@ -272,8 +272,8 @@ servers — that's a router-side step, not managed by this repo.
   it — see the [ARM Docker Troubleshooting
   wiki](https://github.com/automatic-ripping-machine/automatic-ripping-machine/wiki/Docker-Troubleshooting).
 - **`systemd.tmpfiles.rules`' `C`/`C+` does not force-overwrite a
-  pre-existing regular file, only a pre-existing directory.** `arm.yaml`
-  needed `system.activationScripts` instead.
+  pre-existing regular file, only a pre-existing directory.** `arm.yaml` is
+  installed by the container's `ExecStartPre` instead.
 - **ARM mounts the disc itself, which needs `CAP_SYS_ADMIN`** — dropped by
   default without `--privileged`. `custom.autoRip.extraOptions` adds it
   back.
