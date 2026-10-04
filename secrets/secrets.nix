@@ -123,6 +123,8 @@ in {
   "hass/aqicn-token.age".publicKeys = [reliant offlineAdmin];
   # TMDb API key for custom.autoRip.tmdbApiKeyFile.
   "arm/tmdb-api-key.age".publicKeys = [excelsior offlineAdmin];
+  # opensubtitles.com login for custom.jellyfin.openSubtitles.credentialsFile.
+  "jellyfin/opensubtitles-credentials.age".publicKeys = [excelsior offlineAdmin];
   # enterprise-d's own Cachix token, separate from CI's CACHIX_AUTH_TOKEN so
   # each can be revoked independently. See docs/secrets.md § Cachix.
   "cachix/write-token-enterprise-d.age".publicKeys = [enterprise-d offlineAdmin];
