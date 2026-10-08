@@ -8,7 +8,7 @@
 # or newer. To bump, take the newest entry from
 # https://raw.githubusercontent.com/Schwponaco-org/lapse-jellyfin-plugin/main/manifest.json
 # and its hash from `nix store prefetch-file <sourceUrl>`.
-stdenvNoCC.mkDerivation (finalAttrs: {
+stdenvNoCC.mkDerivation {
   pname = "jellyfin-plugin-lapse";
   version = "2.1.0.0";
 
@@ -27,4 +27,4 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     test -e $out/Jellyfin.Plugin.Lapse.dll
     runHook postInstall
   '';
-})
+}
