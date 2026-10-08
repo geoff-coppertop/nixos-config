@@ -90,6 +90,14 @@ in {
     jellyfin = {
       enable = true;
       openFirewall = false;
+
+      # Casino Royale's disc carries French subtitles as forced-only (see
+      # README § Known Gotchas), so French captions come from here instead.
+      openSubtitles = {
+        enable = true;
+        package = pkgs.callPackage ../../pkgs/jellyfin-plugin-opensubtitles.nix {};
+        credentialsFile = config.age.secrets."jellyfin/opensubtitles-credentials".path;
+      };
     };
 
     autoRip = {
