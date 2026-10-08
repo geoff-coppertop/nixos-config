@@ -8,6 +8,7 @@
   mkTraefikRoute = import ../lib/traefik-route.nix;
   cfg = config.custom.jellyfin;
   os = cfg.openSubtitles;
+  inherit (cfg) lapse;
 
   # Runs before every Jellyfin start, as the service user. Jellyfin keeps all of
   # this as files under its data dir (plugin folders, the plugin's XML config,
@@ -15,7 +16,7 @@
   # them at startup, which is why this is an ExecStartPre. Each step is
   # independent and failure-tolerant: a missing secret must not stop the media
   # server from starting.
-  setup = pkgs.writeScript "jellyfin-opensubtitles-setup" ''
+  setup = pkgs.writeScript "jellyfin-plugins-setup" ''
     #!${pkgs.python3}/bin/python3
     import json
     import os
@@ -36,24 +37,25 @@
         os.replace(tmp, path)
 
 
-    def install_plugin():
+    def install_plugins():
         os.makedirs(plugins, exist_ok=True)
-        for entry in os.listdir(plugins):
-            if entry.startswith(conf["pluginName"] + "_"):
-                shutil.rmtree(os.path.join(plugins, entry))
-        dest = os.path.join(plugins, conf["pluginDir"])
-        shutil.copytree(conf["package"], dest)
-        for root, dirs, files in os.walk(dest):
-            for d in dirs:
-                os.chmod(os.path.join(root, d), 0o755)
-            for f in files:
-                os.chmod(os.path.join(root, f), 0o644)
-        os.chmod(dest, 0o755)
+        for plugin in conf["plugins"]:
+            for entry in os.listdir(plugins):
+                if entry.startswith(plugin["name"] + "_"):
+                    shutil.rmtree(os.path.join(plugins, entry))
+            dest = os.path.join(plugins, plugin["dir"])
+            shutil.copytree(plugin["package"], dest)
+            for root, dirs, files in os.walk(dest):
+                for d in dirs:
+                    os.chmod(os.path.join(root, d), 0o755)
+                for f in files:
+                    os.chmod(os.path.join(root, f), 0o644)
+            os.chmod(dest, 0o755)
 
 
     def write_credentials():
         creds = {}
-        with open(conf["credentialsFile"]) as f:
+        with open(conf["openSubtitles"]["credentialsFile"]) as f:
             for line in f.read().splitlines():
                 key, sep, value = line.partition("=")
                 if sep:
@@ -90,26 +92,38 @@
                 for old in root.findall(tag):
                     root.remove(old)
             langs = ET.SubElement(root, "SubtitleDownloadLanguages")
-            for lang in conf["languages"]:
+            for lang in conf["openSubtitles"]["languages"]:
                 ET.SubElement(langs, "string").text = lang
             for tag in flags:
                 ET.SubElement(root, tag).text = "false"
             write_xml(tree, path, stat.S_IMODE(os.stat(path).st_mode))
 
 
-    for step in (install_plugin, write_credentials, patch_libraries):
+    steps = [install_plugins]
+    if conf["openSubtitles"]:
+        steps += [write_credentials, patch_libraries]
+    for step in steps:
         try:
             step()
         except Exception as e:
-            print(f"jellyfin-opensubtitles: {step.__name__} failed: {e!r}", file=sys.stderr)
+            print(f"jellyfin-plugins: {step.__name__} failed: {e!r}", file=sys.stderr)
   '';
 
-  setupConfig = pkgs.writeText "jellyfin-opensubtitles.json" (builtins.toJSON {
+  mkPlugin = name: package: {
+    inherit name;
+    package = toString package;
+    dir = "${name}_${package.version}";
+  };
+
+  setupConfig = pkgs.writeText "jellyfin-plugins.json" (builtins.toJSON {
     inherit (config.services.jellyfin) dataDir;
-    inherit (os) languages credentialsFile;
-    package = toString os.package;
-    pluginName = "Open Subtitles";
-    pluginDir = "Open Subtitles_${os.package.version}";
+    plugins =
+      lib.optional os.enable (mkPlugin "Open Subtitles" os.package)
+      ++ lib.optional lapse.enable (mkPlugin "LAPSE" lapse.package);
+    openSubtitles =
+      if os.enable
+      then {inherit (os) languages credentialsFile;}
+      else null;
   });
 in {
   options.custom.jellyfin = {
@@ -140,6 +154,15 @@ in {
         description = "Languages to download subtitles in, as the ISO 639-2 codes Jellyfin itself stores (`fra`, not `fre`).";
       };
     };
+
+    lapse = {
+      enable = mkEnableOption "Jellyfin's LAPSE subtitle-sync plugin, installed declaratively";
+
+      package = mkOption {
+        type = types.package;
+        description = "The plugin as a directory holding its DLL, with a `version` attribute (a build from its plugin repository whose targetAbi is at or below the server's version).";
+      };
+    };
   };
 
   config = mkIf cfg.enable (mkMerge [
@@ -160,7 +183,7 @@ in {
     # subtitles on any title that also carries French audio. Both are turned
     # off in every library's options.xml (the plugin itself only needs the
     # credentials).
-    (mkIf os.enable {
+    (mkIf (os.enable || lapse.enable) {
       systemd.services.jellyfin.serviceConfig.ExecStartPre = ["-${setup} ${setupConfig}"];
     })
 

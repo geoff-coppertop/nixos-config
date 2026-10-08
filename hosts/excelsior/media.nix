@@ -98,6 +98,11 @@ in {
         package = pkgs.callPackage ../../pkgs/jellyfin-plugin-opensubtitles.nix {};
         credentialsFile = config.age.secrets."jellyfin/opensubtitles-credentials".path;
       };
+
+      lapse = {
+        enable = true;
+        package = pkgs.callPackage ../../pkgs/jellyfin-plugin-lapse.nix {};
+      };
     };
 
     autoRip = {
