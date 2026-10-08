@@ -12,6 +12,7 @@ in {
     ./hardware.nix
     ./disko.nix
     ./media.nix
+    ./subtitles.nix
 
     ../../profiles/common
     # NOT: profiles/desktop — no display server

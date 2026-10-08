@@ -628,6 +628,28 @@ in {
         tls = {};
         middlewares = ["authelia@file"];
       };
+
+      # excelsior's subtitle stack (hosts/excelsior/subtitles.nix), gated like rip.
+      radarr = {
+        rule = "Host(`radarr.coppertop.ca`)";
+        service = "radarr";
+        tls = {};
+        middlewares = ["authelia@file"];
+      };
+
+      sonarr = {
+        rule = "Host(`sonarr.coppertop.ca`)";
+        service = "sonarr";
+        tls = {};
+        middlewares = ["authelia@file"];
+      };
+
+      bazarr = {
+        rule = "Host(`bazarr.coppertop.ca`)";
+        service = "bazarr";
+        tls = {};
+        middlewares = ["authelia@file"];
+      };
     };
 
     services = {
@@ -637,6 +659,9 @@ in {
       dcsDesktop.loadBalancer.servers = [{url = "http://192.168.1.10:3001";}];
       jellyfin.loadBalancer.servers = [{url = "http://192.168.1.10:8096";}];
       rip.loadBalancer.servers = [{url = "http://192.168.1.10:8080";}];
+      radarr.loadBalancer.servers = [{url = "http://192.168.1.10:7878";}];
+      sonarr.loadBalancer.servers = [{url = "http://192.168.1.10:8989";}];
+      bazarr.loadBalancer.servers = [{url = "http://192.168.1.10:6767";}];
     };
   };
 

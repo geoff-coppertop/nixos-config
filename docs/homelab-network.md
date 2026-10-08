@@ -229,8 +229,9 @@ itself, protect anything; the router still has to add
 `dcs.coppertop.ca`/`dcs-control.coppertop.ca` (excelsior's DCS webtop
 desktop and start/stop control page — **not** the `dcs-control` `/hooks`
 webhook router, which is machine-to-machine and would break behind a login
-page), `bambuddy.coppertop.ca`, and `rip.coppertop.ca` (excelsior's ARM admin
-UI).
+page), `bambuddy.coppertop.ca`, `rip.coppertop.ca` (excelsior's ARM admin
+UI), and `radarr.`/`sonarr.`/`bazarr.coppertop.ca` (excelsior's subtitle
+stack).
 
 Zigbee and Bambuddy self-register their routers in `modules/zigbee.nix`
 and `modules/bambuddy.nix`; rather than edit those files, `reliant`'s

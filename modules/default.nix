@@ -31,7 +31,6 @@
     ./nix-gc.nix
     ./secure-boot.nix
     ./snapper.nix
-    ./subtitle-align.nix
     ./tpm-luks.nix
     ./traefik.nix
     ./users.nix
