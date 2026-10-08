@@ -100,6 +100,15 @@ in {
       };
     };
 
+    # Downloaded subtitles never line up with a re-encoded rip; this retimes
+    # each one against its video's embedded English subtitle.
+    subtitleAlign = {
+      enable = true;
+      mediaDirs = ["/mnt/media/movies" "/mnt/media/tv"];
+      uid = mediaUid;
+      gid = mediaGid;
+    };
+
     autoRip = {
       enable = true;
       openFirewall = false;
