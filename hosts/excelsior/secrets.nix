@@ -53,5 +53,12 @@ _: {
 
     # No owner: read by podman-arm's ExecStartPre, which runs as root.
     "arm/tmdb-api-key".file = ../../secrets/arm/tmdb-api-key.age;
+
+    # Owned by jellyfin: custom.jellyfin.openSubtitles's setup runs as the
+    # service user, not root.
+    "jellyfin/opensubtitles-credentials" = {
+      file = ../../secrets/jellyfin/opensubtitles-credentials.age;
+      owner = "jellyfin";
+    };
   };
 }

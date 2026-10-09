@@ -289,6 +289,14 @@ API Key (v3 auth, not the v4 Read Access Token), no prefix or quotes. Backs
 `custom.autoRip.tmdbApiKeyFile`, same injection pattern as
 `hass/aqicn-token.age` above.
 
+### Jellyfin subtitle downloads
+
+`jellyfin/opensubtitles-credentials.age` (recipient: `excelsior`) is two
+lines, `username=<opensubtitles.com username>` and `password=<password>`,
+the same shape as a CIFS credentials file. Backs
+`custom.jellyfin.openSubtitles.credentialsFile`; declare it with `owner =
+"jellyfin"` since the plugin setup runs as the service user.
+
 `zwave/secrets.age` must look exactly like this:
 
 ```json
