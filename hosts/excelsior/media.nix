@@ -102,6 +102,7 @@ in {
       lapse = {
         enable = true;
         package = pkgs.callPackage ../../pkgs/jellyfin-plugin-lapse.nix {};
+        alass = pkgs.callPackage ../../pkgs/alass.nix {};
       };
     };
 

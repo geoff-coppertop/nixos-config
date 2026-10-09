@@ -18,11 +18,13 @@
   # server from starting.
   setup = pkgs.writeScript "jellyfin-plugins-setup" ''
     #!${pkgs.python3}/bin/python3
+    import hashlib
     import json
     import os
     import shutil
     import stat
     import sys
+    import uuid
     import xml.etree.ElementTree as ET
 
     conf = json.load(open(sys.argv[1]))
@@ -99,9 +101,55 @@
             write_xml(tree, path, stat.S_IMODE(os.stat(path).st_mode))
 
 
+    def write_lapse_config():
+        # Only the keys we own are set; the rest of the file (webhook token,
+        # sync history, ...) is the plugin's and is left as it wrote it.
+        path = os.path.join(plugins, "configurations", "Jellyfin.Plugin.Lapse.xml")
+        if os.path.isfile(path):
+            tree = ET.parse(path)
+            root = tree.getroot()
+        else:
+            root = ET.Element("PluginConfiguration")
+            tree = ET.ElementTree(root)
+        for tag, value in (
+            ("DefaultEngineId", "alass"),
+            ("AutoUpdateEngines", "false"),
+            ("OutputMode", "OverwriteWithBackup"),
+        ):
+            for old in root.findall(tag):
+                root.remove(old)
+            ET.SubElement(root, tag).text = value
+        engines = root.find("Engines")
+        if engines is None:
+            engines = ET.SubElement(root, "Engines")
+        for old in engines.findall("EngineSettings"):
+            if old.findtext("EngineId") == "alass":
+                engines.remove(old)
+        engine = ET.SubElement(engines, "EngineSettings")
+        ET.SubElement(engine, "EngineId").text = "alass"
+        ET.SubElement(engine, "PathOverride").text = conf["lapse"]["alass"]
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        write_xml(tree, path, 0o600)
+
+
+    def write_lapse_trigger():
+        # Jellyfin keeps a task's triggers in <configDir>/ScheduledTasks/<id>.js,
+        # where id is the MD5 of the task's class name read as a .NET Guid.
+        task = "Jellyfin.Plugin.Lapse.Tasks.LibrarySyncTask"
+        guid = uuid.UUID(bytes_le=hashlib.md5(task.encode("utf-16-le")).digest())
+        hours, minutes = conf["lapse"]["syncTime"].split(":")
+        ticks = (int(hours) * 3600 + int(minutes) * 60) * 10_000_000
+        folder = os.path.join(conf["configDir"], "ScheduledTasks")
+        os.makedirs(folder, exist_ok=True)
+        with open(os.path.join(folder, f"{guid}.js"), "w") as f:
+            json.dump([{"Type": "DailyTrigger", "TimeOfDayTicks": ticks}], f)
+
+
     steps = [install_plugins]
     if conf["openSubtitles"]:
         steps += [write_credentials, patch_libraries]
+    if conf["lapse"]:
+        steps += [write_lapse_config, write_lapse_trigger]
     for step in steps:
         try:
             step()
@@ -116,7 +164,14 @@
   };
 
   setupConfig = pkgs.writeText "jellyfin-plugins.json" (builtins.toJSON {
-    inherit (config.services.jellyfin) dataDir;
+    inherit (config.services.jellyfin) dataDir configDir;
+    lapse =
+      if lapse.enable
+      then {
+        alass = "${lapse.alass}/bin/alass";
+        inherit (lapse) syncTime;
+      }
+      else null;
     plugins =
       lib.optional os.enable (mkPlugin "Open Subtitles" os.package)
       ++ lib.optional lapse.enable (mkPlugin "LAPSE" lapse.package);
@@ -161,6 +216,17 @@ in {
       package = mkOption {
         type = types.package;
         description = "The plugin as a directory holding its DLL, with a `version` attribute (a build from its plugin repository whose targetAbi is at or below the server's version).";
+      };
+
+      alass = mkOption {
+        type = types.package;
+        description = "Package providing `bin/alass`, the engine LAPSE runs. It is the default engine, its path is written into LAPSE's settings, and LAPSE's own engine downloads are turned off.";
+      };
+
+      syncTime = mkOption {
+        type = types.strMatching "[0-2][0-9]:[0-5][0-9]";
+        default = "05:00";
+        description = "Local time (HH:MM) of the daily run of LAPSE's \"Sync subtitles\" task, which retimes every subtitle in every library and replaces the file, keeping a `.bak`. Set after the OpenSubtitles download task so new downloads are picked up the same day. Rewritten on every start, so a schedule edited in Jellyfin's dashboard does not stick.";
       };
     };
   };
