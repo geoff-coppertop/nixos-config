@@ -143,8 +143,12 @@ in {
         # the passthrough track was flagged Default and playback still showed
         # a permanent second copy of the dialogue subtitles. Both flags were
         # needed (confirmed live).
-        HB_ARGS_DVD = "--subtitle-lang-list eng,fra --all-subtitles --subtitle-burned=none --subtitle-default=none --encoder qsv_h265";
-        HB_ARGS_BD = "--subtitle-lang-list eng,fra --all-subtitles --subtitle-burned=none --subtitle-default=none --audio-lang-list eng,fra --all-audio --encoder qsv_h265";
+        # --aencoder copy ...: both H.265 MKV presets mix every track down to
+        # stereo at 160 kb/s (AudioMixdown "stereo" in HandBrake's own preset
+        # file), which is why 5.1 discs came out as stereo. Copy keeps the
+        # disc's track; anything not in the mask is re-encoded to 5.1 AC-3.
+        HB_ARGS_DVD = "--subtitle-lang-list eng,fra --all-subtitles --subtitle-burned=none --subtitle-default=none --aencoder copy --audio-copy-mask aac,ac3,eac3,truehd,dts,dtshd,flac --audio-fallback ffac3 --mixdown 5point1 --encoder qsv_h265";
+        HB_ARGS_BD = "--subtitle-lang-list eng,fra --all-subtitles --subtitle-burned=none --subtitle-default=none --audio-lang-list eng,fra --all-audio --aencoder copy --audio-copy-mask aac,ac3,eac3,truehd,dts,dtshd,flac --audio-fallback ffac3 --mixdown 5point1 --encoder qsv_h265";
 
         # H.265/HEVC over ARM's H.264 defaults ("HQ 720p30 Surround"/"HQ
         # 1080p30 Surround") -- meaningfully smaller output at comparable
