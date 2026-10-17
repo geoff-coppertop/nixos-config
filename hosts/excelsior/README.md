@@ -51,8 +51,9 @@ onward (same as enterprise-d).
 | Service | URL |
 | --- | --- |
 | AdGuard Home | `https://dns2.coppertop.ca` (proxied cross-host through reliant's Traefik — excelsior runs no Traefik of its own) |
-| DCS webtop desktop | `https://dcs.coppertop.ca` (no auth yet — same source-IP-only posture as everything else here, pending a holistic Traefik auth pass) |
-| DCS start/stop control | `https://dcs-control.coppertop.ca` (no auth yet, same source-IP-only posture as DCS webtop desktop above) |
+| DCS webtop desktop | `https://dcs.coppertop.ca` (Authelia forward-auth on reliant's router, plus the source-IP firewall restriction) |
+| DCS start/stop control | `https://dcs-control.coppertop.ca` (page behind Authelia; `/hooks` ungated, machine-to-machine) |
+| DCS Server Manager | `https://dsm.coppertop.ca` (Authelia; DSM's own password unset) |
 | Jellyfin | `https://jellyfin.coppertop.ca` (proxied cross-host; its own accounts are the auth) |
 | Automatic Ripping Machine | `https://rip.coppertop.ca` (proxied cross-host, gated by Authelia forward-auth on reliant; ARM's own login screen is off — `custom.autoRip.disableLogin`) |
 | tinyMediaManager | `https://library.coppertop.ca` (proxied cross-host, gated by Authelia forward-auth on reliant) |
@@ -81,7 +82,8 @@ Rule](../../docs/architecture.md#placement-rule)).
 | 8096 | tcp | Jellyfin, `custom.jellyfin` with `openFirewall = false` | reliant only (firewall-restricted; proxied at `jellyfin.coppertop.ca`) |
 | 8920 (tcp), 1900 + 7359 (udp) | tcp/udp | Jellyfin's other ports — nixpkgs' `services.jellyfin` opens four ports, not just 8096 | **Not opened today** — `custom.jellyfin.openFirewall = false` here; setting it true opens these three alongside 8096 |
 | 9090 | tcp | DCS start/stop control page (nginx), `custom.dcsServer.control.pagePort` | Bound to `192.168.1.10`; reliant only (firewall-restricted; proxied at `dcs-control.coppertop.ca`) |
-| 9091 | tcp | DCS start/stop/status/mission-upload webhook, `custom.dcsServer.control.webhookPort` | Same as 9090 (proxied at `dcs-control.coppertop.ca/hooks`) |
+| 9091 | tcp | DCS start/stop/status webhook, `custom.dcsServer.control.webhookPort` | Same as 9090 (proxied at `dcs-control.coppertop.ca/hooks`) |
+| 9999 | tcp | DCS Server Manager web UI, `custom.dcsServer.dsm.port` | Bound to `192.168.1.10`; reliant only (firewall-restricted; proxied at `dsm.coppertop.ca`) |
 | 10308 | tcp+udp | DCS game traffic, `custom.dcsServer.gamePort` | LAN/WAN (firewall open; needs a router port-forward for real remote play, then remote friends connect at `dcs.coppertop.ca:10308` — via `custom.ddns` on reliant; see Known Gotchas) |
 | 10309 | tcp+udp | DCS in-game VoIP, `custom.dcsServer.voiceChat.port` (`voiceChat.enable` off) | **Not bound today** — free, no collision if it is switched on |
 | 34197 | udp | Factorio game traffic, `custom.factorioServer` via `services.factorio.openFirewall` | LAN/WAN (firewall open; same port-forward story as 10308, at `factorio.coppertop.ca:34197`) |
@@ -117,10 +119,9 @@ Then open `http://localhost:3001` (or the `dcs.coppertop.ca` URL
 above) for DCS's own local WebGUI and launcher — see Known Gotchas for why
 this in-desktop access is the only way to actually use DCS's WebGUI itself
 (remote access to *that* via any reverse proxy doesn't work, by DCS's own
-design — the desktop being proxied doesn't change that). `dcs-control.coppertop.ca`
-itself now also has a mission upload form — no tunnel needed just to get a
-`.miz` file onto the host — see `docs/homelab-network.md` § DCS On-Demand
-Start/Stop And Remote Control.
+design — the desktop being proxied doesn't change that). Missions are
+uploaded through DSM at `dsm.coppertop.ca` — see `docs/homelab-network.md`
+§ DCS Server Manager (DSM).
 
 ## First-Time Service Setup
 
@@ -132,17 +133,13 @@ Start/Stop And Remote Control.
 | Factorio | No manual step — `services.factorio` generates a default save under `/var/lib/factorio/saves` on first start |
 | Automatic Ripping Machine | Create `raw/`, `transcode/`, `completed/` on the NAS media share first — ARM doesn't create them and fails with `No such file or directory` otherwise: `ssh thomasga@excelsior.local sudo mkdir -p /mnt/media/{raw,transcode,completed}` (needs `sudo`: the CIFS mount forces `uid=5000,gid=5000`, which `thomasga` isn't) |
 
-After DCS login is saved, set `custom.dcsServer.autoStart = true;` and
-rebuild so the DCS server launches with the container.
+After DCS login is saved, DSM launches the server about a minute after the
+container starts (`autoStart` stays `false`; see Known Gotchas).
 
-Starting the container (whether via the control page or manually) does
-**not** by itself load a mission — DCS's own log
+Starting the container does **not** by itself load a mission — DCS's own log
 (`Saved Games/DCS.dcs_serverrelease/Logs/dcs.log`) will show
 `Mission list is empty, server not started.` until one is configured in
-`serverSettings.lua` or loaded through the WebGUI/webtop. `dcs-control.coppertop.ca`
-can upload a `.miz` file into `custom.dcsServer.control.missionsDir` (see
-below), but adding it to the active mission list is still a manual step in
-the tunneled webtop's WebGUI — uploading and loading are separate.
+`serverSettings.lua` or loaded through DSM or the tunneled webtop's WebGUI.
 
 ## DCS Server Maintenance
 
@@ -216,6 +213,7 @@ servers — that's a router-side step, not managed by this repo.
   separate, actively maintained `jaycadi/dcs-srs-server` image as its own
   podman container instead — no Wine/.NET install needed inside the DCS
   desktop.
+- **DSM is Windows-first and can't exec a PE binary on Linux.** Its Linux `start()` runs `DCS_EXE_PATH` directly, so the image ships a `DCS_server.exe` wrapper script that `exec`s `wine` (named so DSM's process lookup matches). Side effects: DSM's install path resolves to `/opt/dsm/dcs`, so its built-in updater is unusable (DCS updates stay the `autoInstall` flow below), its config is Nix-generated read-only (UI edits to DSM's own settings don't persist), and its SRS checks are off (SRS is its own container). `custom.dcsServer.autoStart` must be `false` or Aterfax starts a second copy. The first GHCR push is private by default; make the `dcs-server-dsm` package public (or excelsior can't pull it).
 - **`custom.dns.lanSubnet` is overridden to `192.168.0.0/16`.** The module
   default (`192.168.1.0/24`) and reliant's own override
   (`192.168.20.0/24`) each only cover one of the network's 3 VLANs. Widened

@@ -370,7 +370,7 @@ in {
       # respectively), defined by hand below.
       # "ad" (lldap's own admin UI) and "auth" (Authelia's own portal) are
       # self-registered by custom.lldap/custom.authelia below.
-      subdomains = ["home" "dns1" "dns2" "dcs" "dcs-control" "jellyfin" "rip" "library" "adsb" "zigbee" "bambuddy" "ad" "auth"];
+      subdomains = ["home" "dns1" "dns2" "dcs" "dcs-control" "dsm" "jellyfin" "rip" "library" "adsb" "zigbee" "bambuddy" "ad" "auth"];
       # Renamed from the module default "dns", carried from defiant — dns1
       # (this host) and dns2 (excelsior) pair the two AdGuard instances.
       adminSubdomain = "dns1";
@@ -467,7 +467,7 @@ in {
       # module for a same-shaped cross-domain need. Never lldap's own admin
       # UI ("ad") or Authelia's own portal ("auth") -- see
       # docs/homelab-network.md § Self-Lockout Rule.
-      protectedSubdomains = ["dns1" "dns2" "zigbee" "dcs" "dcs-control" "bambuddy" "rip" "library"];
+      protectedSubdomains = ["dns1" "dns2" "zigbee" "dcs" "dcs-control" "dsm" "bambuddy" "rip" "library"];
 
       # Authelia as an OpenID Connect 1.0 provider, for Home Assistant's real
       # SSO -- a separate capability from the forward-auth gate above, not a
@@ -614,6 +614,15 @@ in {
         middlewares = ["authelia@file"];
       };
 
+      # DSM web UI (custom.dcsServer.dsm); its own password is unset, this is
+      # the only login.
+      dcsDsm = {
+        rule = "Host(`dsm.coppertop.ca`)";
+        service = "dcsDsm";
+        tls = {};
+        middlewares = ["authelia@file"];
+      };
+
       # bambuddy.nix self-registers this router (rule/service/tls) the same
       # way home-assistant.nix/zigbee.nix do above -- data overlay, not an
       # edit to that module.
@@ -645,6 +654,7 @@ in {
       dcsControlHooks.loadBalancer.servers = [{url = "http://192.168.1.10:9091";}];
       dcsControlPage.loadBalancer.servers = [{url = "http://192.168.1.10:9090";}];
       dcsDesktop.loadBalancer.servers = [{url = "http://192.168.1.10:3001";}];
+      dcsDsm.loadBalancer.servers = [{url = "http://192.168.1.10:9999";}];
       jellyfin.loadBalancer.servers = [{url = "http://192.168.1.10:8096";}];
       rip.loadBalancer.servers = [{url = "http://192.168.1.10:8080";}];
       library.loadBalancer.servers = [{url = "http://192.168.1.10:4000";}];

@@ -1,0 +1,55 @@
+name: Update DCS image pins
+
+# Keeps containers/dcs-server-dsm/pins.json current with its two upstreams:
+# the Aterfax image's :latest digest and fisadev/dcs_server_manager's default
+# branch. Weekly it only opens an issue when either moved (a bot push to
+# master would skip review); dispatching it on a branch commits the new pins
+# there, which changes the image tag and so triggers a rebuild.
+on:
+  schedule:
+    - cron: "17 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: resolve upstream
+        id: up
+        run: |
+          pins=containers/dcs-server-dsm/pins.json
+          base=$(jq -r .baseImage $pins)
+          digest=$(docker buildx imagetools inspect "$base:latest" --format '{{.Manifest.Digest}}')
+          rev=$(git ls-remote https://github.com/fisadev/dcs_server_manager HEAD | cut -f1)
+          jq --arg d "$digest" --arg r "$rev" '.baseDigest = $d | .dsmRev = $r' $pins > /tmp/pins.json
+          mv /tmp/pins.json $pins
+          if git diff --quiet -- $pins; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: commit and push (manual run)
+        if: steps.up.outputs.changed == 'true' && github.event_name == 'workflow_dispatch'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add containers/dcs-server-dsm/pins.json
+          git commit -m "containers/dcs-server-dsm: update pins via workflow_dispatch"
+          git push origin HEAD:"${{ github.ref_name }}"
+
+      - name: open an issue (scheduled run)
+        if: steps.up.outputs.changed == 'true' && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          title="DCS image pins are out of date"
+          if [ -z "$(gh issue list --state open --search "$title in:title" --json number --jq '.[].number')" ]; then
+            gh issue create --title "$title" --body "Aterfax or DSM has a newer version than containers/dcs-server-dsm/pins.json. Run the 'Update DCS image pins' workflow on a branch to bump them and rebuild the image."
+          fi

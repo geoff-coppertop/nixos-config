@@ -1,0 +1,68 @@
+name: DCS server + DSM image
+
+# Builds containers/dcs-server-dsm and pushes it to GHCR, tagged with the same
+# content hash modules/dcs-server.nix computes (asked of nix itself so the two
+# can't drift). A tag that already exists is never rebuilt, so this does real
+# work only when the Containerfile, its context files or pins.json change;
+# Docker layer cache (type=gha) covers the remainder, e.g. a DSM-only bump
+# reusing the apt layer. Runs on any branch so the image exists before the
+# host can reference it.
+on:
+  push:
+    paths:
+      - "containers/dcs-server-dsm/**"
+      - ".github/workflows/dcs-server-dsm-image.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: cachix/install-nix-action@v27
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+
+      - name: resolve image tag and pins
+        id: meta
+        run: |
+          echo "image=$(nix eval --raw .#nixosConfigurations.excelsior.config.virtualisation.oci-containers.containers.dcs-server.image)" >> "$GITHUB_OUTPUT"
+          pins=containers/dcs-server-dsm/pins.json
+          echo "base=$(jq -r '.baseImage + "@" + .baseDigest' $pins)" >> "$GITHUB_OUTPUT"
+          echo "dsm_rev=$(jq -r .dsmRev $pins)" >> "$GITHUB_OUTPUT"
+          echo "digest=$(jq -r .baseDigest $pins)" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: skip if this tag was already pushed
+        id: exists
+        run: |
+          if docker buildx imagetools inspect "${{ steps.meta.outputs.image }}" > /dev/null 2>&1; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: docker/setup-buildx-action@v3
+        if: steps.exists.outputs.found != 'true' && steps.meta.outputs.digest != ''
+
+      - uses: docker/build-push-action@v6
+        if: steps.exists.outputs.found != 'true' && steps.meta.outputs.digest != ''
+        with:
+          context: containers/dcs-server-dsm
+          push: true
+          tags: ${{ steps.meta.outputs.image }}
+          build-args: |
+            BASE_IMAGE=${{ steps.meta.outputs.base }}
+            DSM_REV=${{ steps.meta.outputs.dsm_rev }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

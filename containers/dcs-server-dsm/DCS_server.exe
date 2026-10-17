@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# DSM's Linux start() execs DCS_EXE_PATH directly and cannot run a PE binary.
+# This script stands in for it, and is named DCS_server.exe so DSM's process
+# lookup (by exe name against the process name and command line) matches the
+# wine process it launches.
+exec wine "/config/.wine/drive_c/Program Files/Eagle Dynamics/DCS World Server/bin/DCS_server.exe" "$@"

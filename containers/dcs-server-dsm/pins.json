@@ -1,0 +1,5 @@
+{
+  "baseImage": "docker.io/aterfax/dcs-world-dedicated-server",
+  "baseDigest": "",
+  "dsmRev": "bcd0a7a77752eadad711870e29f37aeaec9cd811"
+}

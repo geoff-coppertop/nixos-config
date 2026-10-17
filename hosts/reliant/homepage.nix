@@ -65,6 +65,12 @@ _: {
             };
           }
           {
+            "DCS Server Manager" = {
+              href = "https://dsm.coppertop.ca";
+              description = "Server health, restarts, missions";
+            };
+          }
+          {
             "DCS World Webtop" = {
               href = "https://dcs.coppertop.ca";
               description = "Web desktop";

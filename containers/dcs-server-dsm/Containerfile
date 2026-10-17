@@ -1,0 +1,21 @@
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+ARG DSM_REV
+
+# DSM has no build backend, so its dependencies are read straight from its
+# pyproject.toml rather than duplicated here.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends python3-venv \
+ && rm -rf /var/lib/apt/lists/* \
+ && git clone https://github.com/fisadev/dcs_server_manager /opt/dsm/app \
+ && git -C /opt/dsm/app checkout "${DSM_REV}" \
+ && python3 -m venv /opt/dsm/venv \
+ && python3 -c "import tomllib; print(*tomllib.load(open('/opt/dsm/app/pyproject.toml','rb'))['project']['dependencies'], sep='\n')" > /tmp/dsm-requirements.txt \
+ && /opt/dsm/venv/bin/pip install --no-cache-dir -r /tmp/dsm-requirements.txt \
+ && rm /tmp/dsm-requirements.txt
+
+COPY DCS_server.exe /opt/dsm/dcs/bin/DCS_server.exe
+COPY s6/init-dsm-longrun /etc/s6-overlay/s6-rc.d/init-dsm-longrun
+RUN chmod +x /opt/dsm/dcs/bin/DCS_server.exe /etc/s6-overlay/s6-rc.d/init-dsm-longrun/run \
+ && touch /etc/s6-overlay/s6-rc.d/user/contents.d/init-dsm-longrun

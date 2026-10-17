@@ -1,0 +1,9 @@
+#!/usr/bin/with-contenv bash
+# shellcheck shell=bash
+
+# DSM needs the wine prefix (created by init-winepreqs-oneshot) and runs as
+# abc so everything it launches or writes under /config is owned correctly.
+install -d -o abc -g users /config/dsm
+export HOME=/config
+cd /opt/dsm/app || exit 1
+exec s6-setuidgid abc /opt/dsm/venv/bin/python run.py --config-path /opt/dsm/dsm.config

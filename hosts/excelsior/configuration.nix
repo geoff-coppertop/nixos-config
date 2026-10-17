@@ -120,10 +120,10 @@ in {
 
     dcsServer = {
       enable = true;
-      # Login saved + auto-login enabled in the DCS launcher (confirmed live:
-      # the container starts straight into a running session with no login
-      # prompt), so the server can launch unattended with the container.
-      autoStart = true;
+      # Off: DSM (below) launches and supervises DCS_server.exe itself, and
+      # Aterfax's AUTOSTART would start a second copy. The saved login +
+      # auto-login in the DCS launcher still applies to DSM's launch.
+      autoStart = false;
       # DCS is fully installed and up to date. Confirmed live: leaving this
       # at the module default (true) re-runs DCS_updater.exe on every
       # restart, and its "Nothing to install" result pops up a GUI dialog
@@ -166,6 +166,12 @@ in {
         enable = true;
         bindAddress = "192.168.1.10";
       };
+      # dsm.coppertop.ca, behind Authelia (reliant's protectedSubdomains);
+      # DSM's own password stays unset to avoid a second login.
+      dsm = {
+        enable = true;
+        bindAddress = "192.168.1.10";
+      };
     };
 
     factorioServer.enable = true;
@@ -204,6 +210,7 @@ in {
         dns2 = reliantIp;
         dcs = reliantIp;
         dcs-control = reliantIp;
+        dsm = reliantIp;
         jellyfin = reliantIp;
         rip = reliantIp;
         library = reliantIp;
@@ -294,6 +301,7 @@ in {
       iptables -I nixos-fw -p tcp -s 192.168.20.15 --dport 3001 -j ACCEPT
       iptables -I nixos-fw -p tcp -s 192.168.20.15 --dport 9090 -j ACCEPT
       iptables -I nixos-fw -p tcp -s 192.168.20.15 --dport 9091 -j ACCEPT
+      iptables -I nixos-fw -p tcp -s 192.168.20.15 --dport 9999 -j ACCEPT
     '';
 
     hostName = "excelsior";

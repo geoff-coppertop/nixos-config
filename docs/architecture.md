@@ -352,6 +352,7 @@ another container.
 | --- | --- |
 | `custom.dcsServer` | DCS World dedicated server (Aterfax OCI image under podman) |
 | `custom.dcsServer.srs` | DCS-SRS voice server — a separate `jaycadi/dcs-srs-server` container, not bundled with the DCS image |
+| `custom.dcsServer.dsm` | DCS Server Manager inside the DCS container: process supervision, auto-restart, mission and config management. Image built by CI from `containers/dcs-server-dsm` (pins in its `pins.json`) and pulled from GHCR; requires `autoStart = false` |
 | `custom.factorioServer` | Factorio headless dedicated server — just an `enable` gate over nixpkgs' `services.factorio` (default UDP 34197). Every actual setting (`openFirewall`, `game-name`, `admins`, `extraSettingsFile`, etc.) is set directly via `services.factorio.*` on the host that needs it, not mirrored here |
 
 ## Flake Inputs

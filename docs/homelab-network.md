@@ -450,43 +450,30 @@ priority for the unprefixed page router beat a previous hardcoded priority
 on the hooks router alone, silently routing `/hooks/*` to nginx (a raw 404)
 instead of the webhook.
 
-`dcs-control.coppertop.ca` itself has no auth beyond the source-IP restriction —
-general Traefik auth in front of it is a deliberate follow-up being done
-holistically rather than one router at a time. Starting the container via
-the control page does **not** by itself load a DCS mission — that's a
-separate, unrelated gap (`Mission list is empty, server not started.` in
-DCS's own log), not something start/stop fixes.
+The page router carries `authelia@file`; the `/hooks` router deliberately
+does not (machine-to-machine, and a forward-auth redirect would break its
+callers). Starting the container does **not** by itself load a DCS mission
+(`Mission list is empty, server not started.` in DCS's own log).
 
-### Mission upload
+### DCS Server Manager (DSM)
 
-The same control page also has a `.miz` file upload form, backed by a third
-`webhook` hook, `/hooks/dcs-upload-mission` — an alternative to `scp`-ing a
-mission file to the host over SSH. The browser POSTs the file as a raw
-(non-multipart) request body with the filename in an `X-Filename` header;
-`adnanh/webhook`'s `pass-file-to-command` only pulls file content out of
-`source: payload` for parts it can JSON-decode, so a real binary upload has
-to go in as `source: raw-request-body` instead (confirmed against
-`adnanh/webhook`'s own Go source, not guessed — its multipart handling never
-populates the JSON-parameter map for a non-JSON file part).
+`custom.dcsServer.dsm` runs [DSM](https://github.com/fisadev/dcs_server_manager)
+inside the DCS container (an s6 service in the image). It launches and
+supervises `DCS_server.exe`, restarts it when it dies or stops answering on
+8088, and handles missions, configs and logs at `dsm.coppertop.ca` (router
+`dcsDsm`, `authelia@file`, to `192.168.1.10:9999`, firewall-restricted to
+`reliant`). DSM's own password is left unset so Authelia is the only login.
+It supervises the process inside a running container; starting and stopping
+the container stays with the control page above. Mission upload moved from
+the control page into DSM.
 
-The unprivileged `dcs-control` user can't write into the DCS install
-directly (it's owned by the container's `PUID`/`PGID`, 1000:1000), so
-uploads are privilege-separated the same way start/stop are: the webhook
-script stages the file and its sanitized-on-the-way-in name under
-`/var/lib/dcs-control/uploads`, then hands off to a **fixed,
-zero-argument** `sudo` command (`security.sudo.extraRules`, same pattern as
-the start/stop grant) that re-sanitizes the staged filename itself — never
-trusting that the unprivileged step already made it safe — and `install`s
-it into `custom.dcsServer.control.missionsDir` as `1000:1000`. Sudoers can't
-safely pattern-match an arbitrary filename on a command line, which is why
-the privileged script takes no arguments at all and reads everything itself
-from a fixed staging path instead.
-
-Uploading only gets the file onto the host; DCS still won't run it until
-it's added to the active mission list through the tunneled webtop's WebGUI
-(see `hosts/excelsior/README.md`) — the same manual step required today,
-just without needing an SSH tunnel to get the file there in the first
-place.
+The image comes from GHCR, not a host build: `containers/dcs-server-dsm`
+(Aterfax base plus DSM) is built by the `dcs-server-dsm-image` workflow and
+tagged with a content hash that `modules/dcs-server.nix` computes, so an
+unchanged tag is never rebuilt and a DSM-only bump reuses cached layers. The
+Aterfax digest and DSM commit are pinned in `pins.json`; the weekly `Update
+DCS image pins` workflow opens an issue when either moves, and dispatching it
+on a branch commits the new pins.
 
 ### DCS's own WebGUI does not work through any reverse proxy
 

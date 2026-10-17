@@ -53,7 +53,7 @@ for the full design.
   never gated by Authelia, same reason.
 - `dns1.coppertop.ca`/`dns2.coppertop.ca` (AdGuard admin UIs),
   `zigbee.coppertop.ca` (Zigbee2MQTT), `dcs.coppertop.ca` (excelsior's DCS
-  webtop desktop), `dcs-control.coppertop.ca` (excelsior's DCS start/stop
+  webtop desktop), `dsm.coppertop.ca` (excelsior's DCS Server Manager), `dcs-control.coppertop.ca` (excelsior's DCS start/stop
   control page — **not** its `/hooks` webhook, which stays ungated since
   it's called machine-to-machine, not from a browser), and
   `bambuddy.coppertop.ca` are gated by the `authelia@file` forward-auth
