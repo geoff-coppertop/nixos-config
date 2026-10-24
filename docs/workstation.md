@@ -16,6 +16,7 @@ top — theme, wallpaper, which optional apps they install — are
 | File | Provides |
 | --- | --- |
 | `profiles/desktop/gnome.nix` | GNOME, GDM, system-wide dconf, and pruning of unwanted default applications — active only when `custom.desktop.environment = "gnome"` (declared in `modules/desktop.nix`) |
+| `profiles/desktop/hyprland.nix` | Hyprland, GDM, portals, hyprlock PAM (fingerprint) — active only when `custom.desktop.environment = "hyprland"` |
 | `profiles/desktop/printing.nix` | CUPS printing — DE-independent, always on |
 | `profiles/desktop/audio.nix` | pipewire with ALSA/Pulse compatibility and rtkit |
 | `profiles/desktop/power.nix` | logind idle/suspend policy, UPower critical-battery hibernate, AC and remote-session detection |
@@ -36,6 +37,15 @@ pinned to a rev, `glib-compile-schemas`, installed to
   extension itself and its keybindings is per-user (`docs/desktop.md`), same
   split as every other extension here — this profile only makes the package
   available.
+
+The Hyprland session (`users/thomasga/hyprland.nix`) provides GNOME-parity
+functionality: Waybar (panel/tray), wofi (`Super+Space` launcher), mako
+(notifications), hyprlock + hypridle (lock and idle-blank at the same 240 s as
+GNOME), hyprpaper (wallpaper), grim/slurp (`Print` / `Super+Shift+S`
+screenshots), and cliphist (clipboard history). `profiles/desktop/power.nix` is
+untouched by either session — its swayidle idle-hint bridge already covers
+Hyprland; hypridle only adds lock + DPMS on top. Fingerprint unlocks both the
+GDM greeter and hyprlock.
 
 `profiles/desktop/power.nix` is one half of this machine's suspend/hibernate
 design; the other half is `hosts/<machine>/power.nix`. They are documented
