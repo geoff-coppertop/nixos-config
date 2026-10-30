@@ -23,6 +23,7 @@ in {
     gaming.enable = true;
     vr.enable = true;
     debugProbes.enable = true;
+    edgetx.enable = true;
     bambuSlicer.enable = true;
 
     networkDrives = {
