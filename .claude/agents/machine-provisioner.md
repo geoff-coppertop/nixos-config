@@ -36,7 +36,7 @@ yours, not `architect`'s, the same way `homelab-network` sets its own
 **Machine capability is also yours**: `profiles/desktop/` (desktop-environment
 baseline, pipewire, logind idle/suspend policy) and `profiles/dev/` (Podman and
 devcontainers, the Connect IQ toolchain, network tools), plus the system
-modules backing them — `modules/debug-probes.nix` and `modules/bin-compat.nix`
+modules backing them — `modules/debug-probes.nix`, `modules/edgetx.nix` and `modules/bin-compat.nix`
 — and the packages those consume, `pkgs/search-light.nix` and
 `pkgs/connect-iq-sdk-manager-cli.nix`. These say *what class of machine this
 is* and what it can do; `hosts/reliant/configuration.nix` not importing

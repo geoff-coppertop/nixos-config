@@ -123,53 +123,26 @@ rather than here — it is Framework-laptop-specific, not a shared
 
 ## USB Debug Probes (udev)
 
-`custom.debugProbes.enable` (`modules/debug-probes.nix`) installs udev rules for
-common USB JTAG/SWD debug probes — ST-Link, J-Link, FTDI-based adapters, and
-CMSIS-DAP compatible devices, which includes the Raspberry Pi Debug Probe. The
-rules themselves live in `modules/udev-rules/69-probe-rs.rules`, a verbatim copy
-of the [probe-rs](https://probe.rs/)/OpenOCD project's udev rules (the same file
-is also kept in the `helicopter-collective` repo's `.devcontainer/`), and are
-loaded via `services.udev.packages` — **not** `services.udev.extraRules`. The
-module also creates the `plugdev` group, the rules' `GROUP="plugdev"` fallback,
-and `thomasga` is a member of it via `hosts/enterprise-d/configuration.nix`.
+`custom.debugProbes.enable` (`modules/debug-probes.nix`) installs udev rules for common USB JTAG/SWD probes — ST-Link, J-Link, FTDI-based adapters, and CMSIS-DAP devices including the Raspberry Pi Debug Probe. The rules are `modules/udev-rules/69-probe-rs.rules`, a verbatim copy of the [probe-rs](https://probe.rs/)/OpenOCD rules (also kept in `helicopter-collective`'s `.devcontainer/`), loaded via `services.udev.packages`, not `extraRules`. The module also creates the `plugdev` group (the rules' `GROUP="plugdev"` fallback); `thomasga` joins it in `hosts/enterprise-d/configuration.nix`.
 
-The rules file is embedded into its builder via `lib/local-file.nix`, not a
-bare `${./udev-rules/69-probe-rs.rules}` interpolation — see
-[docs/architecture.md § Local Files As Build Inputs](architecture.md#local-files-as-build-inputs).
-Any new static asset added under `profiles/dev/` or `profiles/desktop/`
-(another udev rule, a config file copied into a builder) needs the same
-treatment.
+The rules file is embedded via `lib/local-file.nix`, not a bare path interpolation — see [docs/architecture.md § Local Files As Build Inputs](architecture.md#local-files-as-build-inputs). Any new static asset under `profiles/dev/` or `profiles/desktop/` (another udev rule, a config file copied into a builder) needs the same treatment.
 
 ### Why `services.udev.packages` and not `extraRules`
 
-This file's own name matters. It is called `69-probe-rs.rules` upstream
-specifically so it sorts *before* systemd's own
-`70-uaccess.rules`/`73-seat-late.rules`. Those files only queue the `uaccess`
-ACL-granting builtin if a device is already `TAG=="uaccess"` at the point they
-are evaluated, and udev processes all rule files in one linear pass sorted by
-filename.
+Rule files here are named `69-*` so they sort before systemd's `70-uaccess.rules`/`73-seat-late.rules`, which only queue the `uaccess` ACL builtin if a device is already `TAG=="uaccess"` when they run; udev evaluates rule files in one pass sorted by filename. `services.udev.extraRules` merges into a single `99-local.rules`, which sorts after 73 and silently drops the ACL grant on a device's first-ever enumeration. `services.udev.packages` keeps each file's own name in `/etc/udev/rules.d/`.
 
-`services.udev.extraRules` merges its content into a single generated file always
-named `99-local.rules`, which sorts *after* 73 — silently breaking the ACL grant
-on every first-ever enumeration of a device, since our `TAG+="uaccess"`
-assignment would run too late to be seen. `services.udev.packages` preserves each
-file's own name in `/etc/udev/rules.d/`, restoring the intended ordering.
-
-This bug is easy to miss because re-triggering an already-enumerated device
-"fixes" it — the tag persists in that device's udev database entry from an
-earlier pass — making it look like an intermittent timing race rather than a
-deterministic ordering bug.
+Re-triggering an already-enumerated device "fixes" it because the tag persists in its udev database entry, so the bug looks like an intermittent race rather than a deterministic ordering error.
 
 ### Why the rules must live on the host
 
-Embedded-dev devcontainers (e.g. `helicopter-collective`) do not create their own
-USB device nodes. They bind-mount the host's `/dev/bus/usb` into the container
-(via `devcontainer.json`'s `mounts`) and rely on `--userns=keep-id` to map the
-container user to the host user's UID. Permission checks on that bind mount are
-enforced by the kernel against the same device node the host owns, so whatever
-the *host's* udev grants `thomasga` — through `plugdev` group membership and the
-rules' `TAG+="uaccess"` ACL — is exactly what the container process gets. There is
-no way to grant this access from inside the container image.
+Devcontainers (e.g. `helicopter-collective`) bind-mount the host's `/dev/bus/usb` and use `--userns=keep-id`, so the kernel checks the host's device node against the host UID: whatever host udev grants `thomasga` (`plugdev`, the `TAG+="uaccess"` ACL) is what the container gets, and the image cannot grant it. With the ordering fixed, `nixos-rebuild switch` plus a normal plug-in is enough — no `udevadm trigger` or replug.
 
-With the ordering fixed, a fresh `nixos-rebuild switch` plus a normal plug-in of
-the probe is enough — no manual `udevadm trigger` or replug workaround.
+## EdgeTX Radio Flashing (udev)
+
+`custom.edgetx.enable` (`modules/edgetx.nix`) installs `dfu-util` and `expresslrs-configurator` and loads `modules/udev-rules/69-edgetx.rules`, which grants the logged-in user access via `TAG+="uaccess"` only (no `plugdev`/`dialout` membership) to:
+
+- STM32 DFU bootloader `0483:df11` — `dfu-util`, EdgeTX Buddy (WebUSB), Companion.
+- EdgeTX USB-VCP `0483:5740` — ExpressLRS flashing through EdgeTX passthrough.
+- CP210x `10c4:ea60` — the RadioMaster ELRS UART flasher dongle. This ID is inferred from the dongle's documented cp2102 driver, not read from hardware; confirm with `lsusb` when it is plugged in.
+
+The two tty rules also set `ID_MM_DEVICE_IGNORE` so ModemManager leaves them alone. It uses `services.udev.packages` for the [reason above](#why-servicesudevpackages-and-not-extrarules). The update workflow itself lives in [geoff-coppertop/mt12-config](https://github.com/geoff-coppertop/mt12-config) (`uv run tools/card.py update`).

@@ -1,0 +1,6 @@
+# STM32 DFU bootloader (EdgeTX radio in DFU mode)
+SUBSYSTEM=="usb", ATTR{idVendor}=="0483", ATTR{idProduct}=="df11", TAG+="uaccess"
+# EdgeTX USB-VCP serial (ExpressLRS passthrough flashing)
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0483", ATTRS{idProduct}=="5740", TAG+="uaccess", ENV{ID_MM_DEVICE_IGNORE}="1"
+# CP210x USB-UART (RadioMaster ELRS UART flasher dongle)
+SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", TAG+="uaccess", ENV{ID_MM_DEVICE_IGNORE}="1"
