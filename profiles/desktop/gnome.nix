@@ -34,7 +34,6 @@ in {
         gnome-logs
         gnome-maps
         gnome-music
-        gnome-photos
         gnome-screenshot
         gnome-weather
         gnome-connections

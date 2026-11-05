@@ -32,16 +32,20 @@
     mailspring
     edgetx
     moonlight-qt
-    qgroundcontrol
+    # -Werror stripped: see docs/desktop.md § Known Gotchas.
+    (qgroundcontrol.overrideAttrs (old: {
+      postPatch =
+        (old.postPatch or "")
+        + ''
+          substituteInPlace QGCCommon.pri --replace-fail "-Werror" "-Wno-error"
+        '';
+    }))
     signal-desktop
   ];
 
   xdg.desktopEntries = {
-    # amdgpu invalidates GPU context on hibernate resume, crashing Signal's
-    # Chromium GPU process (SIGTRAP). Override the .desktop entry to pass
-    # --disable-gpu until fixed upstream.
-    # Attribute name matches the upstream filename (signal.desktop) so this
-    # entry overrides it via XDG_DATA_DIRS precedence rather than adding a dupe.
+    # --disable-gpu: see docs/desktop.md § Known Gotchas. The attribute name
+    # matches the upstream signal.desktop so this overrides it, not duplicates.
     signal = {
       name = "Signal";
       exec = "signal-desktop --disable-gpu %U";
