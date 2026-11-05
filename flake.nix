@@ -10,19 +10,7 @@
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
     agenix = {
       url = "github:ryantm/agenix";
-      inputs = {
-        nixpkgs.follows = "nixpkgs";
-        # agenix's own home-manager input is only used by its Darwin
-        # integration check and example homeConfiguration, neither of which
-        # we consume; its homeManagerModules.age output is static module code
-        # independent of which home-manager version built it. Following our
-        # pin instead of letting it fetch its own collapses the flake.lock
-        # split that produced a second, unused "home-manager" node (our own
-        # input actually resolves to "home-manager_2") — the exact trap that
-        # made an earlier bump silently miss the version our
-        # home-manager.users config evaluates against.
-        home-manager.follows = "home-manager";
-      };
+      inputs.nixpkgs.follows = "nixpkgs";
     };
     pre-commit.url = "github:cachix/pre-commit-hooks.nix";
     pre-commit.inputs.nixpkgs.follows = "nixpkgs";
