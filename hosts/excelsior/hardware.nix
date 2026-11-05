@@ -9,8 +9,6 @@
       efi.canTouchEfiVariables = true;
     };
 
-    initrd.systemd.enable = true;
-
     # sg (classic SCSI generic passthrough) isn't loaded by default; only
     # bsg (the newer block-layer interface) is. Confirmed live: MakeMKV
     # needs a real /dev/sg* node for Blu-ray ripping (custom.autoRip
