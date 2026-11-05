@@ -96,7 +96,6 @@ in {
     # systemd are told to keep quiet — without these, boot-time log lines
     # print straight over (and effectively replace) the splash.
     consoleLogLevel = 3;
-    initrd.verbose = false;
     kernelParams = [
       "quiet"
       "splash"

@@ -62,14 +62,6 @@ shells out to `docker` — notably the VS Code devcontainer CLI — works
 unmodified. Four settings there are load-bearing and were each set against a
 real failure:
 
-- **`slirp4netns` instead of pasta for rootless networking.** Podman 5.0 made
-  pasta the rootless default. Pasta clones the host's primary outbound interface
-  into the container netns, which breaks on dual-homed hosts (here Wi-Fi plus
-  USB-C ethernet on the same `/24`): NetworkManager installs the kernel prefix
-  route on only one interface, the container sees the other in isolation, and
-  ends up with no reachable gateway. `slirp4netns` NATs through a private subnet
-  and is host-config-agnostic. This needs both `extraPackages` and
-  `network.default_rootless_network_cmd` — the package alone does nothing.
 - **`localhost` first in `registries.search`.** Podman must resolve
   locally-built images (tagged `localhost/<name>`) before querying external
   registries. Without it, the devcontainer `updateRemoteUserUID` build step

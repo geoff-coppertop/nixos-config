@@ -12,16 +12,10 @@
       initrd = {
         availableKernelModules = ["tpm" "tpm_crb" "tpm_tis"];
 
-        luks.devices.root = {
-          # Removed hardcoded device string to allow Disko to define it safely
-          preLVM = true;
-          allowDiscards = true;
-        };
+        # No device string here: Disko defines it.
+        luks.devices.root.allowDiscards = true;
 
-        systemd = {
-          emergencyAccess = true;
-          enable = true;
-        };
+        systemd.emergencyAccess = true;
       };
     };
 

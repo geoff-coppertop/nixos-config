@@ -168,7 +168,7 @@ it, the same as it would be under `systemd-boot` alone.
 and systemd print their boot log straight to the console by default, which
 draws over (and effectively replaces) whatever Plymouth is rendering.
 `configuration.nix` also sets `boot.consoleLogLevel = 3`,
-`boot.initrd.verbose = false`, and `boot.kernelParams = [ "quiet" "splash"
+and `boot.kernelParams = [ "quiet" "splash"
 "udev.log_priority=3" "rd.systemd.show_status=auto" ]` to keep that log
 output quiet — without these, boot looks unchanged (Framework logo →
 systemd-boot menu → plain text log → GDM) even though the theme is correctly

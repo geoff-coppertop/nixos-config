@@ -140,8 +140,10 @@ in {
           # — not configurable on either side.
           assertion =
             !cfg.virtualPrinter.openFirewall
-            || !(config.services.adguardhome.enable && config.services.adguardhome.port == 3000);
-          message = "custom.bambuddy.virtualPrinter.openFirewall conflicts with AdGuard Home on port 3000: Bambuddy's virtual printer binds 3000/3002 unconditionally and those ports are not configurable. Move AdGuard's admin UI (services.adguardhome.port) first.";
+            || !(config.services.adguardhome.enable
+              && config.services.adguardhome.settings != null
+              && lib.hasSuffix ":3000" config.services.adguardhome.settings.http.address);
+          message = "custom.bambuddy.virtualPrinter.openFirewall conflicts with AdGuard Home on port 3000: Bambuddy's virtual printer binds 3000/3002 unconditionally and those ports are not configurable. Move AdGuard's admin UI (services.adguardhome.settings.http.address) first.";
         }
 
         {
