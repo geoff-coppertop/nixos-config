@@ -77,6 +77,8 @@ jobs:
       - name: flake check (eval only, all machines incl. aarch64)
         id: flakecheck
         continue-on-error: true
+        env:
+          NIX_ABORT_ON_WARN: "true"
         run: |
           set -o pipefail
           nix flake check --no-build 2>&1 | tee /tmp/flakecheck-output.txt
@@ -95,7 +97,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: `## CI: flake check failures\n\`\`\`\n${output.slice(0, 65000)}\n\`\`\``
+              body: `## CI: flake check failures\n\`\`\`\n${output.slice(-65000)}\n\`\`\``
             })
 
       - name: Fail if flake check failed
