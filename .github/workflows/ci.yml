@@ -300,7 +300,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: `## CI: build failures (${{ matrix.host }})\n\`\`\`\n${output.slice(0, 65000)}\n\`\`\``
+              body: `## CI: build failures (${{ matrix.host }})\n\`\`\`\n${output.slice(-65000)}\n\`\`\``
             })
 
       - name: Fail if build failed
