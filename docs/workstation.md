@@ -113,6 +113,10 @@ rather than here — it is Framework-laptop-specific, not a shared
 
 `custom.bambuSlicer.enable` (`modules/bambu-slicer.nix`) opens inbound UDP 2021 on the discovering host — what OrcaSlicer/Bambu Studio use to find Bambu Lab printers via SSDP, Bambuddy's virtual printer on `reliant` included. Confirmed against [ClusterM/open-bamboo-networking#89](https://github.com/ClusterM/open-bamboo-networking/issues/89) and the Bambu Lab wiki's port table.
 
+## ExpressLRS USB Flashing (udev)
+
+`custom.expresslrs.enable` (`modules/expresslrs.nix`) tags the USB serial bridges and bootloaders ExpressLRS hardware enumerates as (CP210x, CH340, STM32 VCP and DFU, ESP32-S3 native USB) with `uaccess` via `services.udev.packages`, for the same ordering reason as the debug probes below. `enterprise-d` also puts `thomasga` in `dialout` as a fallback. WiFi and Betaflight-passthrough flashing need none of this.
+
 ## USB Debug Probes (udev)
 
 `custom.debugProbes.enable` (`modules/debug-probes.nix`) installs udev rules for

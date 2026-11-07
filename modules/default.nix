@@ -13,6 +13,7 @@
     ./debug-probes.nix
     ./desktop.nix
     ./dns.nix
+    ./expresslrs.nix
     ./factorio-server.nix
     ./framework.nix
     ./fwupd.nix
