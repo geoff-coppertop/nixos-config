@@ -19,15 +19,6 @@
       dockerCompat = true;
       # Enable DNS resolution between containers on the default network.
       defaultNetwork.settings.dns_enabled = true;
-      # Podman 5.0 made pasta the rootless default.  Pasta clones the host's
-      # primary outbound interface into the container netns, which fails on
-      # dual-homed hosts (here wifi + USB-C ethernet on the same /24): NM only
-      # installs the kernel prefix route on one interface, the container sees
-      # the other in isolation, and ends up with no reachable gateway.  Ship
-      # slirp4netns so the network.default_rootless_network_cmd switch below
-      # has a binary to call -- slirp4netns NATs through a private subnet and
-      # is host-config-agnostic.
-      extraPackages = [pkgs.slirp4netns];
     };
 
     containers = {
@@ -44,10 +35,6 @@
         # Dockerfile uses the SHELL instruction, which OCI format does not
         # support and silently ignores with a warning.
         engine.image_default_format = "docker";
-
-        # Pair to extraPackages above: undo podman 5.0's default flip and use
-        # slirp4netns instead of pasta for rootless containers.
-        network.default_rootless_network_cmd = "slirp4netns";
       };
     };
   };

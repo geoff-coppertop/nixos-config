@@ -142,15 +142,10 @@ in {
       services.traefik.dynamicConfigOptions.http = mkTraefikRoute {
         name = "adguard";
         subdomain = cfg.adminSubdomain;
-        # Follows services.adguardhome.port (upstream default 3000) rather
-        # than a literal 3000: reliant's custom.bambuddy asserts against that
-        # same default to flag its own virtual-printer port collision (see
-        # modules/bambuddy.nix and hosts/reliant/README.md § Bambuddy), and
-        # the fix that assertion points at is moving
-        # services.adguardhome.port. A hardcoded 3000 here would silently
-        # decouple this route from that port the moment someone made that
-        # move, breaking the admin UI with no error until someone noticed.
-        port = config.services.adguardhome.port;
+        # Follows services.adguardhome.settings.http.address rather than a
+        # literal 3000: custom.bambuddy asserts against that same address
+        # (modules/bambuddy.nix), and moving it is that assertion's fix.
+        port = lib.toInt (lib.last (lib.splitString ":" config.services.adguardhome.settings.http.address));
         inherit (config.custom.traefik.acme) domain;
         # Opts into Authelia forward-auth iff this admin UI's own subdomain is
         # listed in custom.authelia.protectedSubdomains -- see

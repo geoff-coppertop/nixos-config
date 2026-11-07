@@ -64,7 +64,7 @@ in {
     ];
 
     # Off the module default (3000), which the virtual printer below needs.
-    adguardhome.port = 3004;
+    adguardhome.settings.http.address = "0.0.0.0:3004";
   };
 
   custom = {

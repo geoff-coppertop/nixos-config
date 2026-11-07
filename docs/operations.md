@@ -292,10 +292,7 @@ can cross-build an aarch64 host locally, slowly. CI sidesteps this by
 building aarch64 hosts natively on an `ubuntu-24.04-arm` runner, when one
 exists in the matrix.
 
-Use `nix flake check --no-build`, never bare `nix flake check`: the latter tries
-to build every `nixosConfiguration` including the aarch64 one, which fails with a
-platform mismatch on x86_64. Use `--no-build` for the eval-only check, then
-`nix build` per platform.
+Use `nix flake check --no-build`, never bare `nix flake check`, which tries to build every `nixosConfiguration` and fails on a platform mismatch.
 
 ## Lint, Format, And CI
 
@@ -324,6 +321,8 @@ request, each job posting its output as a PR comment before failing:
 | `changes` | `python3 tools/ci_changed_hosts.py --base <sha> --head <sha>` |
 | `build` | Matrix over the hosts `changes` selected: `nix build .#nixosConfigurations.<host>.config.system.build.toplevel --no-link` |
 | `ha-config-check` | `python3 tools/ha_config_check.py reliant`, scoped by `changes` (see below) |
+
+`flake-check` sets `NIX_ABORT_ON_WARN=true`, so any evaluation warning fails CI with a stack trace naming its source; reproduce locally with `env NIX_ABORT_ON_WARN=true nix flake check --no-build`.
 
 `lint` and `flake-check` are unconditional. `build` and `ha-config-check` are
 not — both depend on `changes`, which runs two derivation-diff scripts to

@@ -167,10 +167,8 @@ per-extension dconf settings block was added; defaults are left as-is.
   invalidates GPU context on hibernate resume, crashing VS Code's Chromium GPU
   process (SIGTRAP); no upstream issue is cited, just "until fixed upstream" —
   see `users/thomasga/vscode.nix:34`.
-- **Signal's `.desktop` entry launches with `--disable-gpu`.** Same amdgpu
-  hibernate-resume GPU-context crash as VS Code above, worked around by
-  overriding the upstream `.desktop` entry; no upstream issue is cited either
-  — see `users/common/gui-apps.nix:31-32`.
+- **Signal's `.desktop` entry launches with `--disable-gpu`.** Same amdgpu crash as VS Code above, worked around by overriding the upstream entry; no upstream issue cited — see `users/common/gui-apps.nix`.
+- **QGroundControl is built with `-Werror` stripped.** Upstream v4.4.5 hardcodes `-Werror` for GCC in `QGCCommon.pri`, and the newer GCC in nixpkgs warns on its sources (e.g. `-Wcalloc-transposed-args`), failing the build; no upstream issue cited — see `users/common/gui-apps.nix`. Drop the override once nixpkgs builds it clean.
 - **OrcaSlicer's `.desktop` entry is overridden to set `icon` to a store
   path.** Upstream references its icon by theme name and ships no scalable
   SVG; hicolor lookup by name doesn't resolve through the home-manager
