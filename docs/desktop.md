@@ -48,6 +48,7 @@ package policy, which is set in `flake.nix`.
 | `users/thomasga/easyeffects.nix` | EasyEffects EQ for the Framework 13 speakers |
 | `users/thomasga/orca-slicer.nix` | OrcaSlicer, the 3D-print slicer GUI |
 | `users/thomasga/bambu-studio.nix` | Bambu Studio, the 3D-print slicer GUI, from nixpkgs |
+| `users/thomasga/expresslrs-configurator.nix` | ExpressLRS Configurator from nixpkgs; USB access is `custom.expresslrs` ([docs/workstation.md](workstation.md#expresslrs-usb-flashing-udev)) |
 
 ## Theme, Background, And Desktop Preferences
 

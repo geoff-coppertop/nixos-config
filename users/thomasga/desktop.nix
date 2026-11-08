@@ -19,6 +19,7 @@
     ./connect-iq.nix
     ./shell.nix
     ./drawio.nix
+    ./expresslrs-configurator.nix
     ./orca-slicer.nix
     ./bambu-studio.nix
   ];

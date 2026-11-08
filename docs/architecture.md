@@ -298,6 +298,7 @@ says what an option does, the host README says what it binds there.
 | `custom.bambuSlicer.enable` | Inbound UDP 2021 for OrcaSlicer/Bambu Studio SSDP printer discovery — see [docs/workstation.md](workstation.md#bambu-lab-printer-discovery-ssdp) |
 | `custom.ai.claude.enable` / `custom.ai.copilot.enable` | Claude / GitHub Copilot integration in VS Code |
 | `custom.debugProbes.enable` | udev rules for USB JTAG/SWD probes — see [docs/workstation.md](workstation.md#usb-debug-probes-udev) |
+| `custom.expresslrs.enable` | udev rules for flashing ExpressLRS hardware over USB — see [docs/workstation.md](workstation.md#expresslrs-usb-flashing-udev) |
 | `custom.binCompat.enable` | Symlinks `/bin/bash` for tools whose shebang expects it |
 
 ### Homelab services

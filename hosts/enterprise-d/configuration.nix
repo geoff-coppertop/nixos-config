@@ -17,12 +17,13 @@ in {
   ];
 
   custom = {
-    users.thomasga = thomasga // {groups = ["wheel" "networkmanager" "plugdev"];};
+    users.thomasga = thomasga // {groups = ["wheel" "networkmanager" "plugdev" "dialout"];};
 
     wifi.enable = true;
     gaming.enable = true;
     vr.enable = true;
     debugProbes.enable = true;
+    expresslrs.enable = true;
     bambuSlicer.enable = true;
 
     networkDrives = {
