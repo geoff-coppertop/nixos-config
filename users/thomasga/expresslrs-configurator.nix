@@ -1,7 +1,6 @@
 {pkgs, ...}: {
   home.packages = [
-    # Upstream shells out to a bare `python` for flasher.pyz; see
-    # docs/desktop.md § Known Gotchas.
+    # The configurator runs flasher.pyz via a bare `python`.
     (pkgs.expresslrs-configurator.overrideAttrs (old: {
       postFixup =
         (old.postFixup or "")
