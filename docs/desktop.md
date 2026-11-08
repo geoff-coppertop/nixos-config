@@ -177,6 +177,7 @@ per-extension dconf settings block was added; defaults are left as-is.
   `users/thomasga/orca-slicer.nix`.
 - **Bambu Studio has the same `.desktop` icon issue and fix as OrcaSlicer
   above** — see `users/thomasga/bambu-studio.nix`.
+- **ExpressLRS Configurator is wrapped with `python3` on `PATH`.** It shells out to a bare `python` for `flasher.pyz` (WiFi and UART flashing), which NixOS doesn't provide and nixpkgs' wrapper doesn't add; no upstream issue cited — see `users/thomasga/expresslrs-configurator.nix`.
 - **`GDK_BACKEND=x11` (`lib/trust-printer-ca.nix`) doesn't cover the Device
   tab's printer-selector dropdown**, only the dialog it targets; collapse
   it to dismiss.

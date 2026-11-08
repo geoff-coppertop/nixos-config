@@ -9,9 +9,6 @@ in {
   options.custom.expresslrs.enable = mkEnableOption "udev rules for flashing ExpressLRS hardware over USB (CP210x/CH340 UART bridges, STM32 VCP/DFU, ESP32-S3 native USB)";
 
   config = mkIf config.custom.expresslrs.enable {
-    # services.udev.packages, not extraRules: the "69-" name must sort before
-    # systemd's 73-seat-late.rules for uaccess to apply — see
-    # docs/workstation.md § USB Debug Probes.
     services.udev.packages = [
       (pkgs.writeTextDir "etc/udev/rules.d/69-expresslrs.rules" ''
         SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", TAG+="uaccess"
