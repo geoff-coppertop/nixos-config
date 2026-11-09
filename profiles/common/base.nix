@@ -133,6 +133,9 @@ in {
 
   fonts.packages = with pkgs; [
     nerd-fonts.droid-sans-mono
+    carlito
+    caladea
+    liberation_ttf
   ];
 
   services.journald.settings.Journal.Storage = "persistent";
