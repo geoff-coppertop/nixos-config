@@ -1,6 +1,20 @@
 {
+  "env": {
+    "TZ": "America/Edmonton"
+  },
   "permissions": {
-    "defaultMode": "plan"
+    "defaultMode": "plan",
+    "ask": [
+      "Bash(git checkout -b *)",
+      "Bash(git checkout -B *)",
+      "Bash(git checkout --orphan *)",
+      "Bash(git switch -c *)",
+      "Bash(git switch -C *)",
+      "Bash(git switch --create *)",
+      "Bash(git switch --force-create *)",
+      "Bash(git worktree add *)",
+      "mcp__github__create_branch"
+    ]
   },
   "hooks": {
     "Stop": [

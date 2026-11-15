@@ -10,38 +10,15 @@ none.
 
 ## Test plan
 
-One checklist, in the order to run it. Every step is a concrete, copyable
-command in a fenced block with the expected result noted. "Verify it works"
+One checklist, in the order to run it. Every step except the CI item is a
+concrete, copyable command in a fenced block with the expected result noted. "Verify it works"
 is not a test step. Check a box only if you actually ran it and saw the
 expected output; leave unchecked steps that need hardware, a host you can't
 reach, or a state-changing command you must not run (`nixos-rebuild switch`,
 `nix flake update`, a manual backup, the installer) — say who runs those in
 the item.
 
-- [ ] Lint and format
-
-  ```bash
-  nix develop -c pre-commit run --all-files
-  ```
-
-  Expected: every hook `Passed`.
-
-- [ ] Flake evaluation — N/A if no `.nix` file changed (never bare
-      `nix flake check`, it builds aarch64 on x86_64)
-
-  ```bash
-  nix flake check --no-build
-  ```
-
-  Expected: exits 0, no output.
-
-- [ ] Host build, one per affected host — N/A if no `.nix` file changed
-
-  ```bash
-  nix build .#nixosConfigurations.enterprise-d.config.system.build.toplevel
-  ```
-
-  Expected: builds to `./result`.
+- [ ] Lint, flake evaluation and host builds — CI. Check this once CI is green on the head commit; no local command.
 
 - [ ] Change-specific check
 
@@ -75,7 +52,5 @@ the item.
   # output
   ```
 
-Docs-only changes still run the Lint and format step above — it includes
-markdownlint over every `.md` file. "Docs-only" only excuses the flake
-evaluation and host build steps (marked N/A when no `.nix` file changed);
-it never excuses lint.
+Docs-only changes are covered the same way: markdownlint runs over every `.md`
+file in the CI lint job.

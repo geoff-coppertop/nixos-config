@@ -73,7 +73,8 @@ These must hold without reading any doc first.
 - **Never `cd`** — not in copy-paste command blocks, not in tool-run shell commands. Use `git -C`, absolute paths, or the tool's own path flag.
 - **Never use heredocs** (`<<'EOF'...EOF`) anywhere. They do not work in this shell (fish). Write multi-line strings to a temp file and use `git commit -F /tmp/msg` or `--body-file /tmp/body`.
 - **Never hand-write files under `secrets/`.** Use `nix run .#secret-edit`.
-- **Run `nix develop -c pre-commit run --all-files` before any `nixos-rebuild switch`**, to catch option renames and formatting errors before the build fails mid-switch.
+- **Lint before any `nixos-rebuild switch` is satisfied by a green CI run on the commit being switched to.** CI runs `nix develop -c pre-commit run --all-files` on every push. Run it yourself only where CI hasn't, or after a change CI hasn't seen.
+- **Never ask the user to redo anything CI validates** — lint, `nix flake check`, per-host builds. A step belongs to the user only if it needs real hardware or an environment CI doesn't have. Check CI's result on the current head before giving any step.
 - **One file per concern**, anywhere in the tree.
 - **Home Assistant automations** use the `"automation manual"` key, never bare `"automation"`, and live one concern per file under `hosts/<host>/home-assistant/`.
 - **markdownlint runs over every `.md` in the tree**, including `docs/`, `.claude/`, and host READMEs — CLAUDE.md itself included. `MD013` is the only disabled rule — so never hand-wrap markdown at a fixed column; write each paragraph as one line.
@@ -99,7 +100,7 @@ These must hold without reading any doc first.
 - **Copyable commands go in a plain markdown code block in the message body**, never inside an `AskUserQuestion` option's label or description — those aren't copyable from the option UI.
 - **CI runs the real validation** (`nix flake check`, pre-commit, alejandra, statix, deadnix, per-host builds) on every push. When a sandbox has no `nix` binary, that's not a blocker to work around or apologize for — do whatever manual/structural verification is possible, then commit and push, saying once that CI will gate it rather than repeatedly flagging the gap.
 - **Give commands likely to work on the first try, not clever ones.** Avoid nested command substitutions and other bash-isms when the command runs against a fish shell — that's the user's local shell, and `thomasga`'s shell on every host via home-manager — since fish's quoting and redirection rules differ. Prefer re-running a command already shown to work over building a new pipeline to extract the same information.
-- **Walk manual steps one command at a time.** Give one command, wait for its output, then the next — never a batch or numbered list. Never prepend `cd` or ask what directory the user is in; assume they're already there. Don't ask the user to manually redo anything CI already validates — only give steps that need real hardware or an environment CI doesn't have.
+- **Walk manual steps one command at a time.** Give one command, wait for its output, then the next — never a batch or numbered list. Never prepend `cd` or ask what directory the user is in; assume they're already there.
 
 ### Git and PRs
 
