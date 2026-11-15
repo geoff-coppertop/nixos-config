@@ -21,6 +21,7 @@
     ./drawio.nix
     ./orca-slicer.nix
     ./bambu-studio.nix
+    ./onlyoffice.nix
   ];
 
   custom.appearance.darkMode = true;

@@ -27,9 +27,6 @@ appear only for users who choose them.
 }
 ```
 
-Chrome follows the same pattern, but `pkgs.google-chrome` also requires unfree
-package policy, which is set in `flake.nix`.
-
 ### Current ownership
 
 | File | Owns |
@@ -48,6 +45,7 @@ package policy, which is set in `flake.nix`.
 | `users/thomasga/easyeffects.nix` | EasyEffects EQ for the Framework 13 speakers |
 | `users/thomasga/orca-slicer.nix` | OrcaSlicer, the 3D-print slicer GUI |
 | `users/thomasga/bambu-studio.nix` | Bambu Studio, the 3D-print slicer GUI, from nixpkgs |
+| `users/thomasga/onlyoffice.nix` | ONLYOFFICE Desktop Editors, default for OOXML/legacy MS/ODF files |
 
 ## Theme, Background, And Desktop Preferences
 
