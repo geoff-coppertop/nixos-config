@@ -5,6 +5,7 @@
 - Host entrypoint: `hosts/enterprise-d/configuration.nix`
 - Hardware: `hosts/enterprise-d/hardware.nix`
 - Power tuning and hibernation policy: `hosts/enterprise-d/power.nix`
+- AC/battery power profile and panel power saving: `hosts/enterprise-d/ac-power-policy.nix`
 - Disk layout: `hosts/enterprise-d/disko.nix`
 - Plymouth boot theme package: `hosts/enterprise-d/framework-penguin-plymouth.nix`
 - Flake entry: `flake.nix`
@@ -242,6 +243,7 @@ first thing to try again.
 | 5 min idle | Suspend, hibernate after 10 min — forced even if an app holds a suspend inhibitor |
 | 10 min suspended | Hibernate |
 | Critical battery | Immediate hibernate, bypassing suspend |
+| AC removed or restored | `power-saver` profile and panel power savings level 3 on battery, `balanced` and level 0 on AC — a manual `powerprofilesctl set` lasts until the next plug event |
 
 On battery, sustained idle always wins: logind's `IdleAction` suspends at ~4.5 min when nothing inhibits, and the `battery-idle-suspend` watchdog forces `systemctl suspend -i` at 5 min if an application (e.g. a Firefox tab "Playing video") holds a suspend inhibitor that would otherwise block it indefinitely. The forced suspend relies on a polkit rule granting root the `suspend-ignore-inhibit` action non-interactively (the watchdog is a system service with no auth agent). The watchdog logs every countdown transition under `journalctl -t battery-idle-suspend`: countdown started, countdown reset (with the reason — back on AC, no active session, session active again, remote session active), and the forced suspend itself. Steady-state runs where nothing was in progress stay silent.
 
@@ -268,6 +270,7 @@ The greeter's own compositor cannot report idle — the GDM dconf profile sets `
 | File | Responsibility |
 | --- | --- |
 | `hosts/enterprise-d/power.nix` | logind lid/key actions, `IdleAction`, RTC wakeup kernel param, `hibernate-trigger` system-sleep hook (arms RTC wakealarm, decides hibernate on resume, logging), a preflight on `hibernate-trigger-hibernate` that diagnoses (and, for a known `memfd_secret()` cause, auto-remediates) a kernel-level hibernate block before every attempt, `hibernate-trigger-fallback` (re-suspends on a failed hibernate so the RTC cycle retries instead of draining awake), build-time assertions that `resumeDevice` matches a configured swap device |
+| `hosts/enterprise-d/ac-power-policy.nix` | udev rule on the Mains supply starts the `ac-power-policy` oneshot, which sets the PPD profile and amdgpu `panel_power_savings` for AC or battery; logs failures under `journalctl -t ac-power-policy` |
 | `profiles/desktop/power.nix` | UPower critical-battery hibernate; `idle-hint` user service (swayidle sets logind `IdleHint` on `ext-idle-notify-v1` compositors, skipped on GNOME/gdm, start-limited so an unsupported compositor fails visibly); `greeter-idle-hint` system timer (marks an active greeter-class session idle so the login screen can suspend); `logind-idle-inhibitor` user service (blocks logind `IdleAction` only while on AC, skipped for gdm); `remote-session-idle-inhibitor` (SSH counts as activity) and the `battery-idle-suspend` watchdog (forces `suspend -i` on battery past 5 min idle, overriding application inhibitors, via a root polkit grant; skips when a remote session is active); shared Mains-only AC-detection and remote-session helpers |
 | `users/thomasga/gnome.nix` | GNOME-side dconf only: screen blank at 4 min (which is also when Mutter sets logind `IdleHint` — the suspend chain's trigger), lock on blank, gsd-power disabled from sleeping the system |
 
