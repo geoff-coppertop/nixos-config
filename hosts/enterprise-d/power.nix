@@ -27,10 +27,7 @@
       "mem_sleep_default=s2idle"
       "button.lid_init_state=open"
       "amd_pstate=active"
-      # Switches RTC wakeup to ACPI alarms instead of HPET, avoiding an
-      # AMD EC/RTC timing race (rtc->aie_timer mismatch in amd-pmc's
-      # timer-based S0i3 wakeup handling) that otherwise causes the
-      # suspend-then-hibernate RTC alarm to be misread as a user wake.
+      # RTC wakeup via ACPI alarms, not HPET (AMD EC/RTC race); see README.
       "rtc_cmos.use_acpi_alarm=1"
     ];
     resumeDevice = "/dev/vg/swap";
@@ -42,18 +39,8 @@
   networking.networkmanager.wifi.powersave = true;
   services = {
     logind.settings.Login = {
-      # Plain suspend, not suspend-then-hibernate: systemd's own
-      # suspend-then-hibernate logic (execute_s2h()/custom_timer_suspend()
-      # in src/sleep/sleep.c) has a zero-timeout POLLIN race where the
-      # RTC/EC timer wake reaches the process before systemd's own poll on
-      # the timerfd reports readable, so it treats the wake as
-      # user-initiated and skips hibernate (systemd/systemd#38193, open,
-      # unfixed). Measured ~43% failure rate on this hardware across 7 real
-      # cycles even with rtc_cmos.use_acpi_alarm=1 set above, because that
-      # param only affects how the RTC alarm is routed at the kernel/EC
-      # layer — it doesn't touch systemd's own racy poll logic. The
-      # hibernate-trigger system-sleep hook below replaces systemd's timer
-      # decision with our own non-racy wall-clock check.
+      # Plain suspend, not suspend-then-hibernate (systemd/systemd#38193): the
+      # hibernate-trigger hook below decides instead. See README.
       HandleLidSwitch = "suspend";
       HandleLidSwitchExternalPower = "lock";
       HandleLidSwitchDocked = "ignore";
