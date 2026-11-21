@@ -218,7 +218,7 @@ The machines currently in this repo are listed in the [root README](../README.md
 | `profiles/desktop/` | Desktop environment baseline, audio (pipewire), power/idle policy |
 | `profiles/dev/` | Dev tooling: GitHub CLI, container runtime, network tools |
 | `modules/` | `custom.*` feature modules: users, Wi-Fi, backups, btrfs, snapper, secure boot, TPM-LUKS, Steam, homelab services (see the `custom.*` catalogue below) |
-| `modules/udev-rules/` | Verbatim upstream udev rule files loaded via `services.udev.packages` |
+| `modules/udev-rules/` | udev rule files loaded via `services.udev.packages` |
 | `users/thomasga/` | Git, SSH, fish shell, GNOME dconf, VS Code, wallpaper, per-machine profiles |
 | `users/common/` | Shared opt-in user modules: CLI tools, GUI apps, appearance |
 | `lib/` | `apps.nix`, `checks.nix`, `module-inertness.nix` (the `modules-inert` check), `devshell.nix`, `local-file.nix` (see [§ Local Files As Build Inputs](#local-files-as-build-inputs)), `nas.nix`, `nixos-system.nix`, `ssh-hosts.nix`, `traefik-route.nix`, `trust-printer-ca.nix` (appends a CA to a Bambu-family slicer's bundled `printer.cer`, used by `pkgs/orca-slicer.nix` and `pkgs/bambu-studio.nix`) |
@@ -298,6 +298,7 @@ says what an option does, the host README says what it binds there.
 | `custom.bambuSlicer.enable` | Inbound UDP 2021 for OrcaSlicer/Bambu Studio SSDP printer discovery — see [docs/workstation.md](workstation.md#bambu-lab-printer-discovery-ssdp) |
 | `custom.ai.claude.enable` / `custom.ai.copilot.enable` | Claude / GitHub Copilot integration in VS Code |
 | `custom.debugProbes.enable` | udev rules for USB JTAG/SWD probes — see [docs/workstation.md](workstation.md#usb-debug-probes-udev) |
+| `custom.edgetx.enable` | EdgeTX radio flashing: STM32 DFU and radio/ELRS USB-serial udev access, `dfu-util`, ExpressLRS Configurator — see [docs/workstation.md](workstation.md#edgetx-radio-flashing-udev) |
 | `custom.binCompat.enable` | Symlinks `/bin/bash` for tools whose shebang expects it |
 
 ### Homelab services

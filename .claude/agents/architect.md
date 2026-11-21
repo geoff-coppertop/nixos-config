@@ -73,7 +73,7 @@ Not yours, hand back to the owning specialist:
 - home-manager module contents, dotfiles, GUI apps, desktop theme →
   `user-provisioner`
 - The capability profiles that say what class of machine a host is —
-  `profiles/desktop/` and `profiles/dev/`, plus `modules/debug-probes.nix` and
+  `profiles/desktop/` and `profiles/dev/`, plus `modules/debug-probes.nix`, `modules/edgetx.nix` and
   `modules/bin-compat.nix` → `machine-provisioner`
 - Traefik and DNS service config → `homelab-network`
 - Home Assistant, Zigbee/Z-Wave/Matter/MQTT/ADS-B service config →
