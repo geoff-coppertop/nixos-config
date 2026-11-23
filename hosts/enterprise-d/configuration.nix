@@ -6,6 +6,7 @@ in {
   imports = [
     ./hardware.nix
     ./power.nix
+    ./ac-power-policy.nix
     ./disko.nix
     ./secrets.nix
 
